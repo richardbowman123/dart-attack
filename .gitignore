@@ -1,0 +1,12 @@
+# Godot cache and editor state
+.godot/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Export builds
+*.apk
+*.aab
+*.ipa
