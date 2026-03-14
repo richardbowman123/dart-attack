@@ -1,6 +1,9 @@
 extends Control
 
 func _ready() -> void:
+	# Reset VS mode flag when returning to menu
+	GameState.is_vs_ai = false
+	GameState.opponent_id = ""
 	_build_menu()
 
 func _build_menu() -> void:
@@ -10,15 +13,36 @@ func _build_menu() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
+	# Scrollable container for all content
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(0, 0)
+	scroll.size = Vector2(720, 1280)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(scroll)
+
+	var content := VBoxContainer.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 0)
+	scroll.add_child(content)
+
+	# Spacer at top
+	var top_spacer := Control.new()
+	top_spacer.custom_minimum_size = Vector2(720, 60)
+	content.add_child(top_spacer)
+
 	# Title
 	var title := Label.new()
 	title.text = "DART ATTACK"
 	title.add_theme_font_size_override("font_size", 48)
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 60)
-	title.size = Vector2(720, 58)
-	add_child(title)
+	title.custom_minimum_size = Vector2(720, 58)
+	content.add_child(title)
+
+	# Spacer
+	var sp1 := Control.new()
+	sp1.custom_minimum_size = Vector2(720, 12)
+	content.add_child(sp1)
 
 	# Show selected character name
 	var names := [
@@ -33,43 +57,108 @@ func _build_menu() -> void:
 	player_label.add_theme_font_size_override("font_size", 18)
 	player_label.add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
 	player_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	player_label.position = Vector2(0, 130)
-	player_label.size = Vector2(720, 26)
-	add_child(player_label)
+	player_label.custom_minimum_size = Vector2(720, 26)
+	content.add_child(player_label)
 
-	# ── Game mode section ──
-	var mode_label := Label.new()
-	mode_label.text = "Choose your game"
-	mode_label.add_theme_font_size_override("font_size", 20)
-	mode_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
-	mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mode_label.position = Vector2(0, 200)
-	mode_label.size = Vector2(720, 28)
-	add_child(mode_label)
+	# ── Tutorial button ──
+	var tut_spacer := Control.new()
+	tut_spacer.custom_minimum_size = Vector2(720, 30)
+	content.add_child(tut_spacer)
+
+	var tut_btn := _create_menu_button("Tutorial", 440, 54, 26)
+	tut_btn.pressed.connect(_on_tutorial_pressed)
+	var tut_wrapper := CenterContainer.new()
+	tut_wrapper.custom_minimum_size = Vector2(720, 62)
+	tut_wrapper.add_child(tut_btn)
+	content.add_child(tut_wrapper)
+
+	# ── Practice section ──
+	var practice_spacer := Control.new()
+	practice_spacer.custom_minimum_size = Vector2(720, 30)
+	content.add_child(practice_spacer)
+
+	var practice_label := Label.new()
+	practice_label.text = "Practice"
+	practice_label.add_theme_font_size_override("font_size", 20)
+	practice_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
+	practice_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	practice_label.custom_minimum_size = Vector2(720, 28)
+	content.add_child(practice_label)
+
+	var practice_gap := Control.new()
+	practice_gap.custom_minimum_size = Vector2(720, 10)
+	content.add_child(practice_gap)
 
 	var button_data := [
-		{"text": "Tutorial", "mode": "tutorial", "score": 0},
 		{"text": "Round the Clock", "mode": "rtc", "score": 0},
 		{"text": "101", "mode": "countdown", "score": 101},
 		{"text": "301", "mode": "countdown", "score": 301},
 		{"text": "501", "mode": "countdown", "score": 501},
 	]
 
-	var btn_start_y := 250
-	var btn_h := 58
-	var btn_gap := 12
+	for data in button_data:
+		var btn := _create_menu_button(data["text"], 440, 54, 26)
+		btn.pressed.connect(_on_mode_selected.bind(data["mode"], data["score"]))
+		var wrapper := CenterContainer.new()
+		wrapper.custom_minimum_size = Vector2(720, 62)
+		wrapper.add_child(btn)
+		content.add_child(wrapper)
 
-	for i in range(button_data.size()):
-		var data: Dictionary = button_data[i]
-		_build_mode_button(data, btn_start_y + i * (btn_h + btn_gap), btn_h)
+	# ── VS Opponent section ──
+	var vs_spacer := Control.new()
+	vs_spacer.custom_minimum_size = Vector2(720, 30)
+	content.add_child(vs_spacer)
+
+	var vs_label := Label.new()
+	vs_label.text = "Career Mode"
+	vs_label.add_theme_font_size_override("font_size", 20)
+	vs_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
+	vs_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vs_label.custom_minimum_size = Vector2(720, 28)
+	content.add_child(vs_label)
+
+	var vs_gap := Control.new()
+	vs_gap.custom_minimum_size = Vector2(720, 10)
+	content.add_child(vs_gap)
+
+	# Career Mode: only show Big Kev for now (unlock others later)
+	var career_opponents := ["big_kev"]
+	for opp_id in career_opponents:
+		var label_text: String = OpponentData.get_menu_label(opp_id)
+		var btn := _create_menu_button(label_text, 440, 46, 20)
+		# Red-tinted style for VS buttons
+		var vs_style := StyleBoxFlat.new()
+		vs_style.bg_color = Color(0.2, 0.1, 0.12)
+		vs_style.corner_radius_top_left = 8
+		vs_style.corner_radius_top_right = 8
+		vs_style.corner_radius_bottom_left = 8
+		vs_style.corner_radius_bottom_right = 8
+		vs_style.border_width_left = 2
+		vs_style.border_width_right = 2
+		vs_style.border_width_top = 2
+		vs_style.border_width_bottom = 2
+		vs_style.border_color = Color(0.4, 0.2, 0.2)
+		btn.add_theme_stylebox_override("normal", vs_style)
+		var vs_hover := vs_style.duplicate()
+		vs_hover.bg_color = Color(0.3, 0.15, 0.15)
+		vs_hover.border_color = Color(0.6, 0.3, 0.3)
+		btn.add_theme_stylebox_override("hover", vs_hover)
+		var vs_pressed := vs_style.duplicate()
+		vs_pressed.bg_color = Color(0.35, 0.18, 0.18)
+		btn.add_theme_stylebox_override("pressed", vs_pressed)
+		btn.add_theme_color_override("font_hover_color", Color(1.0, 0.6, 0.5))
+		btn.pressed.connect(_on_vs_selected.bind(opp_id))
+		var wrapper := CenterContainer.new()
+		wrapper.custom_minimum_size = Vector2(720, 54)
+		wrapper.add_child(btn)
+		content.add_child(wrapper)
 
 	# ── Back button ──
-	var back_btn := Button.new()
-	back_btn.text = "BACK"
-	back_btn.position = Vector2(140, btn_start_y + button_data.size() * (btn_h + btn_gap) + 20)
-	back_btn.size = Vector2(440, 50)
-	back_btn.add_theme_font_size_override("font_size", 22)
+	var back_spacer := Control.new()
+	back_spacer.custom_minimum_size = Vector2(720, 20)
+	content.add_child(back_spacer)
 
+	var back_btn := _create_menu_button("BACK", 440, 50, 22)
 	var back_style := StyleBoxFlat.new()
 	back_style.bg_color = Color(0.1, 0.1, 0.13)
 	back_style.corner_radius_top_left = 8
@@ -82,23 +171,27 @@ func _build_menu() -> void:
 	back_style.border_width_bottom = 2
 	back_style.border_color = Color(0.25, 0.25, 0.3)
 	back_btn.add_theme_stylebox_override("normal", back_style)
-
 	var back_hover := back_style.duplicate()
 	back_hover.bg_color = Color(0.15, 0.15, 0.2)
 	back_btn.add_theme_stylebox_override("hover", back_hover)
-
 	back_btn.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
 	back_btn.add_theme_color_override("font_hover_color", Color.WHITE)
 	back_btn.pressed.connect(_on_back_pressed)
-	add_child(back_btn)
+	var back_wrapper := CenterContainer.new()
+	back_wrapper.custom_minimum_size = Vector2(720, 58)
+	back_wrapper.add_child(back_btn)
+	content.add_child(back_wrapper)
 
-func _build_mode_button(data: Dictionary, y: int, h: int) -> void:
+	# Bottom padding
+	var bottom_spacer := Control.new()
+	bottom_spacer.custom_minimum_size = Vector2(720, 40)
+	content.add_child(bottom_spacer)
+
+func _create_menu_button(text: String, w: int, h: int, font_size: int) -> Button:
 	var btn := Button.new()
-	var btn_text: String = data["text"]
-	btn.text = btn_text
-	btn.position = Vector2(140, y)
-	btn.size = Vector2(440, h)
-	btn.add_theme_font_size_override("font_size", 26)
+	btn.text = text
+	btn.custom_minimum_size = Vector2(w, h)
+	btn.add_theme_font_size_override("font_size", font_size)
 
 	var normal_style := StyleBoxFlat.new()
 	normal_style.bg_color = Color(0.15, 0.15, 0.2)
@@ -125,20 +218,36 @@ func _build_mode_button(data: Dictionary, y: int, h: int) -> void:
 	btn.add_theme_color_override("font_color", Color.WHITE)
 	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.9, 0.3))
 
-	var mode: String = data["mode"]
-	var score: int = data["score"]
-	btn.pressed.connect(_on_mode_selected.bind(mode, score))
-	add_child(btn)
+	return btn
+
+func _on_tutorial_pressed() -> void:
+	GameState.game_mode = GameState.GameMode.TUTORIAL
+	GameState.dart_tier = 0
+	GameState.is_vs_ai = false
+	GameState.opponent_id = ""
+	get_tree().change_scene_to_file("res://scenes/match.tscn")
 
 func _on_mode_selected(mode: String, score: int) -> void:
-	if mode == "tutorial":
-		GameState.game_mode = GameState.GameMode.TUTORIAL
-	elif mode == "rtc":
+	GameState.is_vs_ai = false
+	GameState.opponent_id = ""
+	if mode == "rtc":
 		GameState.game_mode = GameState.GameMode.ROUND_THE_CLOCK
 	else:
 		GameState.game_mode = GameState.GameMode.COUNTDOWN
 		GameState.starting_score = score
 	get_tree().change_scene_to_file("res://scenes/dart_select.tscn")
+
+func _on_vs_selected(opponent_id: String) -> void:
+	var opp: Dictionary = OpponentData.get_opponent(opponent_id)
+	GameState.is_vs_ai = true
+	GameState.opponent_id = opponent_id
+	if opp["game_mode"] == "rtc":
+		GameState.game_mode = GameState.GameMode.ROUND_THE_CLOCK
+		GameState.starting_score = 0
+	else:
+		GameState.game_mode = GameState.GameMode.COUNTDOWN
+		GameState.starting_score = opp["starting_score"]
+	get_tree().change_scene_to_file("res://scenes/career_dart_choice.tscn")
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/character_select.tscn")

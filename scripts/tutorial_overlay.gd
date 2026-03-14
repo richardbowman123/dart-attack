@@ -48,6 +48,7 @@ var _feedback_label: Label
 var _feedback_bg: ColorRect
 var _guide_canvas: Control
 var _speed_indicator: Label
+var _instruction_bg: ColorRect
 var _intro_panel: PanelContainer
 var _intro_label: Label
 var _go_button: Button
@@ -179,12 +180,22 @@ func _build_intro_panel() -> void:
 	add_child(_intro_panel)
 
 func _build_instruction_label() -> void:
+	# Dark background so text is readable over the board
+	_instruction_bg = ColorRect.new()
+	_instruction_bg.color = Color(0.0, 0.0, 0.0, 0.8)
+	_instruction_bg.size = Vector2(620, 40)
+	_instruction_bg.position = Vector2(50, _viewport_size.y * THROW_ZONE_TOP + 6)
+	_instruction_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_instruction_bg.visible = false
+	add_child(_instruction_bg)
+
 	_instruction_label = Label.new()
 	_instruction_label.add_theme_font_size_override("font_size", 22)
-	_instruction_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
+	_instruction_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
 	_instruction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_instruction_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_instruction_label.size = Vector2(720, 40)
-	_instruction_label.position = Vector2(0, _viewport_size.y * THROW_ZONE_TOP + 10)
+	_instruction_label.position = Vector2(0, _viewport_size.y * THROW_ZONE_TOP + 6)
 	_instruction_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_instruction_label.visible = false
 	add_child(_instruction_label)
@@ -241,6 +252,7 @@ func _show_intro() -> void:
 
 	_intro_panel.visible = true
 	_instruction_label.visible = false
+	_instruction_bg.visible = false
 	_guide_canvas.visible = false
 	# Reset camera to full board view so the target circle is visible
 	if _camera_rig:
@@ -257,8 +269,9 @@ func _begin_aiming() -> void:
 	_showed_throw_hint = false
 	_update_board_target()
 
-	_instruction_label.text = "Pinch to zoom in, then touch GREEN and swipe to RED"
+	_instruction_label.text = "Pinch to zoom in, then swipe from GREEN up to RED"
 	_instruction_label.visible = true
+	_instruction_bg.visible = true
 	_guide_canvas.visible = true
 
 func _update_board_target() -> void:
@@ -287,24 +300,26 @@ func _recalculate_guide_positions() -> void:
 	if not _camera:
 		return
 
+	# Both the yellow crosshair and the red dot sit at the target's visual
+	# position on the board. With ray projection in ThrowSystem, releasing
+	# at this screen position sends the dart straight to the target — the
+	# same straight line from camera through finger to board.
 	var board_pos_3d := Vector3(_target_board_pos.x, _target_board_pos.y, 0.0)
-	var screen_pos := _camera.unproject_position(board_pos_3d)
+	_target_screen_pos = _camera.unproject_position(board_pos_3d)
 
-	# Store screen position for drawing the target circle on the board view
-	_target_screen_pos = screen_pos
+	# Red dot = RELEASE point, right on top of the target on the board.
+	# Releasing here ray-projects directly to the target board position.
+	_red_dot_pos = _target_screen_pos
+	_red_dot_pos.x = clampf(_red_dot_pos.x, DOT_RADIUS, _viewport_size.x - DOT_RADIUS)
+	_red_dot_pos.y = clampf(_red_dot_pos.y, DOT_RADIUS, _viewport_size.y - DOT_RADIUS)
 
-	var throw_zone_top_px := _viewport_size.y * THROW_ZONE_TOP
-	var throw_zone_height := _viewport_size.y - throw_zone_top_px
-
-	var throw_t := screen_pos.y / _viewport_size.y
-	var touch_y := throw_t * throw_zone_height + throw_zone_top_px
-
-	_green_dot_pos = Vector2(screen_pos.x, touch_y)
-	_green_dot_pos.y = clampf(_green_dot_pos.y, throw_zone_top_px + DOT_RADIUS, _viewport_size.y - DOT_RADIUS)
+	# Green dot = START of swipe, below the red dot. Must be in the throw
+	# zone since touches above the boundary (y < 576) are rejected.
+	var tz_top := _viewport_size.y * THROW_ZONE_TOP
+	_green_dot_pos = Vector2(_red_dot_pos.x, _red_dot_pos.y + SWIPE_LENGTH)
 	_green_dot_pos.x = clampf(_green_dot_pos.x, DOT_RADIUS, _viewport_size.x - DOT_RADIUS)
-
-	_red_dot_pos = Vector2(_green_dot_pos.x, _green_dot_pos.y - SWIPE_LENGTH)
-	_red_dot_pos.y = maxf(_red_dot_pos.y, throw_zone_top_px + DOT_RADIUS)
+	var min_green_y := maxf(tz_top + DOT_RADIUS, _red_dot_pos.y + DOT_RADIUS * 2.5)
+	_green_dot_pos.y = clampf(_green_dot_pos.y, min_green_y, _viewport_size.y - DOT_RADIUS)
 
 # ── Drawing ──
 
@@ -312,31 +327,25 @@ func _draw_guides() -> void:
 	if _phase != Phase.AIMING:
 		return
 
-	# ── Target circle on the board (in the board view area, top of screen) ──
-	# This is the "aim here" indicator — it moves/scales naturally with zoom
 	var pulse := (sin(Time.get_ticks_msec() / 300.0) + 1.0) / 2.0
-	var target_r := 22.0 + pulse * 4.0
-	# Pulsing crosshair circle
-	_guide_canvas.draw_circle(_target_screen_pos, target_r, Color(1.0, 1.0, 0.0, 0.6 + pulse * 0.2), false, 2.5)
-	_guide_canvas.draw_circle(_target_screen_pos, target_r * 0.4, Color(1.0, 1.0, 0.0, 0.4), false, 1.5)
-	# Small cross at centre
+
+	# ── Yellow crosshair on the board (aim indicator) ──
+	var crosshair_r := 22.0 + pulse * 4.0
+	_guide_canvas.draw_circle(_target_screen_pos, crosshair_r, Color(1.0, 1.0, 0.0, 0.5 + pulse * 0.2), false, 2.5)
+	_guide_canvas.draw_circle(_target_screen_pos, crosshair_r * 0.4, Color(1.0, 1.0, 0.0, 0.3), false, 1.5)
 	var cross := 6.0
-	_guide_canvas.draw_line(_target_screen_pos + Vector2(-cross, 0), _target_screen_pos + Vector2(cross, 0), Color(1.0, 1.0, 0.0, 0.7), 1.5)
-	_guide_canvas.draw_line(_target_screen_pos + Vector2(0, -cross), _target_screen_pos + Vector2(0, cross), Color(1.0, 1.0, 0.0, 0.7), 1.5)
+	_guide_canvas.draw_line(_target_screen_pos + Vector2(-cross, 0), _target_screen_pos + Vector2(cross, 0), Color(1.0, 1.0, 0.0, 0.5), 1.5)
+	_guide_canvas.draw_line(_target_screen_pos + Vector2(0, -cross), _target_screen_pos + Vector2(0, cross), Color(1.0, 1.0, 0.0, 0.5), 1.5)
 
-	# ── Faint connecting line from board target down to the green dot ──
-	var connect_colour := Color(1, 1, 1, 0.15)
-	_guide_canvas.draw_line(_target_screen_pos, _green_dot_pos, connect_colour, 1.0)
-
-	# ── Green dot (start position in throw zone) ──
-	_guide_canvas.draw_circle(_green_dot_pos, DOT_RADIUS, Color(0.2, 0.9, 0.2, 0.9))
-	_guide_canvas.draw_circle(_green_dot_pos, DOT_RADIUS + 2, Color(0.2, 0.9, 0.2, 0.4), false, 2.0)
-
-	# ── Red dot (swipe end) ──
+	# ── Red dot at the target on the board (release/stop point) ──
 	_guide_canvas.draw_circle(_red_dot_pos, DOT_RADIUS, Color(0.9, 0.2, 0.2, 0.9))
 	_guide_canvas.draw_circle(_red_dot_pos, DOT_RADIUS + 2, Color(0.9, 0.2, 0.2, 0.4), false, 2.0)
 
-	# ── Arrow from green to red ──
+	# ── Green dot below = swipe start ──
+	_guide_canvas.draw_circle(_green_dot_pos, DOT_RADIUS, Color(0.2, 0.9, 0.2, 0.9))
+	_guide_canvas.draw_circle(_green_dot_pos, DOT_RADIUS + 2, Color(0.2, 0.9, 0.2, 0.4), false, 2.0)
+
+	# ── Arrow from green UP to red (swipe direction) ──
 	var dir := (_red_dot_pos - _green_dot_pos).normalized()
 	var line_start := _green_dot_pos + dir * DOT_RADIUS
 	var line_end := _red_dot_pos - dir * DOT_RADIUS
@@ -350,59 +359,42 @@ func _draw_guides() -> void:
 	var right := tip - dir * arrow_size - perp * arrow_size * 0.5
 	_guide_canvas.draw_colored_polygon(PackedVector2Array([tip, left, right]), Color(1, 1, 1, 0.8))
 
-	# Pulsing glow on green dot
+	# Pulsing glow on green dot (start here)
 	var glow_r := DOT_RADIUS + 6.0 + pulse * 6.0
 	_guide_canvas.draw_circle(_green_dot_pos, glow_r, Color(0.2, 0.9, 0.2, 0.15 + pulse * 0.1), false, 2.0)
 
 # ── Miss feedback ──
 #
-# The throw system works like this:
-#   - WHERE you place your finger in the throw zone determines the AIM POINT on the board
-#   - The SWIPE SPEED determines throw power, which affects the flight arc
-#   - Faster swipes = flatter arc = dart arrives higher than aimed
-#   - Slower swipes = more arc = dart drops lower than aimed
-#   - Left/right offset is purely about finger placement (horizontal position)
-#
-# So for feedback:
-#   - Dart went HIGH → either finger too high in zone, OR swipe too fast (both can cause it)
-#   - Dart went LOW → either finger too low, OR swipe too slow
-#   - Dart went LEFT/RIGHT → finger was offset horizontally
+# Release position is the primary aim factor (~90%). Swipe speed adds a small
+# vertical nudge (~10%): faster = higher, slower = lower, medium = zero nudge.
 
 func _show_miss_feedback(hit_pos: Vector2, hit_number: int) -> void:
-	# Two things control where the dart lands:
-	#   1. Finger POSITION in the throw zone → sets the aim point
-	#   2. Swipe LENGTH and SPEED → sets the power (longer/faster = more force)
-	# More power pushes the dart higher than aimed. Less power lets it drop.
-	# Left/right is purely about horizontal finger position.
-
 	var delta := hit_pos - _target_board_pos
 	var target: int = get_current_target()
 	var feedback := ""
 
 	if hit_number == 0:
 		if hit_pos.y < -BoardData.BOARD_RADIUS:
-			# Missed below the board — not enough power
-			feedback = "Missed low! Try a longer, faster swipe to give it more power"
+			feedback = "Missed low! Release a bit higher, or swipe a bit faster"
 		else:
-			# Missed above or wide — too much power or bad aim
-			feedback = "Off the board! Try a shorter, slower swipe — or start closer to the green dot"
+			feedback = "Off the board! Release closer to the red dot"
 	else:
 		var horiz_off := absf(delta.x)
 		var vert_off := absf(delta.y)
 
 		if horiz_off > 0.25 and horiz_off > vert_off * 1.3:
 			if delta.x > 0:
-				feedback = "Drifted right. Start your finger a little to the left"
+				feedback = "Drifted right. Release a little to the left"
 			else:
-				feedback = "Drifted left. Start your finger a little to the right"
+				feedback = "Drifted left. Release a little to the right"
 
 		elif vert_off > 0.25:
 			if delta.y > 0:
-				# Dart went HIGH — too much power or finger too high
-				feedback = "Went high! Try a shorter swipe path, or move your finger more slowly between the dots"
+				# Dart went HIGH — released too high or swiped too fast
+				feedback = "Went high! Release a touch lower, or try a gentler swipe"
 			else:
-				# Dart went LOW — not enough power or finger too low
-				feedback = "Fell short! Try a longer swipe, or flick a bit faster to give it more power"
+				# Dart went LOW — released too low or swiped too slowly
+				feedback = "Fell short! Release a touch higher, or swipe a bit faster"
 		else:
 			feedback = "Close! You hit " + str(hit_number) + " — just a touch off. Try again"
 
@@ -421,10 +413,12 @@ func _show_success() -> void:
 	_feedback_bg.visible = true
 	_feedback_bg.color = Color(0.0, 0.15, 0.0, 0.8)
 	_instruction_label.visible = false
+	_instruction_bg.visible = false
 	_guide_canvas.visible = false
 
 func _show_completion() -> void:
 	_instruction_label.visible = false
+	_instruction_bg.visible = false
 	_guide_canvas.visible = false
 	_feedback_label.text = "Nice one! You've got the hang of it"
 	_feedback_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.0))

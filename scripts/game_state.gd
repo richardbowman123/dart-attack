@@ -6,3 +6,8 @@ var game_mode: GameMode = GameMode.COUNTDOWN
 var starting_score: int = 501  # Only used for COUNTDOWN mode
 var character: DartData.Character = DartData.Character.DAI
 var dart_tier: int = 0
+var tutorial_completed: bool = false
+
+# VS AI mode
+var is_vs_ai: bool = false
+var opponent_id: String = ""

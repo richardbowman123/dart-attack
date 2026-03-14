@@ -140,3 +140,36 @@ static func get_barrel_length(tier: int) -> float:
 
 static func get_barrel_metallic(tier: int) -> float:
 	return get_tier(tier)["barrel_metallic"]
+
+# Profile image paths for each playable character
+const PROFILE_IMAGES := {
+	Character.DAI: "res://Dai The Dragon Davies 16 profile.jpg",
+	Character.TERRY: "res://Terry The Hammer Hoskins 19 profile.jpg",
+	Character.RAB: "res://Rab The Flame McTavish 21 profile.jpg",
+	Character.SIOBHAN: "res://Siobhan The Banshee O'Hara 19 profile.jpg",
+}
+
+# Short display names for each character
+const CHARACTER_NAMES := {
+	Character.DAI: "Dai",
+	Character.TERRY: "Terry",
+	Character.RAB: "Rab",
+	Character.SIOBHAN: "Siobhan",
+}
+
+# Nicknames for each character
+const CHARACTER_NICKNAMES := {
+	Character.DAI: "THE DRAGON",
+	Character.TERRY: "THE HAMMER",
+	Character.RAB: "THE FLAME",
+	Character.SIOBHAN: "THE BANSHEE",
+}
+
+static func get_profile_image(character: Character) -> String:
+	return PROFILE_IMAGES[character]
+
+static func get_character_name(character: Character) -> String:
+	return CHARACTER_NAMES[character]
+
+static func get_character_nickname(character: Character) -> String:
+	return CHARACTER_NICKNAMES[character]

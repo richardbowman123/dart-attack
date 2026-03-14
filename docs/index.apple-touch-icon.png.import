@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bnxqgujhfvpka"
-path="res://.godot/imported/Dart Attack.apple-touch-icon.png-eef84f3f2fc99188c584bd4cebaae0f2.ctex"
+path="res://.godot/imported/index.apple-touch-icon.png-b21a756d869f84af832970a74d8371bc.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://web-export/Dart Attack.apple-touch-icon.png"
-dest_files=["res://.godot/imported/Dart Attack.apple-touch-icon.png-eef84f3f2fc99188c584bd4cebaae0f2.ctex"]
+source_file="res://docs/index.apple-touch-icon.png"
+dest_files=["res://.godot/imported/index.apple-touch-icon.png-b21a756d869f84af832970a74d8371bc.ctex"]
 
 [params]
 

@@ -120,6 +120,7 @@ All code-driven (no scene editor UI). Follows the same patterns as Animal Merge:
 6. **Vision blur shader** — progressive blur effect from drinking, up to double vision
 7. **Career mode structure** — level progression, between-match menus, unlock flow
 8. **Round the Clock camera** — auto-focus on the next target segment (the `focus_segment` function exists but isn't wired up yet)
+9. **Advanced tutorial (post-Level 1)** — after beating Big Kev at Round the Clock, trigger a "How to Hit Doubles and Trebles" tutorial. Level 2 is 101 countdown where doubles are essential for checkout, so the player needs to understand them before they get there. Can reuse the basic tutorial framework with different targets and instructions
 
 ### Deployment workflow
 1. Make changes in Godot
@@ -145,6 +146,22 @@ Three components:
 They multiply together: calm player + clean throw = laser accurate. Nervous player + panicky flick = all over the shop.
 
 The in-air wobble visual could come earlier (Phase 2 polish) since it's purely cosmetic.
+
+## Design notes — progressive zoom (future)
+
+Discussed 14 March 2026. The idea: better players can zoom in further than beginners. Currently zoom has a fixed max level. A progressive system would let the player zoom closer to the board as they improve — giving genuine gameplay advantage from progression, not just cosmetic upgrades.
+
+Potential factors that could increase max zoom:
+- **Dart quality** — better darts = steadier hand = can zoom more
+- **Player heft** — heavier player is more planted, steadier
+- **Cumulative experience** — total darts thrown, matches won
+- **Combined stat** — a weighted sum of all the above
+
+**Why it's interesting:** zooming in genuinely helps accuracy (the throw target is larger on screen), so unlocking more zoom is a real power progression, not just visual. It rewards investment in the career.
+
+**Known risk:** physics and throw calculations use camera ray projection. Extreme zoom could cause issues with dart spawn position, trajectory angles, or collision detection. Will need testing to find the sweet spot for max zoom at each tier. The throw system already handles zoom correctly (ray projection from camera), so moderate increases should work fine — it's extreme close-ups that might feel weird.
+
+**When to build:** after career mode progression is working, so there's a natural place to gate the zoom levels.
 
 ## Technical notes
 - 720x1280 portrait viewport, mobile renderer

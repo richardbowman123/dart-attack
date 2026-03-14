@@ -155,16 +155,17 @@ func _build_scene() -> void:
 # ─────────────────────────────────────────────────────────
 
 func _animate_darts() -> void:
-	# Hit positions — tight cluster around bullseye
+	# Hit positions — offset so the dart tip lands near the bullseye
+	# With the new dramatic angle, the barrel hangs mostly downward from the tip
 	var hit_positions: Array[Vector3] = [
-		Vector3(0.02, 0.03, 0.10),
-		Vector3(-0.03, -0.01, 0.10),
-		Vector3(0.01, -0.02, 0.10),
+		Vector3(0.03, 0.84, 0.21),
+		Vector3(-0.02, 0.82, 0.20),
+		Vector3(0.01, 0.83, 0.20),
 	]
 
-	# Dart tip direction: perpendicular to the back-tilted board
-	# Board normal after -35deg X rotation: (0, sin35, cos35) => dart faces opposite
-	var board_normal := Vector3(0.0, -0.574, -0.819)
+	# Dart direction: 80deg from camera for dramatic full-profile view
+	# Shows the full barrel length — TV-style close-up appearance
+	var dart_direction := Vector3(0.0, -0.971, -0.239)
 
 	var start_pos := Vector3(0.0, 1.5, 9.0)
 
@@ -178,8 +179,8 @@ func _animate_darts() -> void:
 		dart.position = start_pos
 		add_child(dart)
 
-		# Orient dart perpendicular to the tilted board surface
-		dart.look_at(dart.global_position + board_normal, Vector3.UP)
+		# Orient dart at dramatic 80deg angle — use BACK as up vector to avoid gimbal lock
+		dart.look_at(dart.global_position + dart_direction, Vector3.BACK)
 
 		_darts.append(dart)
 

@@ -10,8 +10,10 @@ const MIN_SWIPE_DISTANCE := 30.0  # Minimum pixels to register as a throw
 const DART_SPEED_MIN := 6.0       # Minimum throw speed
 const DART_SPEED_MAX := 14.0      # Maximum throw speed
 const SWIPE_SPEED_FOR_MAX := 1500.0  # Swipe pixels/sec for max power
+const MIN_SWIPE_SPEED := 300.0       # Below this, throw is rejected (too slow to fly)
 const SCATTER_AMOUNT := 0.12      # Random scatter on the board (in board units)
-const GRAVITY_DROP := 2.0         # Gravity on the dart in flight
+const MEDIUM_SWIPE_SPEED := 750.0    # Reference speed (px/sec) where speed nudge = 0
+const SPEED_NUDGE_MAX := 0.3         # Max nudge in board units (~half a segment width)
 
 var _touch_start_pos := Vector2.ZERO
 var _touch_start_time := 0.0
@@ -20,14 +22,12 @@ var _can_throw := true
 var _viewport_size := Vector2(720, 1280)
 var _darts_container: Node3D
 var _camera: Camera3D
-var _current_aim := Vector2.ZERO  # Board-space aim position (updated during drag)
 var _dart_tier: int = 0           # Current dart tier (affects scatter)
 var _character: DartData.Character = DartData.Character.DAI
 
-# Track recent positions for smooth aim (avoids flick shifting the target)
-var _aim_before_flick := Vector2.ZERO
-var _last_slow_pos := Vector2.ZERO
-var _last_slow_time := 0.0
+# Track recent position for speed calculation (used by tutorial speed indicator)
+var _last_move_pos := Vector2.ZERO
+var _last_move_time := 0.0
 
 # ── Multi-touch tracking ──
 # Independently tracks finger count so we can cancel throws during pinch/zoom gestures
@@ -93,32 +93,22 @@ func _on_touch_start(pos: Vector2) -> void:
 	_is_touching = true
 	_touch_start_pos = pos
 	_touch_start_time = Time.get_ticks_msec() / 1000.0
-
-	# Set initial aim from touch position
-	_current_aim = _screen_to_board(pos)
-	_aim_before_flick = _current_aim
-	_last_slow_pos = pos
-	_last_slow_time = _touch_start_time
+	_last_move_pos = pos
+	_last_move_time = _touch_start_time
 
 
 func _on_touch_move(pos: Vector2) -> void:
 	if not _is_touching:
 		return
 
-	# Update aim — maps finger position to board position
-	_current_aim = _screen_to_board(pos)
-
-	# Track the last "slow" position — before the flick starts
-	# This prevents the upward flick from shifting aim off target
+	# Track speed for the tutorial's speed indicator
 	var now := Time.get_ticks_msec() / 1000.0
-	var dt := now - _last_slow_time
+	var dt := now - _last_move_time
 	if dt > 0.001:
-		var speed := (pos - _last_slow_pos).length() / dt
+		var speed := (pos - _last_move_pos).length() / dt
 		swipe_update.emit(speed)
-		if speed < 800.0:  # Still aiming, not flicking yet
-			_aim_before_flick = _current_aim
-	_last_slow_pos = pos
-	_last_slow_time = now
+	_last_move_pos = pos
+	_last_move_time = now
 
 func _on_touch_end(pos: Vector2) -> void:
 	if not _is_touching:
@@ -126,7 +116,7 @@ func _on_touch_end(pos: Vector2) -> void:
 	_is_touching = false
 	swipe_ended.emit()
 
-	# Calculate swipe speed for power
+	# Calculate swipe speed
 	var swipe_delta := _touch_start_pos - pos  # Positive Y = swiped up
 	var swipe_distance := swipe_delta.length()
 
@@ -140,41 +130,33 @@ func _on_touch_end(pos: Vector2) -> void:
 		elapsed = 0.01
 	var swipe_speed := swipe_distance / elapsed
 
-	# Use the aim from BEFORE the flick, so the upward release doesn't shift the target
-	_do_throw(_aim_before_flick, swipe_speed)
+	if swipe_speed < MIN_SWIPE_SPEED:
+		return  # Too slow — dart won't fly
+
+	# Release position is the primary aim (~90%). Speed nudge adds a small
+	# vertical adjustment (~10%) — see THROW_SYSTEM_SPEC.md Section 4.
+	var aim := _screen_to_board(pos)
+
+	# Speed nudge: medium speed (750 px/sec) = zero nudge.
+	# Faster = dart lands higher. Slower = dart lands lower.
+	# Clamped so nudge never dominates the aim.
+	var speed_ratio := (swipe_speed - MEDIUM_SWIPE_SPEED) / MEDIUM_SWIPE_SPEED
+	var nudge := clampf(speed_ratio, -1.0, 1.0) * SPEED_NUDGE_MAX
+	aim.y += nudge
+
+	_do_throw(aim, swipe_speed)
 
 func _screen_to_board(screen_pos: Vector2) -> Vector2:
-	# Map the throw zone touch position to a board coordinate using camera ray projection.
-	# This correctly handles camera zoom and pan — wherever the camera is looking,
-	# the throw zone maps proportionally to the visible area of the board.
-	#
-	# Step 1: Convert throw zone position to a corresponding position in the
-	#         board view area (top 45% of screen).
-	# Step 2: Ray-cast from the camera through that screen position to the board plane (z=0).
-
-	var throw_zone_top_px := _viewport_size.y * THROW_ZONE_TOP
-	var throw_zone_height := _viewport_size.y - throw_zone_top_px
-
-	# How far through the throw zone (0.0 = top of zone/aiming high, 1.0 = bottom/aiming low)
-	var throw_t := clampf((screen_pos.y - throw_zone_top_px) / throw_zone_height, 0.0, 1.0)
-
-	# Map to full screen height so the throw zone covers the entire visible board:
-	# throw_t=0 (top of throw zone, aiming high) → y=0 (top of screen)
-	# throw_t=0.5 (middle of throw zone) → y=centre of screen (board centre)
-	# throw_t=1 (bottom, aiming low) → y=full height (bottom of screen)
-	# X stays the same (full screen width for both zones)
-	var mapped_screen_pos := Vector2(screen_pos.x, throw_t * _viewport_size.y)
-
-	# Ray-cast from camera through this screen position to the board plane (z=0)
-	var ray_origin := _camera.project_ray_origin(mapped_screen_pos)
-	var ray_normal := _camera.project_ray_normal(mapped_screen_pos)
-
-	if absf(ray_normal.z) < 0.001:
-		return Vector2.ZERO  # Ray parallel to board — shouldn't happen
-
-	var t := -ray_origin.z / ray_normal.z
-	var hit := ray_origin + ray_normal * t
-	return Vector2(hit.x, hit.y)
+	# Direct ray projection: the dart lands wherever the player points on the
+	# board. Like looking through a window — a straight line from the camera
+	# through the release point to the board plane at z=0.
+	# Naturally zoom-aware and pan-aware (uses the camera's actual transform).
+	var origin := _camera.project_ray_origin(screen_pos)
+	var dir := _camera.project_ray_normal(screen_pos)
+	if absf(dir.z) < 0.001:
+		return Vector2.ZERO
+	var t := -origin.z / dir.z
+	return Vector2(origin.x + dir.x * t, origin.y + dir.y * t)
 
 func _do_throw(aim: Vector2, swipe_speed: float) -> void:
 	if not _can_throw:
@@ -193,30 +175,32 @@ func _do_throw(aim: Vector2, swipe_speed: float) -> void:
 	var power_t := clampf(swipe_speed / SWIPE_SPEED_FOR_MAX, 0.0, 1.0)
 	var throw_speed := lerpf(DART_SPEED_MIN, DART_SPEED_MAX, power_t)
 
-	# Spawn dart in front of the camera, slightly offset toward the target.
-	# This ensures the dart is visible on screen regardless of camera zoom/pan.
-	var dart := Dart.create(_dart_tier, _character)
+	_spawn_and_fire(target, throw_speed, _dart_tier, _character)
+
+## AI throw — spawns a dart aimed at the target position, bypassing swipe input.
+## Called by match_manager during AI turns. Uses brass darts with Terry's colours
+## so AI darts are visually distinct from the player's.
+func do_ai_throw(target: Vector2) -> void:
+	var throw_speed := DART_SPEED_MAX * 0.9  # Slightly faster for snappy AI turns
+	_spawn_and_fire(target, throw_speed, 0, DartData.Character.TERRY)
+
+func _spawn_and_fire(target: Vector2, throw_speed: float, tier: int, character: DartData.Character) -> void:
+	var dart := Dart.create(tier, character)
 	dart.visual_scale = 2.0  # Scale visuals only (RigidBody3D ignores node scale)
+
+	# Spawn at the target's XY with only a Z offset from the camera.
+	# Zero horizontal/vertical velocity = zero drift. The dart flies
+	# straight forward along Z and lands exactly at (target.x, target.y).
 	var cam_pos := _camera.global_position
-	var spawn_z := cam_pos.z * 0.55  # About halfway between camera and board
-	dart.position = Vector3(
-		lerpf(cam_pos.x, target.x, 0.3),  # Slight horizontal offset toward aim
-		cam_pos.y - 1.5,                    # Below the camera line
-		spawn_z
-	)
+	dart.position = Vector3(target.x, target.y, cam_pos.z * 0.55)
 
-	# Calculate velocity to hit the target on the board (z=0)
-	var to_target := Vector3(target.x, target.y, 0.0) - dart.position
-	var flight_time := to_target.z / (-throw_speed)
-	if flight_time < 0.05:
-		flight_time = 0.05
-
-	var vel_x := to_target.x / flight_time
-	var vel_y := (to_target.y / flight_time) + (0.5 * GRAVITY_DROP * flight_time)
-	var vel_z := -throw_speed
-
-	dart.linear_velocity = Vector3(vel_x, vel_y, vel_z)
-	dart.gravity_scale = GRAVITY_DROP / 9.8
-
+	# Add to tree FIRST (triggers _ready which sets gravity_scale = 1.0),
+	# then override physics properties so our values stick.
 	_darts_container.add_child(dart)
+
+	dart.gravity_scale = 0.0
+	dart.linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	dart.linear_damp = 0.0
+	dart.linear_velocity = Vector3(0.0, 0.0, -throw_speed)
+
 	dart_thrown.emit(dart)
