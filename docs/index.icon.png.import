@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://rpa5qd7b76wi"
-path="res://.godot/imported/index.icon.png-b92c9a802ad4b78e247784454a6b506f.ctex"
+path="res://.godot/imported/Dart Attack.icon.png-5f4e107cf2ead19ca58f420817d65b17.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://docs/index.icon.png"
-dest_files=["res://.godot/imported/index.icon.png-b92c9a802ad4b78e247784454a6b506f.ctex"]
+source_file="res://web-export/Dart Attack.icon.png"
+dest_files=["res://.godot/imported/Dart Attack.icon.png-5f4e107cf2ead19ca58f420817d65b17.ctex"]
 
 [params]
 
