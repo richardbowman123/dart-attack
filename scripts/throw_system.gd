@@ -2,6 +2,8 @@ extends Node3D
 class_name ThrowSystem
 
 signal dart_thrown(dart: Dart)
+signal swipe_update(speed: float)
+signal swipe_ended()
 
 const THROW_ZONE_TOP := 0.45      # Top 45% is board view, bottom 55% is throw zone
 const MIN_SWIPE_DISTANCE := 30.0  # Minimum pixels to register as a throw
@@ -18,9 +20,9 @@ var _can_throw := true
 var _viewport_size := Vector2(720, 1280)
 var _darts_container: Node3D
 var _camera: Camera3D
-var _reticle: MeshInstance3D
 var _current_aim := Vector2.ZERO  # Board-space aim position (updated during drag)
 var _dart_tier: int = 0           # Current dart tier (affects scatter)
+var _character: DartData.Character = DartData.Character.DAI
 
 # Track recent positions for smooth aim (avoids flick shifting the target)
 var _aim_before_flick := Vector2.ZERO
@@ -36,31 +38,13 @@ func setup(darts_container: Node3D, viewport_size: Vector2, camera: Camera3D) ->
 	_darts_container = darts_container
 	_viewport_size = viewport_size
 	_camera = camera
-	_create_reticle()
+	_character = GameState.character
 
 func set_dart_tier(tier: int) -> void:
 	_dart_tier = tier
 
 func set_can_throw(can: bool) -> void:
 	_can_throw = can
-	if _reticle and not can:
-		_reticle.visible = false
-
-func _create_reticle() -> void:
-	_reticle = MeshInstance3D.new()
-	var mesh := TorusMesh.new()
-	mesh.inner_radius = 0.04
-	mesh.outer_radius = 0.07
-	mesh.rings = 16
-	mesh.ring_segments = 16
-	_reticle.mesh = mesh
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(1, 1, 0, 0.8)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_reticle.material_override = mat
-	_reticle.visible = false
-	add_child(_reticle)
 
 # Track all touches via _input so we know when multi-touch is happening.
 # This runs alongside camera_rig's _input — neither consumes the events,
@@ -78,7 +62,6 @@ func _input(event: InputEvent) -> void:
 			_gesture_occurred = true
 			if _is_touching:
 				_is_touching = false
-				_reticle.visible = false
 
 		# All fingers lifted — reset gesture flag for next touch
 		if _active_touch_count == 0:
@@ -117,8 +100,6 @@ func _on_touch_start(pos: Vector2) -> void:
 	_last_slow_pos = pos
 	_last_slow_time = _touch_start_time
 
-	_reticle.visible = true
-	_update_reticle(_current_aim)
 
 func _on_touch_move(pos: Vector2) -> void:
 	if not _is_touching:
@@ -126,7 +107,6 @@ func _on_touch_move(pos: Vector2) -> void:
 
 	# Update aim — maps finger position to board position
 	_current_aim = _screen_to_board(pos)
-	_update_reticle(_current_aim)
 
 	# Track the last "slow" position — before the flick starts
 	# This prevents the upward flick from shifting aim off target
@@ -134,6 +114,7 @@ func _on_touch_move(pos: Vector2) -> void:
 	var dt := now - _last_slow_time
 	if dt > 0.001:
 		var speed := (pos - _last_slow_pos).length() / dt
+		swipe_update.emit(speed)
 		if speed < 800.0:  # Still aiming, not flicking yet
 			_aim_before_flick = _current_aim
 	_last_slow_pos = pos
@@ -143,7 +124,7 @@ func _on_touch_end(pos: Vector2) -> void:
 	if not _is_touching:
 		return
 	_is_touching = false
-	_reticle.visible = false
+	swipe_ended.emit()
 
 	# Calculate swipe speed for power
 	var swipe_delta := _touch_start_pos - pos  # Positive Y = swiped up
@@ -177,11 +158,12 @@ func _screen_to_board(screen_pos: Vector2) -> Vector2:
 	# How far through the throw zone (0.0 = top of zone/aiming high, 1.0 = bottom/aiming low)
 	var throw_t := clampf((screen_pos.y - throw_zone_top_px) / throw_zone_height, 0.0, 1.0)
 
-	# Map to board view area:
-	# throw_t=0 (top of throw zone, aiming high) → y=0 (top of board view)
-	# throw_t=1 (bottom, aiming low) → y=throw_zone_top_px (bottom of board view)
+	# Map to full screen height so the throw zone covers the entire visible board:
+	# throw_t=0 (top of throw zone, aiming high) → y=0 (top of screen)
+	# throw_t=0.5 (middle of throw zone) → y=centre of screen (board centre)
+	# throw_t=1 (bottom, aiming low) → y=full height (bottom of screen)
 	# X stays the same (full screen width for both zones)
-	var mapped_screen_pos := Vector2(screen_pos.x, throw_t * throw_zone_top_px)
+	var mapped_screen_pos := Vector2(screen_pos.x, throw_t * _viewport_size.y)
 
 	# Ray-cast from camera through this screen position to the board plane (z=0)
 	var ray_origin := _camera.project_ray_origin(mapped_screen_pos)
@@ -193,9 +175,6 @@ func _screen_to_board(screen_pos: Vector2) -> Vector2:
 	var t := -ray_origin.z / ray_normal.z
 	var hit := ray_origin + ray_normal * t
 	return Vector2(hit.x, hit.y)
-
-func _update_reticle(board_aim: Vector2) -> void:
-	_reticle.position = Vector3(board_aim.x, board_aim.y, 0.02)
 
 func _do_throw(aim: Vector2, swipe_speed: float) -> void:
 	if not _can_throw:
@@ -216,7 +195,8 @@ func _do_throw(aim: Vector2, swipe_speed: float) -> void:
 
 	# Spawn dart in front of the camera, slightly offset toward the target.
 	# This ensures the dart is visible on screen regardless of camera zoom/pan.
-	var dart := Dart.create(_dart_tier)
+	var dart := Dart.create(_dart_tier, _character)
+	dart.visual_scale = 2.0  # Scale visuals only (RigidBody3D ignores node scale)
 	var cam_pos := _camera.global_position
 	var spawn_z := cam_pos.z * 0.55  # About halfway between camera and board
 	dart.position = Vector3(

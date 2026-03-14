@@ -1,205 +1,240 @@
 extends Control
 
-const CARD_W := 300.0
-const CARD_H := 380.0
-const CARD_GAP := 20.0
+var _selected_index: int = 0
+var _card_styles: Array = []
+var _card_names: Array = []
+var _info_name: Label
+var _info_origin: Label
+var _char_enums: Array = []
 
 func _ready() -> void:
 	_build_screen()
 
 func _build_screen() -> void:
+	var characters := [
+		{
+			"enum": DartData.Character.DAI,
+			"name": "Dai \"The Dragon\" Davies",
+			"short_name": "DAI",
+			"origin": "Pontypridd, Wales",
+			"image": "res://Dai The Dragon Davies 16 profile.jpg",
+		},
+		{
+			"enum": DartData.Character.TERRY,
+			"name": "Terry \"The Hammer\" Hoskins",
+			"short_name": "TERRY",
+			"origin": "Bethnal Green, London",
+			"image": "res://Terry The Hammer Hoskins 19 profile.jpg",
+		},
+		{
+			"enum": DartData.Character.RAB,
+			"name": "Rab \"The Flame\" McTavish",
+			"short_name": "RAB",
+			"origin": "Dundee, Scotland",
+			"image": "res://Rab The Flame McTavish 21 profile.jpg",
+		},
+		{
+			"enum": DartData.Character.SIOBHAN,
+			"name": "Siobhan \"The Banshee\" O'Hara",
+			"short_name": "SIOBHAN",
+			"origin": "Belfast, N. Ireland",
+			"image": "res://Siobhan The Banshee O'Hara 19 profile.jpg",
+		},
+	]
+
+	for i in range(characters.size()):
+		_char_enums.append(characters[i]["enum"])
+		if characters[i]["enum"] == GameState.character:
+			_selected_index = i
+
 	# Dark background
 	var bg := ColorRect.new()
 	bg.color = Color(0.05, 0.05, 0.08)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
-	# "Pick your player" title
+	# Title
 	var title := Label.new()
-	title.text = "PICK YOUR PLAYER"
+	title.text = "DART ATTACK"
 	title.add_theme_font_size_override("font_size", 44)
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 60)
-	title.size = Vector2(720, 60)
+	title.position = Vector2(0, 30)
+	title.size = Vector2(720, 52)
 	add_child(title)
 
-	# 2x2 grid of character cards
-	var grid_left := (720.0 - (CARD_W * 2 + CARD_GAP)) / 2.0
-	var grid_top := 160.0
+	# Subtitle
+	var pick_label := Label.new()
+	pick_label.text = "Pick your player"
+	pick_label.add_theme_font_size_override("font_size", 18)
+	pick_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
+	pick_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pick_label.position = Vector2(0, 85)
+	pick_label.size = Vector2(720, 26)
+	add_child(pick_label)
 
-	# Row 1
-	_add_character_card(
-		Vector2(grid_left, grid_top),
-		"Dai \"The Dragon\" Davies", "Pontypridd, Wales",
-		"res://Dai The Dragon Davies 16 profile.jpg"
-	)
-	_add_locked_card(
-		Vector2(grid_left + CARD_W + CARD_GAP, grid_top),
-		"Terry \"The Hammer\" Hoskins", "Bethnal Green, London",
-		"$"
-	)
+	# ── 2x2 grid of large character cards ──
+	var card_w := 320
+	var card_h := 380
+	var card_gap := 16
+	var total_w := card_w * 2 + card_gap
+	var grid_left := (720 - total_w) / 2
+	var grid_top := 125
 
-	# Row 2
-	_add_locked_card(
-		Vector2(grid_left, grid_top + CARD_H + CARD_GAP),
-		"Rab \"The Flame\" McTavish", "Dundee, Scotland",
-		"$$"
-	)
-	_add_locked_card(
-		Vector2(grid_left + CARD_W + CARD_GAP, grid_top + CARD_H + CARD_GAP),
-		"Siobhan \"The Banshee\" O'Hara", "Belfast, N. Ireland",
-		"$$$"
-	)
+	for i in range(characters.size()):
+		var data: Dictionary = characters[i]
+		var col: int = i % 2
+		var row: int = i / 2
+		var x: int = grid_left + col * (card_w + card_gap)
+		var y: int = grid_top + row * (card_h + card_gap)
+		_build_character_card(Vector2(x, y), card_w, card_h, data, i)
 
-func _add_character_card(pos: Vector2, char_name: String, origin: String, image_path: String) -> void:
+	# Selected character info below grid
+	var info_y: int = grid_top + card_h * 2 + card_gap + 16
+	_info_name = Label.new()
+	_info_name.add_theme_font_size_override("font_size", 24)
+	_info_name.add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
+	_info_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_info_name.position = Vector2(0, info_y)
+	_info_name.size = Vector2(720, 32)
+	add_child(_info_name)
+
+	_info_origin = Label.new()
+	_info_origin.add_theme_font_size_override("font_size", 17)
+	_info_origin.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
+	_info_origin.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_info_origin.position = Vector2(0, info_y + 34)
+	_info_origin.size = Vector2(720, 24)
+	add_child(_info_origin)
+
+	_update_selection(characters)
+
+	# ── NEXT button ──
+	var next_btn := Button.new()
+	next_btn.text = "NEXT"
+	next_btn.position = Vector2(210, info_y + 80)
+	next_btn.size = Vector2(300, 70)
+	next_btn.add_theme_font_size_override("font_size", 30)
+
+	var normal_style := StyleBoxFlat.new()
+	normal_style.bg_color = Color(0.85, 0.15, 0.15)
+	normal_style.corner_radius_top_left = 10
+	normal_style.corner_radius_top_right = 10
+	normal_style.corner_radius_bottom_left = 10
+	normal_style.corner_radius_bottom_right = 10
+	normal_style.border_width_left = 2
+	normal_style.border_width_right = 2
+	normal_style.border_width_top = 2
+	normal_style.border_width_bottom = 2
+	normal_style.border_color = Color(1.0, 1.0, 1.0)
+	next_btn.add_theme_stylebox_override("normal", normal_style)
+
+	var hover_style := normal_style.duplicate()
+	hover_style.bg_color = Color(1.0, 0.2, 0.2)
+	next_btn.add_theme_stylebox_override("hover", hover_style)
+
+	var pressed_style := normal_style.duplicate()
+	pressed_style.bg_color = Color(0.65, 0.1, 0.1)
+	next_btn.add_theme_stylebox_override("pressed", pressed_style)
+
+	next_btn.add_theme_color_override("font_color", Color.WHITE)
+	next_btn.pressed.connect(_on_next_pressed)
+	add_child(next_btn)
+
+func _build_character_card(pos: Vector2, w: int, h: int, data: Dictionary, index: int) -> void:
 	var card := Panel.new()
 	card.position = pos
-	card.size = Vector2(CARD_W, CARD_H)
+	card.size = Vector2(w, h)
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
 
-	var card_style := StyleBoxFlat.new()
-	card_style.bg_color = Color(0.12, 0.12, 0.16)
-	card_style.corner_radius_top_left = 8
-	card_style.corner_radius_top_right = 8
-	card_style.corner_radius_bottom_left = 8
-	card_style.corner_radius_bottom_right = 8
-	card_style.border_width_left = 2
-	card_style.border_width_right = 2
-	card_style.border_width_top = 2
-	card_style.border_width_bottom = 2
-	card_style.border_color = Color(0.85, 0.7, 0.2)
-	card.add_theme_stylebox_override("panel", card_style)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.08, 0.1)
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_left = 10
+	style.corner_radius_bottom_right = 10
+	style.border_width_left = 3
+	style.border_width_right = 3
+	style.border_width_top = 3
+	style.border_width_bottom = 3
+	style.border_color = Color(0.2, 0.2, 0.25)
+	card.add_theme_stylebox_override("panel", style)
 	add_child(card)
+	_card_styles.append(style)
 
-	# Portrait image
+	# Portrait image — fills most of the card
 	var portrait := TextureRect.new()
-	var img := Image.load_from_file(image_path)
-	var tex := ImageTexture.create_from_image(img)
+	var image_path: String = data["image"]
+	var tex: Texture2D = load(image_path)
 	portrait.texture = tex
 	portrait.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	portrait.position = Vector2(15, 10)
-	portrait.size = Vector2(CARD_W - 30, 240)
+	portrait.position = Vector2(6, 6)
+	portrait.size = Vector2(w - 12, h - 50)
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(portrait)
 
-	# Name
+	# Character name at bottom of card
 	var name_label := Label.new()
-	name_label.text = char_name
-	name_label.add_theme_font_size_override("font_size", 16)
-	name_label.add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
+	var short_name: String = data["short_name"]
+	name_label.text = short_name
+	name_label.add_theme_font_size_override("font_size", 18)
+	name_label.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	name_label.position = Vector2(5, 255)
-	name_label.size = Vector2(CARD_W - 10, 40)
+	name_label.position = Vector2(0, h - 34)
+	name_label.size = Vector2(w, 28)
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(name_label)
+	_card_names.append(name_label)
 
-	# Origin
-	var origin_label := Label.new()
-	origin_label.text = origin
-	origin_label.add_theme_font_size_override("font_size", 14)
-	origin_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-	origin_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	origin_label.position = Vector2(5, 295)
-	origin_label.size = Vector2(CARD_W - 10, 25)
-	card.add_child(origin_label)
+	card.gui_input.connect(_on_card_tap.bind(index))
 
-	# Select button
-	var btn := Button.new()
-	btn.text = "SELECT"
-	btn.position = Vector2(40, CARD_H - 55)
-	btn.size = Vector2(CARD_W - 80, 42)
-	btn.add_theme_font_size_override("font_size", 20)
+func _on_card_tap(event: InputEvent, index: int) -> void:
+	if event is InputEventMouseButton:
+		var mb: InputEventMouseButton = event
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			_selected_index = index
+			GameState.character = _char_enums[index]
+			_refresh_selection()
 
-	var normal_style := StyleBoxFlat.new()
-	normal_style.bg_color = Color(0.6, 0.15, 0.15)
-	normal_style.corner_radius_top_left = 6
-	normal_style.corner_radius_top_right = 6
-	normal_style.corner_radius_bottom_left = 6
-	normal_style.corner_radius_bottom_right = 6
-	btn.add_theme_stylebox_override("normal", normal_style)
+func _refresh_selection() -> void:
+	for i in range(_card_styles.size()):
+		if i == _selected_index:
+			_card_styles[i].border_color = Color(0.85, 0.7, 0.2)
+			_card_names[i].add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
+		else:
+			_card_styles[i].border_color = Color(0.2, 0.2, 0.25)
+			_card_names[i].add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
 
-	var hover_style := normal_style.duplicate()
-	hover_style.bg_color = Color(0.75, 0.2, 0.2)
-	btn.add_theme_stylebox_override("hover", hover_style)
+	var names := [
+		"Dai \"The Dragon\" Davies",
+		"Terry \"The Hammer\" Hoskins",
+		"Rab \"The Flame\" McTavish",
+		"Siobhan \"The Banshee\" O'Hara",
+	]
+	var origins := [
+		"Pontypridd, Wales",
+		"Bethnal Green, London",
+		"Dundee, Scotland",
+		"Belfast, N. Ireland",
+	]
+	_info_name.text = names[_selected_index]
+	_info_origin.text = origins[_selected_index]
 
-	var pressed_style := normal_style.duplicate()
-	pressed_style.bg_color = Color(0.85, 0.25, 0.25)
-	btn.add_theme_stylebox_override("pressed", pressed_style)
+func _update_selection(characters: Array) -> void:
+	for i in range(_card_styles.size()):
+		if i == _selected_index:
+			_card_styles[i].border_color = Color(0.85, 0.7, 0.2)
+			_card_names[i].add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
+		else:
+			_card_styles[i].border_color = Color(0.2, 0.2, 0.25)
+			_card_names[i].add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
 
-	btn.add_theme_color_override("font_color", Color.WHITE)
-	btn.pressed.connect(_on_select_pressed)
-	card.add_child(btn)
+	var selected_data: Dictionary = characters[_selected_index]
+	var sel_name: String = selected_data["name"]
+	var sel_origin: String = selected_data["origin"]
+	_info_name.text = sel_name
+	_info_origin.text = sel_origin
 
-func _add_locked_card(pos: Vector2, char_name: String, origin: String, price: String) -> void:
-	var card := Panel.new()
-	card.position = pos
-	card.size = Vector2(CARD_W, CARD_H)
-
-	var card_style := StyleBoxFlat.new()
-	card_style.bg_color = Color(0.08, 0.08, 0.1)
-	card_style.corner_radius_top_left = 8
-	card_style.corner_radius_top_right = 8
-	card_style.corner_radius_bottom_left = 8
-	card_style.corner_radius_bottom_right = 8
-	card_style.border_width_left = 2
-	card_style.border_width_right = 2
-	card_style.border_width_top = 2
-	card_style.border_width_bottom = 2
-	card_style.border_color = Color(0.2, 0.2, 0.25)
-	card.add_theme_stylebox_override("panel", card_style)
-	add_child(card)
-
-	# Silhouette placeholder — question mark
-	var silhouette := Label.new()
-	silhouette.text = "?"
-	silhouette.add_theme_font_size_override("font_size", 120)
-	silhouette.add_theme_color_override("font_color", Color(0.15, 0.15, 0.2))
-	silhouette.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	silhouette.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	silhouette.position = Vector2(0, 30)
-	silhouette.size = Vector2(CARD_W, 200)
-	card.add_child(silhouette)
-
-	# Name (dimmed)
-	var name_label := Label.new()
-	name_label.text = char_name
-	name_label.add_theme_font_size_override("font_size", 16)
-	name_label.add_theme_color_override("font_color", Color(0.3, 0.3, 0.35))
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	name_label.position = Vector2(5, 255)
-	name_label.size = Vector2(CARD_W - 10, 40)
-	card.add_child(name_label)
-
-	# Origin (dimmed)
-	var origin_label := Label.new()
-	origin_label.text = origin
-	origin_label.add_theme_font_size_override("font_size", 14)
-	origin_label.add_theme_color_override("font_color", Color(0.25, 0.25, 0.3))
-	origin_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	origin_label.position = Vector2(5, 295)
-	origin_label.size = Vector2(CARD_W - 10, 25)
-	card.add_child(origin_label)
-
-	# "Coming Soon" label instead of button
-	var coming := Label.new()
-	coming.text = "COMING SOON"
-	coming.add_theme_font_size_override("font_size", 18)
-	coming.add_theme_color_override("font_color", Color(0.3, 0.3, 0.35))
-	coming.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	coming.position = Vector2(0, CARD_H - 55)
-	coming.size = Vector2(CARD_W, 25)
-	card.add_child(coming)
-
-	# Price indicator
-	var price_label := Label.new()
-	price_label.text = price
-	price_label.add_theme_font_size_override("font_size", 16)
-	price_label.add_theme_color_override("font_color", Color(0.4, 0.35, 0.2))
-	price_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	price_label.position = Vector2(0, CARD_H - 32)
-	price_label.size = Vector2(CARD_W, 22)
-	card.add_child(price_label)
-
-func _on_select_pressed() -> void:
+func _on_next_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/menu.tscn")

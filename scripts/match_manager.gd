@@ -4,7 +4,7 @@ class_name MatchManager
 enum MatchState { THROWING, BETWEEN_DARTS, VISIT_SUMMARY, CLEARING, FINISHED }
 
 const DARTS_PER_VISIT := 3
-const BETWEEN_DART_DELAY := 0.6
+const BETWEEN_DART_DELAY := 0.2
 const SUMMARY_DISPLAY_TIME := 2.0
 
 var _state: MatchState = MatchState.THROWING
@@ -27,6 +27,8 @@ var _throw_system: ThrowSystem
 var _camera_rig: CameraRig
 var _score_hud: ScoreHUD
 var _darts_container: Node3D
+var _tutorial_overlay: TutorialOverlay
+var _tutorial_last_was_hit := false
 
 func _ready() -> void:
 	_setup_environment()
@@ -47,11 +49,25 @@ func _setup_environment() -> void:
 	world_env.environment = env
 	add_child(world_env)
 
-	var light := DirectionalLight3D.new()
-	light.rotation = Vector3(deg_to_rad(-15), deg_to_rad(10), 0)
-	light.light_energy = 1.5
-	light.shadow_enabled = false
-	add_child(light)
+	# LED oche lighting — bright spots from above, like TV darts coverage.
+	# Three spots at different angles so darts are always well-lit.
+	var spot_positions := [
+		Vector3(0.0, 2.5, 2.5),    # Centre-above: main key light
+		Vector3(-1.8, 2.0, 2.0),   # Left-above: fills left side
+		Vector3(1.8, 2.0, 2.0),    # Right-above: fills right side
+	]
+	var spot_energies := [2.5, 1.5, 1.5]
+
+	for i in range(spot_positions.size()):
+		var spot := SpotLight3D.new()
+		spot.position = spot_positions[i]
+		spot.look_at(Vector3(0, 0, 0), Vector3.UP)
+		spot.light_energy = spot_energies[i]
+		spot.light_color = Color(1.0, 0.97, 0.92)  # Bright daylight white
+		spot.spot_range = 10.0
+		spot.spot_angle = 45.0
+		spot.shadow_enabled = true
+		add_child(spot)
 
 func _build_scene() -> void:
 	_camera_rig = CameraRig.new()
@@ -71,17 +87,22 @@ func _build_scene() -> void:
 	)
 	add_child(_throw_system)
 	_throw_system.setup(_darts_container, viewport_size, _camera_rig.get_camera())
+	_throw_system.set_dart_tier(GameState.dart_tier)
 
 	_score_hud = ScoreHUD.new()
 	add_child(_score_hud)
 
 func _connect_signals() -> void:
 	_throw_system.dart_thrown.connect(_on_dart_thrown)
+	if _is_tutorial():
+		_setup_tutorial()
 
 func _init_game_mode() -> void:
 	if _is_countdown():
 		_score_remaining = GameState.starting_score
 		_visit_score_before = _score_remaining
+	elif _is_tutorial():
+		pass  # Tutorial state managed by TutorialOverlay
 	else:
 		_rtc_target = 1
 
@@ -91,12 +112,25 @@ func _is_countdown() -> bool:
 func _is_rtc() -> bool:
 	return GameState.game_mode == GameState.GameMode.ROUND_THE_CLOCK
 
+func _is_tutorial() -> bool:
+	return GameState.game_mode == GameState.GameMode.TUTORIAL
+
 # ── Visit flow ──
 
 func _start_visit() -> void:
 	_state = MatchState.THROWING
 	_darts_this_visit = 0
 	_visit_dart_labels.clear()
+
+	if _is_tutorial():
+		var target: int = _tutorial_overlay.get_current_target()
+		if target > 0:
+			_score_hud.update_remaining_text("Hit: " + str(target))
+		_score_hud.reset_dart_icons()
+		_score_hud.hide_summary()
+		# Don't enable throwing — the intro panel / Go button controls that
+		_throw_system.set_can_throw(false)
+		return
 
 	if _is_countdown():
 		_visit_score = 0
@@ -125,7 +159,9 @@ func _on_dart_hit(score_data: Dictionary, hit_pos: Vector2, dart: Dart) -> void:
 	_score_hud.show_impact(label_text, screen_pos)
 	_visit_dart_labels.append(label_text)
 
-	if _is_countdown():
+	if _is_tutorial():
+		_handle_tutorial_hit(score_data, hit_pos)
+	elif _is_countdown():
 		_handle_countdown_hit(score_data)
 	else:
 		_handle_rtc_hit(score_data)
@@ -243,6 +279,65 @@ func _rtc_target_label() -> String:
 		return "Next: BULL (2 of 2)"
 	else:
 		return "DONE!"
+
+# ── Tutorial mode ──
+
+func _setup_tutorial() -> void:
+	_tutorial_overlay = TutorialOverlay.new()
+	add_child(_tutorial_overlay)
+	var viewport_size := Vector2(
+		ProjectSettings.get_setting("display/window/size/viewport_width"),
+		ProjectSettings.get_setting("display/window/size/viewport_height")
+	)
+	_tutorial_overlay.setup(viewport_size, _camera_rig.get_camera(), _camera_rig)
+	_tutorial_overlay.start()
+	_throw_system.swipe_update.connect(_tutorial_overlay.on_swipe_update)
+	_throw_system.swipe_ended.connect(_tutorial_overlay.on_swipe_end)
+	_tutorial_overlay.ready_to_throw.connect(_on_tutorial_ready)
+	# Disable throwing until the player taps Go
+	_throw_system.set_can_throw(false)
+
+func _on_tutorial_ready() -> void:
+	_state = MatchState.THROWING
+	_throw_system.set_can_throw(true)
+	var target: int = _tutorial_overlay.get_current_target()
+	if target > 0:
+		_score_hud.update_remaining_text("Hit: " + str(target))
+
+func _handle_tutorial_hit(score_data: Dictionary, hit_pos: Vector2) -> void:
+	var hit_number: int = score_data.get("number", 0)
+	var multiplier: int = score_data.get("multiplier", 0)
+	var target: int = _tutorial_overlay.get_current_target()
+
+	_tutorial_last_was_hit = (hit_number == target and multiplier > 0)
+	_tutorial_overlay.on_hit(hit_number, multiplier, hit_pos)
+
+	# Check if the tutorial just completed
+	if _tutorial_overlay.get_current_target() < 0:
+		_state = MatchState.FINISHED
+		_throw_system.set_can_throw(false)
+		var tween := create_tween()
+		tween.tween_interval(3.0)
+		tween.tween_callback(_restart_game)
+		return
+
+	# Pause to show feedback, then advance
+	_state = MatchState.BETWEEN_DARTS
+	_throw_system.set_can_throw(false)
+	var tween := create_tween()
+	tween.tween_interval(2.5)
+	tween.tween_callback(_tutorial_next_throw)
+
+func _tutorial_next_throw() -> void:
+	for dart in _active_darts:
+		if is_instance_valid(dart):
+			dart.queue_free()
+	_active_darts.clear()
+	_darts_this_visit = 0
+	_score_hud.reset_dart_icons()
+
+	# Tell the overlay to advance — it decides whether to show intro or resume aiming
+	_tutorial_overlay.advance(_tutorial_last_was_hit)
 
 # ── Turn management ──
 

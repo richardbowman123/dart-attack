@@ -34,6 +34,9 @@ func _ready() -> void:
 func get_camera() -> Camera3D:
 	return _camera
 
+func get_zoom() -> float:
+	return _zoom
+
 func is_gesturing() -> bool:
 	return _is_gesturing
 

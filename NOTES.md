@@ -56,25 +56,95 @@ All code-driven (no scene editor UI). Follows the same patterns as Animal Merge:
 | `menu.gd` | Mode selection screen |
 | `NARRATIVE.md` | Full story/career design (from character arc session) |
 
-## What comes next
+## Session log — 14 March 2026
 
-### Phase 2: Opponent play
-- AI opponent throws between your visits
-- Instant summary of their throw (e.g. "T20, T20, 20 = 140")
-- Adjustable skill level (scatter amount)
-- Practice mode stays as-is for solo play
+### What got done this session
 
-### Phase 3: Stats and career
-- Five stats: weight, alcohol, arm hair, nerve, swagger
-- Each affects throwing differently
-- Between-match shop for upgrades
-- See NARRATIVE.md for full detail
+1. **Full narrative design document written** (`NARRATIVE.md`)
+   - Four playable characters: Dai (Welsh), Terry (cockney), Rab (Scottish), Siobhan (Belfast)
+   - Six levels from pub Round the Clock to World Championship best-of-three 501
+   - Meta-game systems: weight, drinking, jewellery, manager choice, inflatables, betting syndicate, bribe
+   - Nerve-O-Metre: visible HUD bar, affects dart scatter, reduced by drinking
+   - In-game drinking between every visit (3 darts) — half pint or full pint tap choice
+   - Progressive blur effect up to double vision at extreme drinking levels
+   - Three death mechanics: liver failure, heart attack, gang hit — all from player choices
+   - Hidden health meters — only visible by paying to visit the doctor + buying medicine
+   - Three-strike loss mechanic (lose same level 3x = career over)
+   - Seven opponents with escalating difficulty, each a darts stereotype
+   - Three ending types based on hidden reputation score (clean/dirty/mixed)
 
-### Phase 4: Mobile deployment
-- Export to Android (APK)
-- Tune throw sensitivity for touch
-- Test on actual device
-- The game is mobile-first — PC testing is for development convenience
+2. **Character select screen added**
+   - "Pick your player" screen with 2x2 grid
+   - Dai is selectable with his profile image
+   - Terry, Rab, Siobhan shown as locked "Coming Soon" cards with $, $$, $$$ price hints
+   - Flows into the existing game mode menu
+
+3. **Throw system camera fix** (major bug)
+   - Darts were landing in wrong areas when camera was zoomed/panned
+   - Root cause: `_screen_to_board()` used fixed screen-to-board mapping, ignoring camera position
+   - Fix: replaced with camera ray projection — cast ray from camera through mapped screen position to board plane
+   - Dart spawn position now relative to camera instead of hardcoded at centre
+   - Tested and confirmed working on both desktop and mobile
+
+4. **Web export and GitHub Pages**
+   - Game exported for web and deployed to GitHub Pages
+   - Live at: https://richardbowman123.github.io/dart-attack/
+   - Repo is public (needed for free GitHub Pages)
+   - `copy_to_docs.ps1` script automates the export-to-docs rename process
+
+5. **Character art started**
+   - Three images of Dai "The Dragon" Davies at age 16 (profile, full body, in situ)
+   - Generated externally, saved in project root
+   - Written detailed image briefs for Terry, Rab, and Siobhan to match Dai's style
+   - Plan: generate all four at young age, then progression stages through career
+
+### Key files added/changed
+| File | What |
+|------|------|
+| `NARRATIVE.md` | Full game narrative design document |
+| `scripts/character_select.gd` | Character select screen (new) |
+| `scenes/character_select.tscn` | Character select scene (new) |
+| `scripts/throw_system.gd` | Camera ray projection fix |
+| `scripts/match_manager.gd` | Passes camera to throw system |
+| `project.godot` | Main scene changed to character_select |
+| `copy_to_docs.ps1` | Web export automation script |
+| `docs/` | Web export for GitHub Pages |
+
+### What comes next
+
+1. **Character art** — generate Terry, Rab, Siobhan images to match Dai's style, then age progression stages for all four
+2. **Integrate character images** — wire remaining character portraits into the select screen as they're created
+3. **AI opponent system** — opponents with configurable accuracy, finishing ability, pressure response
+4. **Nerve-O-Metre** — visible bar on HUD during matches, affected by match events and drinking
+5. **In-game drinking** — "have a drink?" prompt between visits
+6. **Vision blur shader** — progressive blur effect from drinking, up to double vision
+7. **Career mode structure** — level progression, between-match menus, unlock flow
+8. **Round the Clock camera** — auto-focus on the next target segment (the `focus_segment` function exists but isn't wired up yet)
+
+### Deployment workflow
+1. Make changes in Godot
+2. Export: Project > Export > Web
+3. In Claude Code: run `copy_to_docs.ps1` (copies and renames files)
+4. Claude fixes `index.html` (replaces "Dart Attack" refs with "index", keeps title)
+5. Upload to GitHub
+6. Wait 1-2 mins for GitHub Pages rebuild
+
+## Design notes — throw quality system (future, Phase 3)
+
+Discussed 14 March 2026. The idea: a fast, short, stabbing swipe should produce a flatter trajectory and tighter accuracy, like a confident player. A light, slow flick should produce a loopy arc with more wobble, like a nervous beginner.
+
+Three components:
+1. **Trajectory feel** — already partially works (fast swipe = less time in air = less gravity drop), but visually both feel the same. Need to sell the difference with dart behaviour and possibly camera.
+2. **Throw quality modifier on scatter** — NOT built yet. Currently scatter is only based on dart tier. Adding a speed-based scatter multiplier (fast confident throw = tighter grouping, weak flick = wider scatter) is straightforward.
+3. **In-air wobble** — NOT built yet. A slow dart should visually oscillate/drift during flight. Fast dart flies dead straight. Just a rotation oscillation in `_physics_process`, scaled inversely to speed.
+
+**When to build:** Phase 3, alongside the Nerve-O-Metre. These are two halves of the same accuracy model:
+- Nerve-O-Metre = game-controlled difficulty (nerves add scatter, drinking/crowd reduce it)
+- Throw quality = player-controlled skill (your actual swipe technique affects accuracy)
+
+They multiply together: calm player + clean throw = laser accurate. Nervous player + panicky flick = all over the shop.
+
+The in-air wobble visual could come earlier (Phase 2 polish) since it's purely cosmetic.
 
 ## Technical notes
 - 720x1280 portrait viewport, mobile renderer

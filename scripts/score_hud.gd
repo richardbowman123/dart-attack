@@ -59,16 +59,35 @@ func _create_dart_icon() -> Control:
 	var container := Control.new()
 	container.size = Vector2(DART_FLIGHT_W, DART_BARREL_H + DART_FLIGHT_H + DART_TIP_H)
 
-	# Flight (wide bit at the top)
-	var flight := ColorRect.new()
-	flight.color = Color(0.85, 0.2, 0.1, 0.9)
-	flight.size = Vector2(DART_FLIGHT_W, DART_FLIGHT_H)
+	# Pull colours from the selected dart tier and character
+	var tier_data := DartData.get_tier(GameState.dart_tier)
+	var flight_cols := DartData.get_flight_colors(GameState.character)
+	var barrel_col: Color = tier_data["barrel_color"]
+	var flight_col: Color = flight_cols["front"]
+
+	# Flight — shield shape with 45-deg leading edges
+	# Narrow stem at bottom widens at 45 deg to full width, flat top
+	var cx := DART_FLIGHT_W / 2.0
+	var half_barrel := DART_BARREL_W / 2.0
+	var spread := (DART_FLIGHT_W / 2.0) - half_barrel  # Pixels to widen on each side
+	var angle_h := spread  # At 45 deg, height = spread (tan45=1)
+
+	var flight := Polygon2D.new()
+	flight.polygon = PackedVector2Array([
+		Vector2(cx - half_barrel, DART_FLIGHT_H),    # Bottom left (stem)
+		Vector2(0, DART_FLIGHT_H - angle_h),          # Full width reached, left
+		Vector2(0, 0),                                 # Top left
+		Vector2(DART_FLIGHT_W, 0),                     # Top right
+		Vector2(DART_FLIGHT_W, DART_FLIGHT_H - angle_h), # Full width reached, right
+		Vector2(cx + half_barrel, DART_FLIGHT_H),     # Bottom right (stem)
+	])
+	flight.color = Color(flight_col.r, flight_col.g, flight_col.b, 0.9)
 	flight.position = Vector2(0, 0)
 	container.add_child(flight)
 
 	# Barrel (thin middle)
 	var barrel := ColorRect.new()
-	barrel.color = Color(0.65, 0.50, 0.15, 0.9)
+	barrel.color = Color(barrel_col.r, barrel_col.g, barrel_col.b, 0.9)
 	barrel.size = Vector2(DART_BARREL_W, DART_BARREL_H)
 	barrel.position = Vector2((DART_FLIGHT_W - DART_BARREL_W) / 2.0, DART_FLIGHT_H)
 	container.add_child(barrel)
