@@ -70,7 +70,7 @@ func _build_scene() -> void:
 		ProjectSettings.get_setting("display/window/size/viewport_height")
 	)
 	add_child(_throw_system)
-	_throw_system.setup(_darts_container, viewport_size)
+	_throw_system.setup(_darts_container, viewport_size, _camera_rig.get_camera())
 
 	_score_hud = ScoreHUD.new()
 	add_child(_score_hud)

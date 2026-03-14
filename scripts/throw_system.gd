@@ -5,16 +5,11 @@ signal dart_thrown(dart: Dart)
 
 const THROW_ZONE_TOP := 0.45      # Top 45% is board view, bottom 55% is throw zone
 const MIN_SWIPE_DISTANCE := 30.0  # Minimum pixels to register as a throw
-const DART_START_Z := 5.5         # Where the dart spawns (in front of camera)
 const DART_SPEED_MIN := 6.0       # Minimum throw speed
 const DART_SPEED_MAX := 14.0      # Maximum throw speed
 const SWIPE_SPEED_FOR_MAX := 1500.0  # Swipe pixels/sec for max power
 const SCATTER_AMOUNT := 0.12      # Random scatter on the board (in board units)
 const GRAVITY_DROP := 2.0         # Gravity on the dart in flight
-
-# How much of the board the throw zone covers
-# At 1.0, the edges of the throw zone map to the double ring edges
-const AIM_RANGE := 1.15           # Slightly beyond doubles so you can hit the edges
 
 var _touch_start_pos := Vector2.ZERO
 var _touch_start_time := 0.0
@@ -22,6 +17,7 @@ var _is_touching := false
 var _can_throw := true
 var _viewport_size := Vector2(720, 1280)
 var _darts_container: Node3D
+var _camera: Camera3D
 var _reticle: MeshInstance3D
 var _current_aim := Vector2.ZERO  # Board-space aim position (updated during drag)
 var _dart_tier: int = 0           # Current dart tier (affects scatter)
@@ -36,9 +32,10 @@ var _last_slow_time := 0.0
 var _active_touch_count := 0
 var _gesture_occurred := false  # Set true when 2+ fingers detected, stays until all lift
 
-func setup(darts_container: Node3D, viewport_size: Vector2) -> void:
+func setup(darts_container: Node3D, viewport_size: Vector2, camera: Camera3D) -> void:
 	_darts_container = darts_container
 	_viewport_size = viewport_size
+	_camera = camera
 	_create_reticle()
 
 func set_dart_tier(tier: int) -> void:
@@ -166,18 +163,36 @@ func _on_touch_end(pos: Vector2) -> void:
 	_do_throw(_aim_before_flick, swipe_speed)
 
 func _screen_to_board(screen_pos: Vector2) -> Vector2:
-	# Map the throw zone to the full dartboard
-	# X: left edge → left of board, right edge → right of board
-	var norm_x := (screen_pos.x / _viewport_size.x - 0.5) * 2.0  # -1 to 1
+	# Map the throw zone touch position to a board coordinate using camera ray projection.
+	# This correctly handles camera zoom and pan — wherever the camera is looking,
+	# the throw zone maps proportionally to the visible area of the board.
+	#
+	# Step 1: Convert throw zone position to a corresponding position in the
+	#         board view area (top 45% of screen).
+	# Step 2: Ray-cast from the camera through that screen position to the board plane (z=0).
 
-	# Y: bottom of screen → bottom of board, top of throw zone → top of board
 	var throw_zone_top_px := _viewport_size.y * THROW_ZONE_TOP
 	var throw_zone_height := _viewport_size.y - throw_zone_top_px
-	# Invert: screen Y increases downward, board Y increases upward
-	var norm_y := ((_viewport_size.y - screen_pos.y) / throw_zone_height) * 2.0 - 1.0
 
-	var board_extent := BoardData.BOARD_RADIUS * BoardData.DOUBLE_OUTER_R * AIM_RANGE
-	return Vector2(norm_x * board_extent, norm_y * board_extent)
+	# How far through the throw zone (0.0 = top of zone/aiming high, 1.0 = bottom/aiming low)
+	var throw_t := clampf((screen_pos.y - throw_zone_top_px) / throw_zone_height, 0.0, 1.0)
+
+	# Map to board view area:
+	# throw_t=0 (top of throw zone, aiming high) → y=0 (top of board view)
+	# throw_t=1 (bottom, aiming low) → y=throw_zone_top_px (bottom of board view)
+	# X stays the same (full screen width for both zones)
+	var mapped_screen_pos := Vector2(screen_pos.x, throw_t * throw_zone_top_px)
+
+	# Ray-cast from camera through this screen position to the board plane (z=0)
+	var ray_origin := _camera.project_ray_origin(mapped_screen_pos)
+	var ray_normal := _camera.project_ray_normal(mapped_screen_pos)
+
+	if absf(ray_normal.z) < 0.001:
+		return Vector2.ZERO  # Ray parallel to board — shouldn't happen
+
+	var t := -ray_origin.z / ray_normal.z
+	var hit := ray_origin + ray_normal * t
+	return Vector2(hit.x, hit.y)
 
 func _update_reticle(board_aim: Vector2) -> void:
 	_reticle.position = Vector3(board_aim.x, board_aim.y, 0.02)
@@ -199,9 +214,16 @@ func _do_throw(aim: Vector2, swipe_speed: float) -> void:
 	var power_t := clampf(swipe_speed / SWIPE_SPEED_FOR_MAX, 0.0, 1.0)
 	var throw_speed := lerpf(DART_SPEED_MIN, DART_SPEED_MAX, power_t)
 
-	# Spawn dart slightly offset from centre, below the board
+	# Spawn dart in front of the camera, slightly offset toward the target.
+	# This ensures the dart is visible on screen regardless of camera zoom/pan.
 	var dart := Dart.create(_dart_tier)
-	dart.position = Vector3(aim.x * 0.3, -1.5, DART_START_Z)
+	var cam_pos := _camera.global_position
+	var spawn_z := cam_pos.z * 0.55  # About halfway between camera and board
+	dart.position = Vector3(
+		lerpf(cam_pos.x, target.x, 0.3),  # Slight horizontal offset toward aim
+		cam_pos.y - 1.5,                    # Below the camera line
+		spawn_z
+	)
 
 	# Calculate velocity to hit the target on the board (z=0)
 	var to_target := Vector3(target.x, target.y, 0.0) - dart.position
