@@ -140,8 +140,14 @@ func _on_body_entered(body: Node) -> void:
 	_stuck = true
 	freeze = true
 
-	# Check if we hit the board surface or something else (back wall = miss)
-	var hit_pos_2d := Vector2(global_position.x, global_position.y)
+	# Score from the tip position, not the body centre.
+	# The tip is offset along the dart's -Z axis by (barrel_length + TIP_LENGTH).
+	# Using the body centre caused trebles to score as singles because the body
+	# is displaced inward from the tip when the dart approaches at an angle.
+	var data := DartData.get_tier(_tier)
+	var tip_local := Vector3(0, 0, -(data["barrel_length"] + TIP_LENGTH))
+	var tip_world := global_transform * tip_local
+	var hit_pos_2d := Vector2(tip_world.x, tip_world.y)
 	var dist_from_centre := hit_pos_2d.length() / BoardData.BOARD_RADIUS
 
 	if body.name == "BackWall" or dist_from_centre > BoardData.DOUBLE_OUTER_R:

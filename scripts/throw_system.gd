@@ -31,6 +31,11 @@ var _aim_before_flick := Vector2.ZERO
 var _last_slow_pos := Vector2.ZERO
 var _last_slow_time := 0.0
 
+# ── Multi-touch tracking ──
+# Independently tracks finger count so we can cancel throws during pinch/zoom gestures
+var _active_touch_count := 0
+var _gesture_occurred := false  # Set true when 2+ fingers detected, stays until all lift
+
 func setup(darts_container: Node3D, viewport_size: Vector2) -> void:
 	_darts_container = darts_container
 	_viewport_size = viewport_size
@@ -60,8 +65,34 @@ func _create_reticle() -> void:
 	_reticle.visible = false
 	add_child(_reticle)
 
+# Track all touches via _input so we know when multi-touch is happening.
+# This runs alongside camera_rig's _input — neither consumes the events,
+# they just independently track state.
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		var touch := event as InputEventScreenTouch
+		if touch.pressed:
+			_active_touch_count += 1
+		else:
+			_active_touch_count = maxi(_active_touch_count - 1, 0)
+
+		# Second finger down — cancel any in-progress throw aim
+		if _active_touch_count > 1:
+			_gesture_occurred = true
+			if _is_touching:
+				_is_touching = false
+				_reticle.visible = false
+
+		# All fingers lifted — reset gesture flag for next touch
+		if _active_touch_count == 0:
+			_gesture_occurred = false
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not _can_throw:
+		return
+
+	# Ignore all single-touch events if a gesture just happened
+	if _gesture_occurred:
 		return
 
 	if event is InputEventScreenTouch:

@@ -16,6 +16,15 @@ const LERP_SPEED := 6.0      # How fast camera smoothly follows target
 var _current_pos := Vector3.ZERO
 var _current_fov := DEFAULT_FOV
 
+# ── Multi-touch gesture state (mobile pinch/pan) ──
+var _touches: Dictionary = {}  # touch_index -> position
+var _prev_pinch_dist := 0.0
+var _prev_pinch_mid := Vector2.ZERO
+var _is_gesturing := false     # True when 2+ fingers are down
+
+# ── Right-click drag (PC pan) ──
+var _right_dragging := false
+
 func _ready() -> void:
 	_camera = Camera3D.new()
 	_camera.fov = DEFAULT_FOV
@@ -24,6 +33,9 @@ func _ready() -> void:
 
 func get_camera() -> Camera3D:
 	return _camera
+
+func is_gesturing() -> bool:
+	return _is_gesturing
 
 func _process(delta: float) -> void:
 	_handle_keyboard_pan(delta)
@@ -45,15 +57,80 @@ func _handle_keyboard_pan(delta: float) -> void:
 		_target.x = clampf(_target.x, -PAN_LIMIT, PAN_LIMIT)
 		_target.y = clampf(_target.y, -PAN_LIMIT, PAN_LIMIT)
 
+# ── Multi-touch handling (pinch-to-zoom + two-finger pan) ──
+# Uses _input so both camera and throw system can independently track touches.
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		var touch := event as InputEventScreenTouch
+		if touch.pressed:
+			_touches[touch.index] = touch.position
+		else:
+			_touches.erase(touch.index)
+		_update_gesture_state()
+
+	elif event is InputEventScreenDrag:
+		var drag := event as InputEventScreenDrag
+		if drag.index in _touches:
+			_touches[drag.index] = drag.position
+		if _is_gesturing and _touches.size() >= 2:
+			_handle_pinch_pan()
+
+func _update_gesture_state() -> void:
+	if _touches.size() >= 2 and not _is_gesturing:
+		# Entering gesture mode — snapshot initial pinch state
+		_is_gesturing = true
+		var positions: Array = _touches.values()
+		_prev_pinch_dist = (positions[0] as Vector2).distance_to(positions[1] as Vector2)
+		_prev_pinch_mid = ((positions[0] as Vector2) + (positions[1] as Vector2)) / 2.0
+	elif _touches.size() < 2 and _is_gesturing:
+		_is_gesturing = false
+
+func _handle_pinch_pan() -> void:
+	var positions: Array = _touches.values()
+	var p0: Vector2 = positions[0]
+	var p1: Vector2 = positions[1]
+
+	var dist := p0.distance_to(p1)
+	var mid := (p0 + p1) / 2.0
+
+	# Pinch zoom — spread fingers to zoom in, pinch to zoom out
+	var dist_delta := dist - _prev_pinch_dist
+	_zoom = clampf(_zoom + dist_delta * 0.003, 0.0, 1.0)
+
+	# Two-finger pan — drag both fingers to move the view
+	var mid_delta := mid - _prev_pinch_mid
+	var pan_scale := lerpf(0.003, 0.008, _zoom)
+	_target.x -= mid_delta.x * pan_scale
+	_target.y += mid_delta.y * pan_scale  # Screen Y is inverted vs board Y
+	_target.x = clampf(_target.x, -PAN_LIMIT, PAN_LIMIT)
+	_target.y = clampf(_target.y, -PAN_LIMIT, PAN_LIMIT)
+
+	_prev_pinch_dist = dist
+	_prev_pinch_mid = mid
+
+# ── PC controls (scroll wheel, right-click drag, keyboard) ──
+
 func _unhandled_input(event: InputEvent) -> void:
-	# Scroll wheel to zoom
 	if event is InputEventMouseButton:
 		var mb: InputEventMouseButton = event
-		if mb.pressed:
-			if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-				_zoom = clampf(_zoom + ZOOM_SPEED, 0.0, 1.0)
-			elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-				_zoom = clampf(_zoom - ZOOM_SPEED, 0.0, 1.0)
+		# Scroll wheel to zoom
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_zoom = clampf(_zoom + ZOOM_SPEED, 0.0, 1.0)
+		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_zoom = clampf(_zoom - ZOOM_SPEED, 0.0, 1.0)
+		# Right-click to start/stop pan drag
+		elif mb.button_index == MOUSE_BUTTON_RIGHT:
+			_right_dragging = mb.pressed
+
+	# Right-click drag to pan
+	if event is InputEventMouseMotion and _right_dragging:
+		var motion: InputEventMouseMotion = event
+		var pan_scale := lerpf(0.003, 0.008, _zoom)
+		_target.x -= motion.relative.x * pan_scale
+		_target.y += motion.relative.y * pan_scale
+		_target.x = clampf(_target.x, -PAN_LIMIT, PAN_LIMIT)
+		_target.y = clampf(_target.y, -PAN_LIMIT, PAN_LIMIT)
 
 	# R key to reset camera
 	if event is InputEventKey:

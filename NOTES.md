@@ -24,12 +24,12 @@ The ultimate game is a career mode from pub leagues to Alexandra Palace (see NAR
 
 ### Known issues to fix next session
 
-1. **Camera zoom only goes to board centre.** Cannot zoom into specific areas (left, right, top, bottom). Need right-click drag to pan while zoomed, similar to Animal Merge's orbit controls. On mobile this would be two-finger pan.
+1. ~~**Camera zoom only goes to board centre.**~~ **FIXED.** Camera now supports:
+   - **Mobile:** Pinch to zoom in/out, two-finger drag to pan around the board
+   - **PC:** Scroll wheel to zoom, right-click drag to pan, WASD/arrows still work, R to reset
+   - Throw system cancels any in-progress aim if a second finger is detected (no accidental throws during pinch/zoom)
 
-2. **Dart position vs score mismatch near segment borders.** When a dart lands close to a wire between two segments, the visual position can disagree with the scored segment. The score detection uses angle + distance from centre, but the dart's final resting position (where it freezes after physics collision) may differ slightly from the exact hit point used for scoring. Need to:
-   - Verify the angle/distance geometry matches the visual wedges exactly
-   - Consider using the dart tip position rather than the body centre for scoring
-   - Add a "zoom to dart" feature after each throw so the player can inspect where it landed
+2. ~~**Dart position vs score mismatch near segment borders.**~~ **FIXED.** Root cause: scoring used the dart body centre (`global_position`) instead of the tip position. With barrel lengths of 0.22–0.28 game units, the body is displaced inward from the tip when the dart approaches at an angle — enough to push treble hits into the single ring (which is only 0.094 units wide). Fix: scoring now calculates the tip's world position using `global_transform * tip_local_offset`.
 
 3. **Wire bounce.** The wire dividers between segments should have a slight thickness. In rare cases, a dart hitting the wire should bounce off — display "WIRE!" and count as a miss. This adds realism and tension.
 
