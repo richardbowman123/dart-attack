@@ -4,6 +4,7 @@ class_name ThrowSystem
 signal dart_thrown(dart: Dart)
 signal swipe_update(speed: float)
 signal swipe_ended()
+signal throw_rejected
 
 const THROW_ZONE_TOP := 0.45      # Top 45% is board view, bottom 55% is throw zone
 const MIN_SWIPE_DISTANCE := 30.0  # Minimum pixels to register as a throw
@@ -24,6 +25,10 @@ var _darts_container: Node3D
 var _camera: Camera3D
 var _dart_tier: int = 0           # Current dart tier (affects scatter)
 var _character: DartData.Character = DartData.Character.DAI
+
+## Career mode scatter multiplier — set by MatchManager before each player visit.
+## 1.0 = no effect (practice mode). Values > 1 = worse scatter, < 1 = better.
+var career_scatter_mult: float = 1.0
 
 # Track recent position for speed calculation (used by tutorial speed indicator)
 var _last_move_pos := Vector2.ZERO
@@ -121,8 +126,10 @@ func _on_touch_end(pos: Vector2) -> void:
 	var swipe_distance := swipe_delta.length()
 
 	if swipe_distance < MIN_SWIPE_DISTANCE:
+		throw_rejected.emit()
 		return
 	if swipe_delta.y < 10.0:
+		throw_rejected.emit()
 		return  # Need at least some upward component
 
 	var elapsed := (Time.get_ticks_msec() / 1000.0) - _touch_start_time
@@ -131,6 +138,7 @@ func _on_touch_end(pos: Vector2) -> void:
 	var swipe_speed := swipe_distance / elapsed
 
 	if swipe_speed < MIN_SWIPE_SPEED:
+		throw_rejected.emit()
 		return  # Too slow — dart won't fly
 
 	# Release position is the primary aim (~90%). Speed nudge adds a small
@@ -158,17 +166,21 @@ func _screen_to_board(screen_pos: Vector2) -> Vector2:
 	var t := -origin.z / dir.z
 	return Vector2(origin.x + dir.x * t, origin.y + dir.y * t)
 
+static func _gaussian_offset(radius: float) -> Vector2:
+	var u1 := maxf(randf(), 0.0001)
+	var u2 := randf()
+	var mag := radius * sqrt(-2.0 * log(u1))
+	var angle := TAU * u2
+	return Vector2(cos(angle), sin(angle)) * mag
+
 func _do_throw(aim: Vector2, swipe_speed: float) -> void:
 	if not _can_throw:
 		return
 	_can_throw = false
 
-	# Add scatter (modified by dart tier quality)
-	var scatter_scale := SCATTER_AMOUNT * DartData.get_scatter_mult(_dart_tier)
-	var scatter := Vector2(
-		randf_range(-scatter_scale, scatter_scale),
-		randf_range(-scatter_scale, scatter_scale)
-	)
+	# Add scatter (modified by dart tier quality and career stats)
+	var scatter_scale := SCATTER_AMOUNT * DartData.get_scatter_mult(_dart_tier) * career_scatter_mult
+	var scatter := _gaussian_offset(scatter_scale)
 	var target := aim + scatter
 
 	# Calculate throw power from swipe speed

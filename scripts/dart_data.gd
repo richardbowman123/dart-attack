@@ -13,6 +13,7 @@ const TIERS := [
 		"barrel_radius": 0.014,
 		"barrel_length": 0.22,
 		"scatter_mult": 1.0,
+		"bounce_rate": 0.05,
 		"weight_label": "18g",
 		# Visual detail
 		"tip_taper": 0.4,
@@ -34,6 +35,7 @@ const TIERS := [
 		"barrel_radius": 0.013,
 		"barrel_length": 0.24,
 		"scatter_mult": 0.85,
+		"bounce_rate": 0.035,
 		"weight_label": "22g",
 		# Visual detail
 		"tip_taper": 0.35,
@@ -56,6 +58,7 @@ const TIERS := [
 		"barrel_radius": 0.011,
 		"barrel_length": 0.26,
 		"scatter_mult": 0.65,
+		"bounce_rate": 0.02,
 		"weight_label": "24g",
 		# Visual detail
 		"tip_taper": 0.3,
@@ -71,13 +74,15 @@ const TIERS := [
 	},
 	{
 		# ── Tier 3: Premium Tungsten ── match-day darts, kept in a leather case
+		# Gunmetal blue-steel finish — darker than Tungsten but visible against black board
 		"name": "Premium Tungsten",
-		"barrel_color": Color(0.15, 0.15, 0.18),
-		"barrel_metallic": 0.95,
-		"barrel_roughness": 0.15,
+		"barrel_color": Color(0.25, 0.27, 0.38),
+		"barrel_metallic": 0.92,
+		"barrel_roughness": 0.12,
 		"barrel_radius": 0.010,
 		"barrel_length": 0.28,
 		"scatter_mult": 0.45,
+		"bounce_rate": 0.01,
 		"weight_label": "26g",
 		# Visual detail
 		"tip_taper": 0.25,

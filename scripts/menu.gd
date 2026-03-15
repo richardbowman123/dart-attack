@@ -27,21 +27,21 @@ func _build_menu() -> void:
 
 	# Spacer at top
 	var top_spacer := Control.new()
-	top_spacer.custom_minimum_size = Vector2(720, 60)
+	top_spacer.custom_minimum_size = Vector2(720, 50)
 	content.add_child(top_spacer)
 
 	# Title
 	var title := Label.new()
 	title.text = "DART ATTACK"
-	title.add_theme_font_size_override("font_size", 48)
+	UIFont.apply(title, UIFont.SCREEN_TITLE)
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.custom_minimum_size = Vector2(720, 58)
+	title.custom_minimum_size = Vector2(720, 80)
 	content.add_child(title)
 
 	# Spacer
 	var sp1 := Control.new()
-	sp1.custom_minimum_size = Vector2(720, 12)
+	sp1.custom_minimum_size = Vector2(720, 8)
 	content.add_child(sp1)
 
 	# Show selected character name
@@ -54,10 +54,11 @@ func _build_menu() -> void:
 	var char_index: int = GameState.character
 	var player_label := Label.new()
 	player_label.text = "Playing as " + names[char_index]
-	player_label.add_theme_font_size_override("font_size", 18)
+	UIFont.apply(player_label, UIFont.CAPTION)
 	player_label.add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
 	player_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	player_label.custom_minimum_size = Vector2(720, 26)
+	player_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	player_label.custom_minimum_size = Vector2(720, 40)
 	content.add_child(player_label)
 
 	# ── Tutorial button ──
@@ -65,10 +66,10 @@ func _build_menu() -> void:
 	tut_spacer.custom_minimum_size = Vector2(720, 30)
 	content.add_child(tut_spacer)
 
-	var tut_btn := _create_menu_button("Tutorial", 440, 54, 26)
+	var tut_btn := _create_menu_button("Tutorial", 640, 80, UIFont.HEADING)
 	tut_btn.pressed.connect(_on_tutorial_pressed)
 	var tut_wrapper := CenterContainer.new()
-	tut_wrapper.custom_minimum_size = Vector2(720, 62)
+	tut_wrapper.custom_minimum_size = Vector2(720, 90)
 	tut_wrapper.add_child(tut_btn)
 	content.add_child(tut_wrapper)
 
@@ -79,10 +80,10 @@ func _build_menu() -> void:
 
 	var practice_label := Label.new()
 	practice_label.text = "Practice"
-	practice_label.add_theme_font_size_override("font_size", 20)
+	UIFont.apply(practice_label, UIFont.SUBHEADING)
 	practice_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 	practice_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	practice_label.custom_minimum_size = Vector2(720, 28)
+	practice_label.custom_minimum_size = Vector2(720, 44)
 	content.add_child(practice_label)
 
 	var practice_gap := Control.new()
@@ -97,10 +98,10 @@ func _build_menu() -> void:
 	]
 
 	for data in button_data:
-		var btn := _create_menu_button(data["text"], 440, 54, 26)
+		var btn := _create_menu_button(data["text"], 640, 80, UIFont.HEADING)
 		btn.pressed.connect(_on_mode_selected.bind(data["mode"], data["score"]))
 		var wrapper := CenterContainer.new()
-		wrapper.custom_minimum_size = Vector2(720, 62)
+		wrapper.custom_minimum_size = Vector2(720, 90)
 		wrapper.add_child(btn)
 		content.add_child(wrapper)
 
@@ -111,10 +112,10 @@ func _build_menu() -> void:
 
 	var vs_label := Label.new()
 	vs_label.text = "Career Mode"
-	vs_label.add_theme_font_size_override("font_size", 20)
+	UIFont.apply(vs_label, UIFont.SUBHEADING)
 	vs_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
 	vs_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vs_label.custom_minimum_size = Vector2(720, 28)
+	vs_label.custom_minimum_size = Vector2(720, 44)
 	content.add_child(vs_label)
 
 	var vs_gap := Control.new()
@@ -125,18 +126,18 @@ func _build_menu() -> void:
 	var career_opponents := ["big_kev"]
 	for opp_id in career_opponents:
 		var label_text: String = OpponentData.get_menu_label(opp_id)
-		var btn := _create_menu_button(label_text, 440, 46, 20)
+		var btn := _create_menu_button(label_text, 640, 80, UIFont.HEADING)
 		# Red-tinted style for VS buttons
 		var vs_style := StyleBoxFlat.new()
 		vs_style.bg_color = Color(0.2, 0.1, 0.12)
-		vs_style.corner_radius_top_left = 8
-		vs_style.corner_radius_top_right = 8
-		vs_style.corner_radius_bottom_left = 8
-		vs_style.corner_radius_bottom_right = 8
-		vs_style.border_width_left = 2
-		vs_style.border_width_right = 2
-		vs_style.border_width_top = 2
-		vs_style.border_width_bottom = 2
+		vs_style.corner_radius_top_left = 12
+		vs_style.corner_radius_top_right = 12
+		vs_style.corner_radius_bottom_left = 12
+		vs_style.corner_radius_bottom_right = 12
+		vs_style.border_width_left = 3
+		vs_style.border_width_right = 3
+		vs_style.border_width_top = 3
+		vs_style.border_width_bottom = 3
 		vs_style.border_color = Color(0.4, 0.2, 0.2)
 		btn.add_theme_stylebox_override("normal", vs_style)
 		var vs_hover := vs_style.duplicate()
@@ -149,26 +150,26 @@ func _build_menu() -> void:
 		btn.add_theme_color_override("font_hover_color", Color(1.0, 0.6, 0.5))
 		btn.pressed.connect(_on_vs_selected.bind(opp_id))
 		var wrapper := CenterContainer.new()
-		wrapper.custom_minimum_size = Vector2(720, 54)
+		wrapper.custom_minimum_size = Vector2(720, 90)
 		wrapper.add_child(btn)
 		content.add_child(wrapper)
 
 	# ── Back button ──
 	var back_spacer := Control.new()
-	back_spacer.custom_minimum_size = Vector2(720, 20)
+	back_spacer.custom_minimum_size = Vector2(720, 30)
 	content.add_child(back_spacer)
 
-	var back_btn := _create_menu_button("BACK", 440, 50, 22)
+	var back_btn := _create_menu_button("BACK", 640, 80, UIFont.SUBHEADING)
 	var back_style := StyleBoxFlat.new()
 	back_style.bg_color = Color(0.1, 0.1, 0.13)
-	back_style.corner_radius_top_left = 8
-	back_style.corner_radius_top_right = 8
-	back_style.corner_radius_bottom_left = 8
-	back_style.corner_radius_bottom_right = 8
-	back_style.border_width_left = 2
-	back_style.border_width_right = 2
-	back_style.border_width_top = 2
-	back_style.border_width_bottom = 2
+	back_style.corner_radius_top_left = 12
+	back_style.corner_radius_top_right = 12
+	back_style.corner_radius_bottom_left = 12
+	back_style.corner_radius_bottom_right = 12
+	back_style.border_width_left = 3
+	back_style.border_width_right = 3
+	back_style.border_width_top = 3
+	back_style.border_width_bottom = 3
 	back_style.border_color = Color(0.25, 0.25, 0.3)
 	back_btn.add_theme_stylebox_override("normal", back_style)
 	var back_hover := back_style.duplicate()
@@ -178,7 +179,7 @@ func _build_menu() -> void:
 	back_btn.add_theme_color_override("font_hover_color", Color.WHITE)
 	back_btn.pressed.connect(_on_back_pressed)
 	var back_wrapper := CenterContainer.new()
-	back_wrapper.custom_minimum_size = Vector2(720, 58)
+	back_wrapper.custom_minimum_size = Vector2(720, 90)
 	back_wrapper.add_child(back_btn)
 	content.add_child(back_wrapper)
 
@@ -191,18 +192,18 @@ func _create_menu_button(text: String, w: int, h: int, font_size: int) -> Button
 	var btn := Button.new()
 	btn.text = text
 	btn.custom_minimum_size = Vector2(w, h)
-	btn.add_theme_font_size_override("font_size", font_size)
+	UIFont.apply_button(btn, font_size)
 
 	var normal_style := StyleBoxFlat.new()
 	normal_style.bg_color = Color(0.15, 0.15, 0.2)
-	normal_style.corner_radius_top_left = 8
-	normal_style.corner_radius_top_right = 8
-	normal_style.corner_radius_bottom_left = 8
-	normal_style.corner_radius_bottom_right = 8
-	normal_style.border_width_left = 2
-	normal_style.border_width_right = 2
-	normal_style.border_width_top = 2
-	normal_style.border_width_bottom = 2
+	normal_style.corner_radius_top_left = 12
+	normal_style.corner_radius_top_right = 12
+	normal_style.corner_radius_bottom_left = 12
+	normal_style.corner_radius_bottom_right = 12
+	normal_style.border_width_left = 3
+	normal_style.border_width_right = 3
+	normal_style.border_width_top = 3
+	normal_style.border_width_bottom = 3
 	normal_style.border_color = Color(0.3, 0.3, 0.35)
 	btn.add_theme_stylebox_override("normal", normal_style)
 
@@ -225,11 +226,13 @@ func _on_tutorial_pressed() -> void:
 	GameState.dart_tier = 0
 	GameState.is_vs_ai = false
 	GameState.opponent_id = ""
+	CareerState.career_mode_active = false
 	get_tree().change_scene_to_file("res://scenes/match.tscn")
 
 func _on_mode_selected(mode: String, score: int) -> void:
 	GameState.is_vs_ai = false
 	GameState.opponent_id = ""
+	CareerState.career_mode_active = false
 	if mode == "rtc":
 		GameState.game_mode = GameState.GameMode.ROUND_THE_CLOCK
 	else:
@@ -241,6 +244,7 @@ func _on_vs_selected(opponent_id: String) -> void:
 	var opp: Dictionary = OpponentData.get_opponent(opponent_id)
 	GameState.is_vs_ai = true
 	GameState.opponent_id = opponent_id
+	CareerState.career_mode_active = true
 	if opp["game_mode"] == "rtc":
 		GameState.game_mode = GameState.GameMode.ROUND_THE_CLOCK
 		GameState.starting_score = 0

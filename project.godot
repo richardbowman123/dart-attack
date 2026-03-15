@@ -18,6 +18,8 @@ config/features=PackedStringArray("4.6")
 
 InputSetup="*res://scripts/input_setup.gd"
 GameState="*res://scripts/game_state.gd"
+UIFont="*res://scripts/ui_font.gd"
+CareerState="*res://scripts/career_state.gd"
 
 [display]
 

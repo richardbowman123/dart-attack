@@ -29,6 +29,10 @@ const OPPONENTS := {
 		# Rubber-banding: tighter when behind (more hits), wider when ahead
 		"rtc_scatter_ahead": 0.30,   # Looser when cruising — more misses
 		"rtc_scatter_behind": 0.15,  # Tighter when catching up — more hits
+		"dart_quality": 20,
+		"base_confidence": 40,
+		"base_anger": 10,
+		"anger_rate": 0.5,
 	},
 	"derek": {
 		"name": "Derek",
@@ -41,6 +45,10 @@ const OPPONENTS := {
 		"starting_score": 101,
 		"image": "",
 		"vibe": "Friday night tournament. Tables pushed back, chalked bracket on the blackboard, pints everywhere.",
+		"dart_quality": 35,
+		"base_confidence": 50,
+		"base_anger": 15,
+		"anger_rate": 0.8,
 	},
 	"steve": {
 		"name": "Steve",
@@ -53,6 +61,10 @@ const OPPONENTS := {
 		"starting_score": 101,
 		"image": "",
 		"vibe": "Working men's club. Proper oche, small stage, folding chairs for fifty, commentator with a microphone.",
+		"dart_quality": 45,
+		"base_confidence": 55,
+		"base_anger": 20,
+		"anger_rate": 1.0,
 	},
 	"philip": {
 		"name": "Philip",
@@ -66,6 +78,10 @@ const OPPONENTS := {
 		"venue": "County Darts Club",
 		"image": "",
 		"vibe": "Civic hall. Lighting rig, raised oche, sponsor banners, two hundred in the crowd, regional TV cameras.",
+		"dart_quality": 60,
+		"base_confidence": 65,
+		"base_anger": 10,
+		"anger_rate": 0.6,
 	},
 	"mad_dog": {
 		"name": "Mad Dog",
@@ -79,6 +95,10 @@ const OPPONENTS := {
 		"venue": "National Qualifying, Milton Keynes",
 		"image": "",
 		"vibe": "Conference centre. Harsh fluorescent lighting, professional oche, five hundred watching. Everyone thinks they're good enough.",
+		"dart_quality": 55,
+		"base_confidence": 60,
+		"base_anger": 40,
+		"anger_rate": 2.0,
 	},
 	"lars": {
 		"name": "Lars",
@@ -92,6 +112,10 @@ const OPPONENTS := {
 		"venue": "Alexandra Palace, London",
 		"image": "",
 		"vibe": "The cathedral of darts. Walk-on music, pyrotechnics, two thousand in fancy dress. The board is lit like a shrine.",
+		"dart_quality": 80,
+		"base_confidence": 75,
+		"base_anger": 15,
+		"anger_rate": 0.7,
 	},
 	"vinnie": {
 		"name": "Vinnie Gold",
@@ -105,6 +129,10 @@ const OPPONENTS := {
 		"venue": "Alexandra Palace, London",
 		"image": "",
 		"vibe": "World Championship Final. Gold confetti, fireworks, the crowd is on their feet. This is it.",
+		"dart_quality": 95,
+		"base_confidence": 85,
+		"base_anger": 25,
+		"anger_rate": 1.5,
 	},
 }
 
@@ -194,6 +222,32 @@ static func get_rtc_scatter(id: String, lead: int) -> float:
 		return opp.get("rtc_scatter_behind", base * 0.7)
 	else:
 		return base
+
+## Starting nerves value for the player when facing this opponent.
+## Higher level = more pressure = higher starting nerves.
+static func get_base_nerves(id: String) -> float:
+	var level: int = OPPONENTS[id]["level"]
+	match level:
+		1: return 30.0   # Big Kev — friendly local, low pressure
+		2: return 40.0   # Derek — Friday night tournament
+		3: return 45.0   # Steve — regional, some crowd
+		4: return 55.0   # Philip — county level, real pressure
+		5: return 65.0   # Mad Dog — national qualifier, intense
+		6: return 75.0   # Lars — world semi-final
+		7: return 85.0   # Vinnie Gold — world final, maximum pressure
+		_: return 50.0
+
+static func get_dart_quality(id: String) -> int:
+	return OPPONENTS[id].get("dart_quality", 50)
+
+static func get_base_confidence(id: String) -> float:
+	return float(OPPONENTS[id].get("base_confidence", 50))
+
+static func get_base_anger(id: String) -> float:
+	return float(OPPONENTS[id].get("base_anger", 10))
+
+static func get_anger_rate(id: String) -> float:
+	return OPPONENTS[id].get("anger_rate", 1.0)
 
 static func get_menu_label(id: String) -> String:
 	var opp: Dictionary = OPPONENTS[id]

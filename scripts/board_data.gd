@@ -27,7 +27,7 @@ const COL_RED := Color(0.78, 0.12, 0.12)
 const COL_GREEN := Color(0.05, 0.45, 0.15)
 const COL_BLACK := Color(0.08, 0.08, 0.08)
 const COL_CREAM := Color(0.95, 0.90, 0.75)
-const COL_WIRE := Color(0.7, 0.7, 0.7)
+const COL_WIRE := Color(0.75, 0.75, 0.78)
 const COL_BULLSEYE := Color(0.78, 0.12, 0.12)
 const COL_OUTER_BULL := Color(0.05, 0.45, 0.15)
 const COL_BOARD_SURROUND := Color(0.05, 0.05, 0.05)
@@ -103,3 +103,49 @@ static func get_segment_angles(segment_index: int) -> Array:
 	var start := base_angle - segment_index * SEGMENT_ANGLE
 	var end := start - SEGMENT_ANGLE
 	return [start, end]
+
+# ── Wire proximity & bounce-out ──
+
+# Ring wire positions (as fractions of BOARD_RADIUS) — same 6 boundaries used for rendering
+const WIRE_RING_RADII: Array[float] = [0.037, 0.094, 0.582, 0.629, 0.953, 1.0]
+
+# Influence zone in normalised units (~3.4mm real-world)
+const WIRE_INFLUENCE := 0.02
+
+## Returns 0.0 (far from any wire) to 1.0 (dead centre of a wire).
+static func get_wire_proximity(pos: Vector2) -> float:
+	var dist := pos.length() / BOARD_RADIUS  # normalised radial distance
+
+	# Find minimum distance to any ring wire
+	var min_dist := 999.0
+	for wr in WIRE_RING_RADII:
+		var d := absf(dist - wr)
+		if d < min_dist:
+			min_dist = d
+
+	# Spoke wires only matter between outer bull and double outer
+	if dist > OUTER_BULL_R and dist <= DOUBLE_OUTER_R:
+		var angle := pos.angle()
+		var base := PI / 2.0 + SEGMENT_ANGLE / 2.0
+		for i in range(20):
+			var spoke_angle := base - i * SEGMENT_ANGLE
+			# Angular distance, converted to arc length at this radius
+			var ang_diff := absf(fmod(angle - spoke_angle + PI + TAU, TAU) - PI)
+			var arc_dist := ang_diff * dist  # normalised arc length
+			if arc_dist < min_dist:
+				min_dist = arc_dist
+
+	# Map through influence zone
+	if min_dist >= WIRE_INFLUENCE:
+		return 0.0
+	return clampf(1.0 - (min_dist / WIRE_INFLUENCE), 0.0, 1.0)
+
+## Roll for a bounce-out. Returns true if the dart bounces off the wire.
+static func check_bounce_out(pos: Vector2, dart_tier: int) -> bool:
+	var proximity := get_wire_proximity(pos)
+	if proximity <= 0.0:
+		return false
+	var base_rate: float = DartData.get_tier(dart_tier).get("bounce_rate", 0.05)
+	# proximity_factor: 0 at edge of influence, 2.0 at wire centre
+	var effective_chance := base_rate * 2.0 * proximity
+	return randf() < effective_chance

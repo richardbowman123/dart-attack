@@ -16,12 +16,16 @@ const COLLAR_EXTRA_R := 0.003
 const COLLAR_HEIGHT := 0.008
 
 var _stuck := false
+var _bouncing := false
 var _hit_score := {}
 var _tier: int = 0
 var _character: DartData.Character = DartData.Character.DAI
 var _flight_time := 0.0
 var visual_scale := 1.0  # Scale visuals without affecting physics
+var custom_flight_color = null  # If set, overrides character flight colours (both front/back)
+var flight_scale := 1.0  # Scale factor for flights only (e.g. 1.5 for splash screen)
 var _visual_root: Node3D  # Scaled container for all visual meshes
+var _flight_root: Node3D  # Scaled container for flight fins only
 
 signal dart_hit(score_data: Dictionary, hit_pos: Vector2)
 
@@ -58,7 +62,11 @@ func _build_visual() -> void:
 	var grip_pattern: Array = data["grip_pattern"]
 	var flight_sheen: bool = data["flight_sheen"]
 	var flight_gold: bool = data["flight_gold_edge"]
-	var flight_cols: Dictionary = DartData.get_flight_colors(_character)
+	var flight_cols: Dictionary
+	if custom_flight_color != null:
+		flight_cols = {"front": custom_flight_color, "back": custom_flight_color}
+	else:
+		flight_cols = DartData.get_flight_colors(_character)
 
 	_build_tip(barrel_r, barrel_len, tip_taper)
 	_build_front_collar(barrel_r, barrel_len, collar_col, collar_met)
@@ -210,12 +218,17 @@ func _build_flights(cols: Dictionary, sheen: bool, gold_edge: bool) -> void:
 	var flight_base_z := SHAFT_LENGTH + 0.003
 	var flight_mesh := _create_flight_shape()
 
+	# Flight container — allows independent scaling (e.g. 1.5x on splash screen)
+	_flight_root = Node3D.new()
+	_flight_root.scale = Vector3(flight_scale, flight_scale, flight_scale)
+	_visual_root.add_child(_flight_root)
+
 	# North fin (+Y) — front colour
 	var n_fin := MeshInstance3D.new()
 	n_fin.mesh = flight_mesh
 	n_fin.position = Vector3(0, 0, flight_base_z)
 	n_fin.material_override = front_mat
-	_visual_root.add_child(n_fin)
+	_flight_root.add_child(n_fin)
 
 	# South fin (-Y) — front colour (flip 180 around Z)
 	var s_fin := MeshInstance3D.new()
@@ -223,7 +236,7 @@ func _build_flights(cols: Dictionary, sheen: bool, gold_edge: bool) -> void:
 	s_fin.position = Vector3(0, 0, flight_base_z)
 	s_fin.rotation.z = PI
 	s_fin.material_override = front_mat
-	_visual_root.add_child(s_fin)
+	_flight_root.add_child(s_fin)
 
 	# East fin (+X) — back colour (rotate -90 around Z)
 	var e_fin := MeshInstance3D.new()
@@ -231,7 +244,7 @@ func _build_flights(cols: Dictionary, sheen: bool, gold_edge: bool) -> void:
 	e_fin.position = Vector3(0, 0, flight_base_z)
 	e_fin.rotation.z = -PI / 2.0
 	e_fin.material_override = back_mat
-	_visual_root.add_child(e_fin)
+	_flight_root.add_child(e_fin)
 
 	# West fin (-X) — back colour (rotate +90 around Z)
 	var w_fin := MeshInstance3D.new()
@@ -239,7 +252,7 @@ func _build_flights(cols: Dictionary, sheen: bool, gold_edge: bool) -> void:
 	w_fin.position = Vector3(0, 0, flight_base_z)
 	w_fin.rotation.z = PI / 2.0
 	w_fin.material_override = back_mat
-	_visual_root.add_child(w_fin)
+	_flight_root.add_child(w_fin)
 
 	# Gold trailing edge — premium darts only
 	if gold_edge:
@@ -321,7 +334,7 @@ func _add_flight_piece(size: Vector3, pos: Vector3, mat: StandardMaterial3D) -> 
 	mesh_inst.mesh = box
 	mesh_inst.position = pos
 	mesh_inst.material_override = mat
-	_visual_root.add_child(mesh_inst)
+	_flight_root.add_child(mesh_inst)
 
 func _make_metal_mat(col: Color, metallic: float, roughness: float) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
@@ -359,16 +372,18 @@ func _physics_process(delta: float) -> void:
 		var vel_dir := linear_velocity.normalized()
 		look_at(global_position + vel_dir, Vector3.UP)
 
+	# Bouncing darts skip the miss timeout — they'll be cleaned up after 2s
+	if _bouncing:
+		return
+
 	# Safety timeout — if the dart has been flying too long, register a miss
 	_flight_time += delta
 	if _flight_time > MISS_TIMEOUT:
 		_register_miss()
 
 func _on_body_entered(body: Node) -> void:
-	if _stuck:
+	if _stuck or _bouncing:
 		return
-	_stuck = true
-	freeze = true
 
 	# Score from where the dart enters the board surface (barrel front / tip start),
 	# NOT the tip end deep inside the board. The player judges the score by where
@@ -380,10 +395,24 @@ func _on_body_entered(body: Node) -> void:
 	var dist_from_centre := hit_pos_2d.length() / BoardData.BOARD_RADIUS
 
 	if body.name == "BackWall" or dist_from_centre > BoardData.DOUBLE_OUTER_R:
+		_stuck = true
+		freeze = true
 		_hit_score = {"number": 0, "multiplier": 0, "label": "Miss", "total": 0}
-	else:
-		_hit_score = BoardData.get_score(hit_pos_2d)
+		dart_hit.emit(_hit_score, hit_pos_2d)
+		return
 
+	# Check for bounce-out (wire deflection)
+	if BoardData.check_bounce_out(hit_pos_2d, _tier):
+		_bouncing = true
+		_hit_score = {"number": 0, "multiplier": 0, "label": "BOUNCE OUT", "total": 0, "bounce_out": true}
+		dart_hit.emit(_hit_score, hit_pos_2d)
+		_do_bounce_out()
+		return
+
+	# Normal hit — stick in the board
+	_stuck = true
+	freeze = true
+	_hit_score = BoardData.get_score(hit_pos_2d)
 	dart_hit.emit(_hit_score, hit_pos_2d)
 
 func _register_miss() -> void:
@@ -393,6 +422,25 @@ func _register_miss() -> void:
 	freeze = true
 	_hit_score = {"number": 0, "multiplier": 0, "label": "Miss", "total": 0}
 	dart_hit.emit(_hit_score, Vector2(global_position.x, global_position.y))
+
+func _do_bounce_out() -> void:
+	# Prevent re-collision with board or back wall
+	contact_monitor = false
+	# Slightly exaggerated gravity for a satisfying fall
+	gravity_scale = 1.5
+	# Rebound velocity: bounces back toward player with random scatter
+	linear_velocity = Vector3(
+		randf_range(-0.3, 0.3),
+		randf_range(0.0, 0.8),
+		randf_range(2.0, 3.5)
+	)
+	# After 2 seconds, stop processing (dart will be cleaned up normally)
+	var tween := create_tween()
+	tween.tween_interval(2.0)
+	tween.tween_callback(func() -> void:
+		_stuck = true
+		freeze = true
+	)
 
 func is_stuck() -> bool:
 	return _stuck

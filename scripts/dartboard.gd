@@ -59,19 +59,25 @@ func _build_board() -> void:
 			r * BoardData.DOUBLE_INNER_R, r * BoardData.DOUBLE_OUTER_R,
 			BoardData.get_segment_colour(i, true), 0.002)
 
-	# Wire rings (thin torus meshes for visibility)
+	# Shared wire material — dark charcoal with metallic sheen
+	var wire_mat := StandardMaterial3D.new()
+	wire_mat.albedo_color = BoardData.COL_WIRE
+	wire_mat.metallic = 0.75
+	wire_mat.roughness = 0.35
+
+	# Wire rings (TorusMesh for each concentric ring)
 	var wire_radii := [
 		BoardData.BULLSEYE_R, BoardData.OUTER_BULL_R,
 		BoardData.TREBLE_INNER_R, BoardData.TREBLE_OUTER_R,
 		BoardData.DOUBLE_INNER_R, BoardData.DOUBLE_OUTER_R
 	]
 	for wr in wire_radii:
-		_add_wire_ring(BoardData.BOARD_RADIUS * wr)
+		_add_wire_ring(BoardData.BOARD_RADIUS * wr, wire_mat)
 
-	# Wire spokes
+	# Wire spokes (CylinderMesh for each radial divider)
 	for i in range(20):
 		var angles := BoardData.get_segment_angles(i)
-		_add_wire_spoke(angles[0])
+		_add_wire_spoke(angles[0], wire_mat)
 
 	# Number labels
 	for i in range(20):
@@ -206,43 +212,42 @@ func _create_mesh(verts: PackedVector3Array, norms: PackedVector3Array, indices:
 	inst.mesh = mesh
 	add_child(inst)
 
-func _add_wire_ring(radius: float) -> void:
-	var mesh := ImmediateMesh.new()
-	mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	for i in range(RING_SEGMENTS + 1):
-		var angle := float(i) / float(RING_SEGMENTS) * TAU
-		mesh.surface_set_color(BoardData.COL_WIRE)
-		mesh.surface_add_vertex(Vector3(cos(angle) * radius, sin(angle) * radius, 0.007))
-	mesh.surface_end()
+func _add_wire_ring(radius: float, mat: StandardMaterial3D) -> void:
+	var wire_thickness := 0.006  # ~1mm real-world wire radius
+	var torus := TorusMesh.new()
+	# inner_radius = inner edge of the donut, outer_radius = outer edge
+	torus.inner_radius = maxf(radius - wire_thickness, 0.001)
+	torus.outer_radius = radius + wire_thickness
+	torus.rings = 48
+	torus.ring_segments = 8
 
 	var inst := MeshInstance3D.new()
-	inst.mesh = mesh
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	inst.mesh = torus
 	inst.material_override = mat
+	# Torus is generated in XZ plane — rotate to lie in board's XY plane
+	inst.rotation.x = PI / 2.0
+	inst.position.z = 0.008
 	add_child(inst)
 
-func _add_wire_spoke(angle: float) -> void:
-	var inner := BoardData.BOARD_RADIUS * BoardData.OUTER_BULL_R
-	var outer := BoardData.BOARD_RADIUS * BoardData.DOUBLE_OUTER_R
-	var c := cos(angle)
-	var s := sin(angle)
+func _add_wire_spoke(angle: float, mat: StandardMaterial3D) -> void:
+	var inner_r := BoardData.BOARD_RADIUS * BoardData.OUTER_BULL_R
+	var outer_r := BoardData.BOARD_RADIUS * BoardData.DOUBLE_OUTER_R
+	var spoke_len := outer_r - inner_r
+	var mid_r := (inner_r + outer_r) / 2.0
 
-	var mesh := ImmediateMesh.new()
-	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	mesh.surface_set_color(BoardData.COL_WIRE)
-	mesh.surface_add_vertex(Vector3(c * inner, s * inner, 0.007))
-	mesh.surface_set_color(BoardData.COL_WIRE)
-	mesh.surface_add_vertex(Vector3(c * outer, s * outer, 0.007))
-	mesh.surface_end()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.006
+	cyl.bottom_radius = 0.006
+	cyl.height = spoke_len
 
 	var inst := MeshInstance3D.new()
-	inst.mesh = mesh
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	inst.mesh = cyl
 	inst.material_override = mat
+	# Cylinder axis is Y by default. Rotate around Z so the axis
+	# points along the spoke direction in the XY plane.
+	inst.rotation.z = angle - PI / 2.0
+	# Position at the midpoint of the spoke, just above the board surface
+	inst.position = Vector3(cos(angle) * mid_r, sin(angle) * mid_r, 0.008)
 	add_child(inst)
 
 func _add_number_label(segment_index: int) -> void:

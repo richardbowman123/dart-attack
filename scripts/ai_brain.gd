@@ -88,8 +88,12 @@ static func _aim_countdown(remaining: int) -> Vector2:
 ## Aiming between treble and double gives the biggest target area and
 ## lets natural scatter push darts off the board occasionally (realistic).
 static func _aim_rtc(target: int) -> Vector2:
-	if target > 20:
-		# Aiming for bullseye
+	if target == 21:
+		# Aiming for outer bull — midpoint of the outer bull ring
+		var mid_r: float = BoardData.BOARD_RADIUS * (BoardData.BULLSEYE_R + BoardData.OUTER_BULL_R) / 2.0
+		return Vector2(mid_r, 0.0)
+	elif target > 21:
+		# Aiming for bullseye (dead centre)
 		return Vector2.ZERO
 
 	# Find the segment index for this number

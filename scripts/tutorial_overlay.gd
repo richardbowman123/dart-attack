@@ -150,7 +150,7 @@ func _build_intro_panel() -> void:
 	vbox.add_theme_constant_override("separation", 20)
 
 	_intro_label = Label.new()
-	_intro_label.add_theme_font_size_override("font_size", 26)
+	UIFont.apply(_intro_label, UIFont.SUBHEADING)
 	_intro_label.add_theme_color_override("font_color", Color.WHITE)
 	_intro_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_intro_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -158,7 +158,7 @@ func _build_intro_panel() -> void:
 
 	_go_button = Button.new()
 	_go_button.text = "Let's go!"
-	_go_button.add_theme_font_size_override("font_size", 28)
+	UIFont.apply_button(_go_button, UIFont.HEADING)
 	_go_button.custom_minimum_size = Vector2(200, 60)
 	_go_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 
@@ -190,7 +190,7 @@ func _build_instruction_label() -> void:
 	add_child(_instruction_bg)
 
 	_instruction_label = Label.new()
-	_instruction_label.add_theme_font_size_override("font_size", 22)
+	UIFont.apply(_instruction_label, UIFont.BODY)
 	_instruction_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
 	_instruction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_instruction_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -211,7 +211,7 @@ func _build_feedback_elements() -> void:
 	add_child(_feedback_bg)
 
 	_feedback_label = Label.new()
-	_feedback_label.add_theme_font_size_override("font_size", 21)
+	UIFont.apply(_feedback_label, UIFont.BODY)
 	_feedback_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	_feedback_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_feedback_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -224,7 +224,7 @@ func _build_feedback_elements() -> void:
 
 func _build_speed_indicator() -> void:
 	_speed_indicator = Label.new()
-	_speed_indicator.add_theme_font_size_override("font_size", 18)
+	UIFont.apply(_speed_indicator, UIFont.CAPTION)
 	_speed_indicator.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
 	_speed_indicator.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_speed_indicator.size = Vector2(120, 30)

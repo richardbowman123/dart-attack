@@ -56,30 +56,30 @@ func _build_screen() -> void:
 	# Title
 	var title := Label.new()
 	title.text = "DART ATTACK"
-	title.add_theme_font_size_override("font_size", 44)
+	UIFont.apply(title, UIFont.SCREEN_TITLE)
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 30)
-	title.size = Vector2(720, 52)
+	title.position = Vector2(0, 25)
+	title.size = Vector2(720, 75)
 	add_child(title)
 
 	# Subtitle
 	var pick_label := Label.new()
 	pick_label.text = "Pick your player"
-	pick_label.add_theme_font_size_override("font_size", 18)
+	UIFont.apply(pick_label, UIFont.CAPTION)
 	pick_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 	pick_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pick_label.position = Vector2(0, 85)
-	pick_label.size = Vector2(720, 26)
+	pick_label.position = Vector2(0, 105)
+	pick_label.size = Vector2(720, 35)
 	add_child(pick_label)
 
 	# ── 2x2 grid of large character cards ──
 	var card_w := 320
-	var card_h := 380
+	var card_h := 370
 	var card_gap := 16
 	var total_w := card_w * 2 + card_gap
 	var grid_left := (720 - total_w) / 2
-	var grid_top := 125
+	var grid_top := 155
 
 	for i in range(characters.size()):
 		var data: Dictionary = characters[i]
@@ -90,21 +90,22 @@ func _build_screen() -> void:
 		_build_character_card(Vector2(x, y), card_w, card_h, data, i)
 
 	# Selected character info below grid
-	var info_y: int = grid_top + card_h * 2 + card_gap + 16
+	var info_y: int = grid_top + card_h * 2 + card_gap + 25
 	_info_name = Label.new()
-	_info_name.add_theme_font_size_override("font_size", 24)
+	UIFont.apply(_info_name, UIFont.SUBHEADING)
 	_info_name.add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
 	_info_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_info_name.position = Vector2(0, info_y)
-	_info_name.size = Vector2(720, 32)
+	_info_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_info_name.position = Vector2(20, info_y)
+	_info_name.size = Vector2(680, 50)
 	add_child(_info_name)
 
 	_info_origin = Label.new()
-	_info_origin.add_theme_font_size_override("font_size", 17)
+	UIFont.apply(_info_origin, UIFont.CAPTION)
 	_info_origin.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 	_info_origin.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_info_origin.position = Vector2(0, info_y + 34)
-	_info_origin.size = Vector2(720, 24)
+	_info_origin.position = Vector2(0, info_y + 55)
+	_info_origin.size = Vector2(720, 35)
 	add_child(_info_origin)
 
 	_update_selection(characters)
@@ -112,20 +113,20 @@ func _build_screen() -> void:
 	# ── NEXT button ──
 	var next_btn := Button.new()
 	next_btn.text = "NEXT"
-	next_btn.position = Vector2(210, info_y + 80)
-	next_btn.size = Vector2(300, 70)
-	next_btn.add_theme_font_size_override("font_size", 30)
+	next_btn.position = Vector2(160, info_y + 110)
+	next_btn.size = Vector2(400, 80)
+	UIFont.apply_button(next_btn, UIFont.HEADING)
 
 	var normal_style := StyleBoxFlat.new()
 	normal_style.bg_color = Color(0.85, 0.15, 0.15)
-	normal_style.corner_radius_top_left = 10
-	normal_style.corner_radius_top_right = 10
-	normal_style.corner_radius_bottom_left = 10
-	normal_style.corner_radius_bottom_right = 10
-	normal_style.border_width_left = 2
-	normal_style.border_width_right = 2
-	normal_style.border_width_top = 2
-	normal_style.border_width_bottom = 2
+	normal_style.corner_radius_top_left = 12
+	normal_style.corner_radius_top_right = 12
+	normal_style.corner_radius_bottom_left = 12
+	normal_style.corner_radius_bottom_right = 12
+	normal_style.border_width_left = 3
+	normal_style.border_width_right = 3
+	normal_style.border_width_top = 3
+	normal_style.border_width_bottom = 3
 	normal_style.border_color = Color(1.0, 1.0, 1.0)
 	next_btn.add_theme_stylebox_override("normal", normal_style)
 
@@ -170,7 +171,7 @@ func _build_character_card(pos: Vector2, w: int, h: int, data: Dictionary, index
 	portrait.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.position = Vector2(6, 6)
-	portrait.size = Vector2(w - 12, h - 50)
+	portrait.size = Vector2(w - 12, h - 60)
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(portrait)
 
@@ -178,11 +179,11 @@ func _build_character_card(pos: Vector2, w: int, h: int, data: Dictionary, index
 	var name_label := Label.new()
 	var short_name: String = data["short_name"]
 	name_label.text = short_name
-	name_label.add_theme_font_size_override("font_size", 18)
+	UIFont.apply(name_label, UIFont.CAPTION)
 	name_label.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.position = Vector2(0, h - 34)
-	name_label.size = Vector2(w, 28)
+	name_label.position = Vector2(0, h - 42)
+	name_label.size = Vector2(w, 36)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(name_label)
 	_card_names.append(name_label)

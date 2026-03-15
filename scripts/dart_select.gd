@@ -1,49 +1,78 @@
 extends Control
 
-const CARD_WIDTH := 620
-const CARD_HEIGHT := 130
-const CARD_GAP := 16
-const CARD_START_Y := 340
-const CARD_X := 50  # (720 - 620) / 2
+# ─── Carousel layout ───
+const TILE_W := 460
+const TILE_H := 680
+const TILE_GAP := 24
+const TILE_STEP := TILE_W + TILE_GAP       # px between tile centres
+const TILE_X_OFFSET := 130                  # (720 - TILE_W) / 2
+const CAROUSEL_Y := 170
+const CAROUSEL_H := 700
+const PREVIEW_W := 400
+const PREVIEW_H := 380
+const PREVIEW_X := 30                       # (TILE_W - PREVIEW_W) / 2
+const PREVIEW_Y := 128
 
+# ─── Text data ───
 const ACCURACY_LABELS := [
-	"Pub standard - wide scatter",
-	"Decent grouping - learning to aim",
-	"Tight clusters - serious kit",
-	"Precision grouping - match ready",
+	"Pub standard — wide scatter",
+	"Decent grouping — learning to aim",
+	"Tight clusters — serious kit",
+	"Precision grouping — match ready",
 ]
 
+const TIER_COSTS := [0, 500, 2000, 5000]
+
+# ─── Active tile border colours ───
+const BORDER_ACTIVE := Color(0.2, 0.75, 0.3)
+const BORDER_INACTIVE := Color(0.2, 0.2, 0.28)
+const BORDER_ACTIVE_W := 4
+const BORDER_INACTIVE_W := 2
+
+# ─── Carousel state ───
+var _current_index := 0
+var _scroll_x := 0.0
+var _target_x := 0.0
+var _dragging := false
+var _drag_start_screen_x := 0.0
+var _drag_start_scroll := 0.0
+
+# ─── Node references ───
+var _carousel: Control
+var _dots: Array[ColorRect] = []
+var _tile_styles: Array[StyleBoxFlat] = []
+var _dart_pivots: Array[Node3D] = []
+
+
 func _ready() -> void:
+	_current_index = GameState.dart_tier
+	_scroll_x = float(_current_index * TILE_STEP)
+	_target_x = _scroll_x
 	_build_ui()
 
+
+# ═══════════════════════════════════════════════════════════
+#  UI CONSTRUCTION
+# ═══════════════════════════════════════════════════════════
+
 func _build_ui() -> void:
-	# Dark background
+	# Background
 	var bg := ColorRect.new()
 	bg.color = Color(0.05, 0.05, 0.08)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
-	# Title
+	# Title — use HEADING (32pt) so it fits within 720px
 	var title := Label.new()
 	title.text = "CHOOSE YOUR DARTS"
-	title.add_theme_font_size_override("font_size", 40)
+	UIFont.apply(title, UIFont.HEADING)
 	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 120)
-	title.size = Vector2(720, 55)
+	title.position = Vector2(0, 50)
+	title.size = Vector2(720, 40)
 	add_child(title)
 
-	# Subtitle
-	var subtitle := Label.new()
-	subtitle.text = "Select a tier to play or view in 3D"
-	subtitle.add_theme_font_size_override("font_size", 18)
-	subtitle.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.position = Vector2(0, 180)
-	subtitle.size = Vector2(720, 30)
-	add_child(subtitle)
-
-	# Current mode label
+	# Mode label
 	var mode_label := Label.new()
 	var mode_text := ""
 	match GameState.game_mode:
@@ -54,194 +83,424 @@ func _build_ui() -> void:
 		GameState.GameMode.COUNTDOWN:
 			mode_text = str(GameState.starting_score)
 	mode_label.text = mode_text
-	mode_label.add_theme_font_size_override("font_size", 22)
-	mode_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.7))
+	UIFont.apply(mode_label, UIFont.CAPTION)
+	mode_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 	mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mode_label.position = Vector2(0, 220)
-	mode_label.size = Vector2(720, 30)
+	mode_label.position = Vector2(0, 100)
+	mode_label.size = Vector2(720, 24)
 	add_child(mode_label)
 
-	# Tier cards
-	for i in range(DartData.TIERS.size()):
-		_build_card(i)
+	# Hint
+	var hint := Label.new()
+	hint.text = "Swipe to browse  ·  Tap to play"
+	UIFont.apply(hint, UIFont.CAPTION)
+	hint.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.position = Vector2(0, 132)
+	hint.size = Vector2(720, 22)
+	add_child(hint)
 
-	# Back button
+	# Carousel clip area
+	var clip := Control.new()
+	clip.clip_contents = true
+	clip.position = Vector2(0, CAROUSEL_Y)
+	clip.size = Vector2(720, CAROUSEL_H)
+	add_child(clip)
+
+	# Carousel container — slides left/right
+	_carousel = Control.new()
+	_carousel.size = Vector2(float(DartData.TIERS.size() * TILE_STEP + 720), CAROUSEL_H)
+	clip.add_child(_carousel)
+
+	for i in range(DartData.TIERS.size()):
+		_build_tile(i)
+
+	_build_dots()
+	_build_back_button()
+	_update_carousel_position()
+	_update_indicators()
+
+
+func _build_tile(tier: int) -> void:
+	var data := DartData.get_tier(tier)
+	var is_locked := _is_tier_locked(tier)
+	var tile_x := float(TILE_X_OFFSET + tier * TILE_STEP)
+
+	# Tile panel
+	var tile := Panel.new()
+	tile.position = Vector2(tile_x, 10)
+	tile.size = Vector2(TILE_W, TILE_H)
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.08, 0.12)
+	_set_corners(style, 16)
+	style.border_width_left = BORDER_INACTIVE_W
+	style.border_width_right = BORDER_INACTIVE_W
+	style.border_width_top = BORDER_INACTIVE_W
+	style.border_width_bottom = BORDER_INACTIVE_W
+	style.border_color = BORDER_INACTIVE
+	tile.add_theme_stylebox_override("panel", style)
+	_carousel.add_child(tile)
+	_tile_styles.append(style)
+
+	# ── Dart name ──
+	var name_lbl := Label.new()
+	name_lbl.text = data["name"].to_upper()
+	UIFont.apply(name_lbl, UIFont.SUBHEADING)
+	name_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.position = Vector2(10, 20)
+	name_lbl.size = Vector2(TILE_W - 20, 32)
+	tile.add_child(name_lbl)
+
+	# ── Weight ──
+	var weight_lbl := Label.new()
+	weight_lbl.text = data["weight_label"]
+	UIFont.apply(weight_lbl, UIFont.BODY)
+	weight_lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+	weight_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	weight_lbl.position = Vector2(10, 56)
+	weight_lbl.size = Vector2(TILE_W - 20, 26)
+	tile.add_child(weight_lbl)
+
+	# ── Accuracy description ──
+	var acc_lbl := Label.new()
+	acc_lbl.text = ACCURACY_LABELS[tier]
+	UIFont.apply(acc_lbl, UIFont.CAPTION)
+	acc_lbl.add_theme_color_override("font_color", Color(0.45, 0.45, 0.5))
+	acc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	acc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	acc_lbl.position = Vector2(20, 86)
+	acc_lbl.size = Vector2(TILE_W - 40, 40)
+	tile.add_child(acc_lbl)
+
+	# ── 3D dart preview ──
+	_build_dart_preview(tile, tier)
+
+	# ── Accuracy bar ──
+	var bar_x := 40
+	var bar_w := TILE_W - 80
+	var bar_y := 530
+
+	var bar_bg := ColorRect.new()
+	bar_bg.color = Color(0.15, 0.15, 0.2)
+	bar_bg.position = Vector2(bar_x, bar_y)
+	bar_bg.size = Vector2(bar_w, 10)
+	tile.add_child(bar_bg)
+
+	var accuracy: float = 1.0 - data["scatter_mult"]
+	var bar_fill := ColorRect.new()
+	bar_fill.color = Color(0.2, 0.7, 0.3).lerp(Color(1.0, 0.85, 0.2), accuracy)
+	bar_fill.position = Vector2(bar_x, bar_y)
+	bar_fill.size = Vector2(bar_w * accuracy, 10)
+	tile.add_child(bar_fill)
+
+	var bar_label := Label.new()
+	bar_label.text = "ACCURACY"
+	UIFont.apply(bar_label, UIFont.CAPTION)
+	bar_label.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
+	bar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bar_label.position = Vector2(0, bar_y + 16)
+	bar_label.size = Vector2(TILE_W, 18)
+	tile.add_child(bar_label)
+
+	# ── Lock overlay (career mode only) ──
+	if is_locked:
+		var overlay := Panel.new()
+		overlay.position = Vector2(0, 0)
+		overlay.size = Vector2(TILE_W, TILE_H)
+		var ov_style := StyleBoxFlat.new()
+		ov_style.bg_color = Color(0.0, 0.0, 0.0, 0.55)
+		_set_corners(ov_style, 16)
+		overlay.add_theme_stylebox_override("panel", ov_style)
+		tile.add_child(overlay)
+
+		var price_lbl := Label.new()
+		price_lbl.text = str(TIER_COSTS[tier])
+		UIFont.apply(price_lbl, UIFont.SCREEN_TITLE)
+		price_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2, 0.85))
+		price_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		price_lbl.position = Vector2(0, TILE_H * 0.5 - 50)
+		price_lbl.size = Vector2(TILE_W, 60)
+		overlay.add_child(price_lbl)
+
+		var locked_lbl := Label.new()
+		locked_lbl.text = "LOCKED"
+		UIFont.apply(locked_lbl, UIFont.BODY)
+		locked_lbl.add_theme_color_override("font_color", Color(0.7, 0.3, 0.3, 0.85))
+		locked_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		locked_lbl.position = Vector2(0, TILE_H * 0.5 + 15)
+		locked_lbl.size = Vector2(TILE_W, 30)
+		overlay.add_child(locked_lbl)
+
+
+func _build_dart_preview(tile: Panel, tier: int) -> void:
+	var container := SubViewportContainer.new()
+	container.stretch = true
+	container.position = Vector2(PREVIEW_X, PREVIEW_Y)
+	container.size = Vector2(PREVIEW_W, PREVIEW_H)
+	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tile.add_child(container)
+
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(PREVIEW_W, PREVIEW_H)
+	viewport.own_world_3d = true
+	viewport.transparent_bg = false
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	viewport.msaa_3d = Viewport.MSAA_2X
+	viewport.physics_object_picking = false
+	container.add_child(viewport)
+
+	# Environment — solid bg matching tile colour
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.08, 0.08, 0.12)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.3, 0.3, 0.35)
+	env.ambient_light_energy = 0.8
+	var world_env := WorldEnvironment.new()
+	world_env.environment = env
+	viewport.add_child(world_env)
+
+	# Lighting — same three-point setup as dart_viewer
+	var key := DirectionalLight3D.new()
+	key.rotation = Vector3(deg_to_rad(-30), deg_to_rad(30), 0)
+	key.light_energy = 1.8
+	key.shadow_enabled = false
+	viewport.add_child(key)
+
+	var fill := DirectionalLight3D.new()
+	fill.rotation = Vector3(deg_to_rad(-20), deg_to_rad(-40), 0)
+	fill.light_energy = 0.6
+	fill.shadow_enabled = false
+	viewport.add_child(fill)
+
+	var rim := DirectionalLight3D.new()
+	rim.rotation = Vector3(deg_to_rad(15), deg_to_rad(180), 0)
+	rim.light_energy = 0.8
+	rim.shadow_enabled = false
+	viewport.add_child(rim)
+
+	# Camera — must be added BEFORE the dart, and set as current
+	var data := DartData.get_tier(tier)
+	var barrel_len: float = data["barrel_length"]
+	var tip_offset: float = barrel_len + Dart.TIP_LENGTH
+	var total_length: float = tip_offset + Dart.SHAFT_LENGTH + 0.003 + Dart.FLIGHT_WIDTH
+	var mid := total_length / 2.0
+	# Orbit centre follows the 45-degree tilt so camera frames the dart centrally
+	var orbit_centre := Vector3(0, mid * 0.707, mid * 0.707)
+
+	var camera := Camera3D.new()
+	camera.fov = 45.0
+	camera.current = true
+	var cam_dist := 0.75
+	var cam_pitch := 0.25
+	var cam_yaw := 0.3
+	camera.position = orbit_centre + Vector3(
+		cam_dist * cos(cam_pitch) * sin(cam_yaw),
+		cam_dist * sin(cam_pitch),
+		cam_dist * cos(cam_pitch) * cos(cam_yaw)
+	)
+	camera.look_at(orbit_centre)
+	viewport.add_child(camera)
+
+	# Dart — tilted at 45 degrees (natural throwing angle)
+	var pivot := Node3D.new()
+	viewport.add_child(pivot)
+	pivot.rotation.x = deg_to_rad(-45)
+
+	var dart := Dart.create(tier, GameState.character)
+	dart.position.z = tip_offset
+	dart.freeze = true
+	dart.gravity_scale = 0
+	pivot.add_child(dart)
+	dart.set_physics_process.call_deferred(false)
+
+	_dart_pivots.append(pivot)
+
+
+func _build_dots() -> void:
+	var count := DartData.TIERS.size()
+	var dot_size := 10
+	var gap := 16
+	var total_w := count * dot_size + (count - 1) * gap
+	var start_x := (720 - total_w) / 2
+	var dot_y := CAROUSEL_Y + CAROUSEL_H + 18
+
+	for i in range(count):
+		var dot := ColorRect.new()
+		dot.size = Vector2(dot_size, dot_size)
+		dot.position = Vector2(start_x + i * (dot_size + gap), dot_y)
+		add_child(dot)
+		_dots.append(dot)
+
+
+func _build_back_button() -> void:
 	var back_btn := Button.new()
 	back_btn.text = "BACK"
-	back_btn.position = Vector2(260, 1170)
-	back_btn.size = Vector2(200, 60)
-	back_btn.add_theme_font_size_override("font_size", 24)
+	back_btn.position = Vector2(240, 940)
+	back_btn.size = Vector2(240, 56)
+	UIFont.apply_button(back_btn, UIFont.BODY)
 	back_btn.add_theme_color_override("font_color", Color.WHITE)
 
-	var back_style := StyleBoxFlat.new()
-	back_style.bg_color = Color(0.15, 0.15, 0.2)
-	back_style.corner_radius_top_left = 8
-	back_style.corner_radius_top_right = 8
-	back_style.corner_radius_bottom_left = 8
-	back_style.corner_radius_bottom_right = 8
-	back_style.border_width_left = 2
-	back_style.border_width_right = 2
-	back_style.border_width_top = 2
-	back_style.border_width_bottom = 2
-	back_style.border_color = Color(0.3, 0.3, 0.35)
-	back_btn.add_theme_stylebox_override("normal", back_style)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.15, 0.15, 0.2)
+	_set_corners(style, 8)
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.3, 0.3, 0.35)
+	back_btn.add_theme_stylebox_override("normal", style)
 
-	var back_hover := back_style.duplicate()
-	back_hover.bg_color = Color(0.2, 0.2, 0.28)
-	back_hover.border_color = Color(0.5, 0.5, 0.6)
-	back_btn.add_theme_stylebox_override("hover", back_hover)
+	var hover := style.duplicate()
+	hover.bg_color = Color(0.2, 0.2, 0.28)
+	hover.border_color = Color(0.5, 0.5, 0.6)
+	back_btn.add_theme_stylebox_override("hover", hover)
 
 	back_btn.pressed.connect(_on_back)
 	add_child(back_btn)
 
-func _build_card(tier: int) -> void:
-	var data := DartData.get_tier(tier)
-	var y := CARD_START_Y + tier * (CARD_HEIGHT + CARD_GAP)
 
-	# Card background
-	var card := Panel.new()
-	card.position = Vector2(CARD_X, y)
-	card.size = Vector2(CARD_WIDTH, CARD_HEIGHT)
+# ═══════════════════════════════════════════════════════════
+#  INPUT — carousel drag + tap to play
+# ═══════════════════════════════════════════════════════════
 
-	var card_style := StyleBoxFlat.new()
-	card_style.bg_color = Color(0.1, 0.1, 0.14)
-	card_style.corner_radius_top_left = 10
-	card_style.corner_radius_top_right = 10
-	card_style.corner_radius_bottom_left = 10
-	card_style.corner_radius_bottom_right = 10
-	card_style.border_width_left = 2
-	card_style.border_width_right = 2
-	card_style.border_width_top = 2
-	card_style.border_width_bottom = 2
-	card_style.border_color = Color(0.25, 0.25, 0.3)
-	card.add_theme_stylebox_override("panel", card_style)
-	add_child(card)
+func _input(event: InputEvent) -> void:
+	var pos := Vector2.ZERO
+	var is_press := false
+	var is_release := false
+	var is_drag := false
 
-	# Barrel colour swatch
-	var swatch := ColorRect.new()
-	swatch.color = data["barrel_color"]
-	swatch.position = Vector2(CARD_X + 16, y + 20)
-	swatch.size = Vector2(40, 40)
-	add_child(swatch)
+	if event is InputEventScreenTouch:
+		pos = event.position
+		if event.pressed:
+			is_press = true
+		else:
+			is_release = true
+	elif event is InputEventScreenDrag:
+		pos = event.position
+		is_drag = true
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		pos = event.position
+		if event.pressed:
+			is_press = true
+		else:
+			is_release = true
+	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		pos = event.position
+		is_drag = true
+	else:
+		return
 
-	# Collar colour swatch (smaller, below barrel)
-	var collar_swatch := ColorRect.new()
-	collar_swatch.color = data["collar_color"]
-	collar_swatch.position = Vector2(CARD_X + 16, y + 66)
-	collar_swatch.size = Vector2(40, 20)
-	add_child(collar_swatch)
+	if is_press and pos.y >= CAROUSEL_Y and pos.y <= CAROUSEL_Y + CAROUSEL_H:
+		_dragging = true
+		_drag_start_screen_x = pos.x
+		_drag_start_scroll = _scroll_x
+		_consume_input()
 
-	# Tier name
-	var name_label := Label.new()
-	name_label.text = data["name"]
-	name_label.add_theme_font_size_override("font_size", 24)
-	name_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	name_label.position = Vector2(CARD_X + 72, y + 12)
-	name_label.size = Vector2(300, 32)
-	add_child(name_label)
+	elif is_release and _dragging:
+		_dragging = false
+		var drag_dist := absf(pos.x - _drag_start_screen_x)
+		_consume_input()
+		if drag_dist < 12.0:
+			# Tap — play with the current dart
+			_snap_to_nearest()
+			if not _is_tier_locked(_current_index):
+				GameState.dart_tier = _current_index
+				get_tree().change_scene_to_file("res://scenes/match.tscn")
+		else:
+			_snap_to_nearest()
 
-	# Weight label
-	var weight_label := Label.new()
-	weight_label.text = data["weight_label"]
-	weight_label.add_theme_font_size_override("font_size", 18)
-	weight_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
-	weight_label.position = Vector2(CARD_X + 72, y + 46)
-	weight_label.size = Vector2(100, 24)
-	add_child(weight_label)
+	elif is_drag and _dragging:
+		var max_scroll := float((DartData.TIERS.size() - 1) * TILE_STEP)
+		_scroll_x = clampf(
+			_drag_start_scroll - (pos.x - _drag_start_screen_x),
+			-float(TILE_STEP) * 0.25,
+			max_scroll + float(TILE_STEP) * 0.25
+		)
+		_update_carousel_position()
+		_consume_input()
 
-	# Accuracy description
-	var acc_label := Label.new()
-	acc_label.text = ACCURACY_LABELS[tier]
-	acc_label.add_theme_font_size_override("font_size", 14)
-	acc_label.add_theme_color_override("font_color", Color(0.45, 0.45, 0.5))
-	acc_label.position = Vector2(CARD_X + 72, y + 72)
-	acc_label.size = Vector2(300, 20)
-	add_child(acc_label)
 
-	# SELECT button (green)
-	var select_btn := Button.new()
-	select_btn.text = "SELECT"
-	select_btn.position = Vector2(CARD_X + CARD_WIDTH - 230, y + 18)
-	select_btn.size = Vector2(100, 42)
-	select_btn.add_theme_font_size_override("font_size", 16)
-	select_btn.add_theme_color_override("font_color", Color.WHITE)
+# ═══════════════════════════════════════════════════════════
+#  FRAME UPDATE — smooth snap + dart turntable
+# ═══════════════════════════════════════════════════════════
 
-	var select_style := StyleBoxFlat.new()
-	select_style.bg_color = Color(0.15, 0.5, 0.2)
-	select_style.corner_radius_top_left = 6
-	select_style.corner_radius_top_right = 6
-	select_style.corner_radius_bottom_left = 6
-	select_style.corner_radius_bottom_right = 6
-	select_btn.add_theme_stylebox_override("normal", select_style)
+func _process(delta: float) -> void:
+	if not _dragging:
+		_scroll_x = lerpf(_scroll_x, _target_x, minf(delta * 10.0, 1.0))
+		if absf(_scroll_x - _target_x) < 0.5:
+			_scroll_x = _target_x
+		_update_carousel_position()
 
-	var select_hover := select_style.duplicate()
-	select_hover.bg_color = Color(0.2, 0.6, 0.25)
-	select_btn.add_theme_stylebox_override("hover", select_hover)
+	# Slow turntable spin
+	for pivot in _dart_pivots:
+		if is_instance_valid(pivot):
+			pivot.rotation.y += delta * 0.5
 
-	var select_pressed := select_style.duplicate()
-	select_pressed.bg_color = Color(0.25, 0.65, 0.3)
-	select_btn.add_theme_stylebox_override("pressed", select_pressed)
 
-	select_btn.pressed.connect(_on_select.bind(tier))
-	add_child(select_btn)
+# ═══════════════════════════════════════════════════════════
+#  CAROUSEL HELPERS
+# ═══════════════════════════════════════════════════════════
 
-	# VIEW button (dark blue)
-	var view_btn := Button.new()
-	view_btn.text = "VIEW"
-	view_btn.position = Vector2(CARD_X + CARD_WIDTH - 115, y + 18)
-	view_btn.size = Vector2(100, 42)
-	view_btn.add_theme_font_size_override("font_size", 16)
-	view_btn.add_theme_color_override("font_color", Color.WHITE)
+func _snap_to_nearest() -> void:
+	var raw := _scroll_x / float(TILE_STEP)
+	_current_index = clampi(roundi(raw), 0, DartData.TIERS.size() - 1)
+	_target_x = float(_current_index * TILE_STEP)
+	_update_indicators()
 
-	var view_style := StyleBoxFlat.new()
-	view_style.bg_color = Color(0.12, 0.18, 0.4)
-	view_style.corner_radius_top_left = 6
-	view_style.corner_radius_top_right = 6
-	view_style.corner_radius_bottom_left = 6
-	view_style.corner_radius_bottom_right = 6
-	view_btn.add_theme_stylebox_override("normal", view_style)
 
-	var view_hover := view_style.duplicate()
-	view_hover.bg_color = Color(0.18, 0.25, 0.5)
-	view_btn.add_theme_stylebox_override("hover", view_hover)
+func _update_carousel_position() -> void:
+	_carousel.position.x = -_scroll_x
 
-	var view_pressed := view_style.duplicate()
-	view_pressed.bg_color = Color(0.22, 0.3, 0.55)
-	view_btn.add_theme_stylebox_override("pressed", view_pressed)
 
-	view_btn.pressed.connect(_on_view.bind(tier))
-	add_child(view_btn)
+func _update_indicators() -> void:
+	# Dots
+	for i in range(_dots.size()):
+		if i == _current_index:
+			_dots[i].color = Color(1.0, 0.85, 0.2)
+		else:
+			_dots[i].color = Color(0.2, 0.2, 0.25)
 
-	# Scatter indicator (visual bar)
-	var scatter_bg := ColorRect.new()
-	scatter_bg.color = Color(0.2, 0.2, 0.25)
-	scatter_bg.position = Vector2(CARD_X + CARD_WIDTH - 230, y + 74)
-	scatter_bg.size = Vector2(215, 8)
-	add_child(scatter_bg)
+	# Green border on active tile
+	for i in range(_tile_styles.size()):
+		if i == _current_index:
+			_tile_styles[i].border_color = BORDER_ACTIVE
+			_tile_styles[i].border_width_left = BORDER_ACTIVE_W
+			_tile_styles[i].border_width_right = BORDER_ACTIVE_W
+			_tile_styles[i].border_width_top = BORDER_ACTIVE_W
+			_tile_styles[i].border_width_bottom = BORDER_ACTIVE_W
+		else:
+			_tile_styles[i].border_color = BORDER_INACTIVE
+			_tile_styles[i].border_width_left = BORDER_INACTIVE_W
+			_tile_styles[i].border_width_right = BORDER_INACTIVE_W
+			_tile_styles[i].border_width_top = BORDER_INACTIVE_W
+			_tile_styles[i].border_width_bottom = BORDER_INACTIVE_W
 
-	var scatter_fill := ColorRect.new()
-	var accuracy: float = 1.0 - data["scatter_mult"]  # Invert: lower scatter = higher accuracy
-	scatter_fill.color = Color(0.2, 0.7, 0.3).lerp(Color(1.0, 0.85, 0.2), accuracy)
-	scatter_fill.position = Vector2(CARD_X + CARD_WIDTH - 230, y + 74)
-	scatter_fill.size = Vector2(215 * accuracy, 8)
-	add_child(scatter_fill)
 
-	# Accuracy label for bar
-	var bar_label := Label.new()
-	bar_label.text = "Accuracy"
-	bar_label.add_theme_font_size_override("font_size", 10)
-	bar_label.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
-	bar_label.position = Vector2(CARD_X + CARD_WIDTH - 230, y + 84)
-	bar_label.size = Vector2(100, 14)
-	add_child(bar_label)
+func _consume_input() -> void:
+	var vp := get_viewport()
+	if vp:
+		vp.set_input_as_handled()
 
-func _on_select(tier: int) -> void:
-	GameState.dart_tier = tier
-	get_tree().change_scene_to_file("res://scenes/match.tscn")
 
-func _on_view(tier: int) -> void:
-	GameState.dart_tier = tier
-	get_tree().change_scene_to_file("res://scenes/dart_viewer.tscn")
+func _is_tier_locked(tier: int) -> bool:
+	if not CareerState.career_mode_active:
+		return false
+	return tier > CareerState.dart_tier_owned
+
+
+func _set_corners(sb: StyleBoxFlat, radius: int) -> void:
+	sb.corner_radius_top_left = radius
+	sb.corner_radius_top_right = radius
+	sb.corner_radius_bottom_left = radius
+	sb.corner_radius_bottom_right = radius
+
+
+# ═══════════════════════════════════════════════════════════
+#  ACTIONS
+# ═══════════════════════════════════════════════════════════
 
 func _on_back() -> void:
 	get_tree().change_scene_to_file("res://scenes/menu.tscn")

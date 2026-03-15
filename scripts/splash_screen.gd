@@ -77,51 +77,25 @@ func _build_scene() -> void:
 	title_container.set_anchors_preset(Control.PRESET_FULL_RECT)
 	canvas.add_child(title_container)
 
-	# Title: "DART" and "ATTACK"
-	var dart_label := Label.new()
-	dart_label.text = "DART"
-	dart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	dart_label.position = Vector2(0, 100)
-	dart_label.size = Vector2(720, 120)
-	dart_label.rotation = deg_to_rad(-5.0)
-	dart_label.pivot_offset = Vector2(360, 60)
+	# Title: "DART" and "ATTACK" — per-letter dartboard-coloured outlines
+	# The four dartboard segment colours, cycling through each letter
+	var board_colours := [
+		Color(0.85, 0.12, 0.12),   # Red
+		Color(0.0, 0.50, 0.15),    # Green
+		Color(0.08, 0.08, 0.08),   # Black
+		Color(0.92, 0.87, 0.72),   # Cream
+	]
 
-	var dart_settings := LabelSettings.new()
-	dart_settings.font_size = 96
-	dart_settings.font_color = Color.WHITE
-	dart_settings.outline_size = 14
-	dart_settings.outline_color = Color(0.75, 0.1, 0.1)
-	dart_settings.shadow_size = 8
-	dart_settings.shadow_color = Color(0.0, 0.0, 0.0, 0.8)
-	dart_settings.shadow_offset = Vector2(5, 5)
-	dart_label.label_settings = dart_settings
-	title_container.add_child(dart_label)
-
-	var attack_label := Label.new()
-	attack_label.text = "ATTACK"
-	attack_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	attack_label.position = Vector2(0, 210)
-	attack_label.size = Vector2(720, 120)
-	attack_label.rotation = deg_to_rad(-5.0)
-	attack_label.pivot_offset = Vector2(360, 60)
-
-	var attack_settings := LabelSettings.new()
-	attack_settings.font_size = 96
-	attack_settings.font_color = Color.WHITE
-	attack_settings.outline_size = 14
-	attack_settings.outline_color = Color(0.75, 0.1, 0.1)
-	attack_settings.shadow_size = 8
-	attack_settings.shadow_color = Color(0.0, 0.0, 0.0, 0.8)
-	attack_settings.shadow_offset = Vector2(5, 5)
-	attack_label.label_settings = attack_settings
-	title_container.add_child(attack_label)
+	var logo_font_size := 130
+	_build_logo_word("DART", logo_font_size, 350, 0, board_colours, title_container)
+	_build_logo_word("ATTACK", logo_font_size, 500, 4, board_colours, title_container)
 
 	# Play button — hidden initially
 	_play_button = Button.new()
 	_play_button.text = "PLAY"
 	_play_button.position = Vector2(210, 1050)
 	_play_button.size = Vector2(300, 80)
-	_play_button.add_theme_font_size_override("font_size", 36)
+	UIFont.apply_button(_play_button, UIFont.HEADING)
 	_play_button.modulate.a = 0.0
 
 	var btn_normal := StyleBoxFlat.new()
@@ -151,6 +125,51 @@ func _build_scene() -> void:
 	title_container.add_child(_play_button)
 
 # ─────────────────────────────────────────────────────────
+#  LOGO — per-letter dartboard-coloured outlines
+# ─────────────────────────────────────────────────────────
+
+func _build_logo_word(word: String, font_size: int, y_pos: int, colour_offset: int, colours: Array, parent: Control) -> void:
+	# Container for the whole word — tilted slightly for attitude
+	var word_container := Control.new()
+	word_container.size = Vector2(720, font_size + 40)
+	word_container.position = Vector2(0, y_pos)
+	word_container.rotation = deg_to_rad(-4.0)
+	word_container.pivot_offset = Vector2(360, (font_size + 40) / 2.0)
+	parent.add_child(word_container)
+
+	# Measure total width so we can centre the letters
+	var font: Font = UIFont._font
+	var total_width := 0.0
+	var char_widths: Array[float] = []
+	for i in range(word.length()):
+		var ch := word[i]
+		var w: float = font.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		char_widths.append(w)
+		total_width += w
+
+	# Place each letter with its own outline colour
+	var x_offset := (720.0 - total_width) / 2.0
+	for i in range(word.length()):
+		var ch := word[i]
+		var outline_col: Color = colours[(colour_offset + i) % colours.size()]
+
+		var letter := Label.new()
+		letter.text = ch
+		letter.position = Vector2(x_offset, 0)
+		letter.size = Vector2(char_widths[i], font_size + 40)
+
+		var settings := UIFont.make_label_settings(font_size, Color.WHITE)
+		settings.outline_size = 16
+		settings.outline_color = outline_col
+		settings.shadow_size = 10
+		settings.shadow_color = Color(0.0, 0.0, 0.0, 0.8)
+		settings.shadow_offset = Vector2(5, 5)
+		letter.label_settings = settings
+
+		word_container.add_child(letter)
+		x_offset += char_widths[i]
+
+# ─────────────────────────────────────────────────────────
 #  DART ANIMATION
 # ─────────────────────────────────────────────────────────
 
@@ -158,9 +177,9 @@ func _animate_darts() -> void:
 	# Hit positions — offset so the dart tip lands near the bullseye
 	# With the new dramatic angle, the barrel hangs mostly downward from the tip
 	var hit_positions: Array[Vector3] = [
-		Vector3(0.03, 0.84, 0.21),
-		Vector3(-0.02, 0.82, 0.20),
-		Vector3(0.01, 0.83, 0.20),
+		Vector3(0.03, 0.84, 0.19),   # Green — back
+		Vector3(-0.02, 0.82, 0.20),  # Black — middle
+		Vector3(0.01, 0.83, 0.21),   # Red — front (closest to camera)
 	]
 
 	# Dart direction: 80deg from camera for dramatic full-profile view
@@ -172,10 +191,19 @@ func _animate_darts() -> void:
 	# Stagger timings — builds anticipation with increasing gaps
 	var delays := [0.5, 1.1, 2.0]
 
+	# Flight colours: green, black, red — the dartboard colours
+	var flight_colours := [
+		Color(0.05, 0.45, 0.15),   # Green
+		Color(0.08, 0.08, 0.08),   # Black
+		Color(0.78, 0.12, 0.12),   # Red
+	]
+
 	for i in range(3):
-		var dart := Dart.create(0, DartData.Character.DAI)  # Brass — visible against dark board
+		var dart := Dart.create(0, DartData.Character.DAI)
 		dart.freeze = true
 		dart.visual_scale = 2.5
+		dart.flight_scale = 1.5
+		dart.custom_flight_color = flight_colours[i]
 		dart.position = start_pos
 		add_child(dart)
 
