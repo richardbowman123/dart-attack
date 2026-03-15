@@ -130,6 +130,52 @@ All code-driven (no scene editor UI). Follows the same patterns as Animal Merge:
 5. Upload to GitHub
 6. Wait 1-2 mins for GitHub Pages rebuild
 
+## Session log — 15 March 2026
+
+### What got done this session
+
+1. **Companion dialogue system built** (3 new files, no existing files modified)
+   - `scripts/companion_data.gd` — all dialogue content in one data file, designed so new exchanges can be added by editing text only with zero code changes
+   - `scripts/companion_panel.gd` — slide-up UI panel with typewriter effect, broadcast mode (tap to continue) and interactive mode (two response buttons)
+   - `scripts/companion_manager.gd` — orchestrator that selects dialogue, checks conditions, handles consequences, avoids repetition
+   - 6 companion stages: Barman (dry), Mate (enthusiastic), The Lads (chaotic), Coach (tactical), Manager (money-focused), Full Team with Medic
+   - 6 interactive exchanges: barman rules check, barman consolation drink, friend scouting report, coach checkout tips, manager sponsorship, medic breathalyser
+   - Broadcast dialogue for all stages across all trigger types (pre-match, post-win, post-loss, between rounds, drink offers, checkout hints)
+   - Anger-aware dialogue variants for high-anger states
+   - Checkout route lookup table (26 common finishes) with formatted hint delivery
+   - Post-match debrief system: win/loss comments + training directives
+   - Follow-up sequences for multi-part dialogue (scouting info, checkout coaching)
+   - Dynamic reply resolution (breathalyser checks drinks level at runtime)
+
+### Key files added
+| File | What |
+|------|------|
+| `scripts/companion_data.gd` | All dialogue data — broadcast, interactive, checkout hints, debrief (new) |
+| `scripts/companion_panel.gd` | Slide-up UI panel with typewriter effect, two dialogue modes (new) |
+| `scripts/companion_manager.gd` | Dialogue orchestrator — selection, conditions, consequences (new) |
+
+### Status: BUILT BUT NOT WIRED IN
+These files are complete and ready but **not integrated into the game yet**. Nothing calls them. To activate:
+1. Add `CompanionManager` as an autoload in `project.godot`
+2. Call `CompanionManager.request_dialogue()` from match_manager at appropriate trigger points
+3. Connect `CompanionManager.dialogue_finished` signal to resume game flow
+4. Fill in TODO stubs in `_handle_consequence()` when DrinkManager and PlayerStats exist
+
+Wire this in when career mode progression and between-match screens are built.
+
+### What comes next (unchanged from previous session)
+
+1. **Character art** — generate Terry, Rab, Siobhan images to match Dai's style, then age progression stages for all four
+2. **Integrate character images** — wire remaining character portraits into the select screen as they're created
+3. **AI opponent system** — opponents with configurable accuracy, finishing ability, pressure response
+4. **Nerve-O-Metre** — visible bar on HUD during matches, affected by match events and drinking
+5. **In-game drinking** — "have a drink?" prompt between visits
+6. **Vision blur shader** — progressive blur effect from drinking, up to double vision
+7. **Career mode structure** — level progression, between-match menus, unlock flow
+8. **Round the Clock camera** — auto-focus on the next target segment (the `focus_segment` function exists but isn't wired up yet)
+9. **Advanced tutorial (post-Level 1)** — after beating Big Kev at Round the Clock, trigger a "How to Hit Doubles and Trebles" tutorial
+10. **Wire companion dialogue** — integrate the companion system once career mode flow exists
+
 ## Design notes — throw quality system (future, Phase 3)
 
 Discussed 14 March 2026. The idea: a fast, short, stabbing swipe should produce a flatter trajectory and tighter accuracy, like a confident player. A light, slow flick should produce a loopy arc with more wobble, like a nervous beginner.

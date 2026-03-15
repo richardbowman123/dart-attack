@@ -26,9 +26,7 @@ func _build_menu() -> void:
 	scroll.add_child(content)
 
 	# Spacer at top
-	var top_spacer := Control.new()
-	top_spacer.custom_minimum_size = Vector2(720, 50)
-	content.add_child(top_spacer)
+	_add_spacer(content, 50)
 
 	# Title
 	var title := Label.new()
@@ -39,10 +37,7 @@ func _build_menu() -> void:
 	title.custom_minimum_size = Vector2(720, 80)
 	content.add_child(title)
 
-	# Spacer
-	var sp1 := Control.new()
-	sp1.custom_minimum_size = Vector2(720, 8)
-	content.add_child(sp1)
+	_add_spacer(content, 8)
 
 	# Show selected character name
 	var names := [
@@ -61,10 +56,8 @@ func _build_menu() -> void:
 	player_label.custom_minimum_size = Vector2(720, 40)
 	content.add_child(player_label)
 
-	# ── Tutorial button ──
-	var tut_spacer := Control.new()
-	tut_spacer.custom_minimum_size = Vector2(720, 30)
-	content.add_child(tut_spacer)
+	# ── Tutorial (green, top of page) ──
+	_add_spacer(content, 30)
 
 	var tut_btn := _create_menu_button("Tutorial", 640, 80, UIFont.HEADING)
 	tut_btn.pressed.connect(_on_tutorial_pressed)
@@ -73,92 +66,74 @@ func _build_menu() -> void:
 	tut_wrapper.add_child(tut_btn)
 	content.add_child(tut_wrapper)
 
-	# ── Practice section ──
-	var practice_spacer := Control.new()
-	practice_spacer.custom_minimum_size = Vector2(720, 30)
-	content.add_child(practice_spacer)
+	# ── Practise (green, goes to submenu) ──
+	_add_spacer(content, 5)
 
-	var practice_label := Label.new()
-	practice_label.text = "Practice"
-	UIFont.apply(practice_label, UIFont.SUBHEADING)
-	practice_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
-	practice_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	practice_label.custom_minimum_size = Vector2(720, 44)
-	content.add_child(practice_label)
+	var practise_btn := _create_menu_button("Practise", 640, 80, UIFont.HEADING)
+	practise_btn.pressed.connect(_on_practise_pressed)
+	var practise_wrapper := CenterContainer.new()
+	practise_wrapper.custom_minimum_size = Vector2(720, 90)
+	practise_wrapper.add_child(practise_btn)
+	content.add_child(practise_wrapper)
 
-	var practice_gap := Control.new()
-	practice_gap.custom_minimum_size = Vector2(720, 10)
-	content.add_child(practice_gap)
+	# ── Career Mode section ──
+	_add_spacer(content, 30)
 
-	var button_data := [
-		{"text": "Round the Clock", "mode": "rtc", "score": 0},
-		{"text": "101", "mode": "countdown", "score": 101},
-		{"text": "301", "mode": "countdown", "score": 301},
-		{"text": "501", "mode": "countdown", "score": 501},
-	]
+	var career_label := Label.new()
+	career_label.text = "Career Mode"
+	UIFont.apply(career_label, UIFont.SUBHEADING)
+	career_label.add_theme_color_override("font_color", Color(0.3, 0.85, 0.4))
+	career_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	career_label.custom_minimum_size = Vector2(720, 44)
+	content.add_child(career_label)
 
-	for data in button_data:
-		var btn := _create_menu_button(data["text"], 640, 80, UIFont.HEADING)
-		btn.pressed.connect(_on_mode_selected.bind(data["mode"], data["score"]))
-		var wrapper := CenterContainer.new()
-		wrapper.custom_minimum_size = Vector2(720, 90)
-		wrapper.add_child(btn)
-		content.add_child(wrapper)
+	_add_spacer(content, 10)
 
-	# ── VS Opponent section ──
-	var vs_spacer := Control.new()
-	vs_spacer.custom_minimum_size = Vector2(720, 30)
-	content.add_child(vs_spacer)
+	var career_level: int = CareerState.career_level
 
-	var vs_label := Label.new()
-	vs_label.text = "Career Mode"
-	UIFont.apply(vs_label, UIFont.SUBHEADING)
-	vs_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
-	vs_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vs_label.custom_minimum_size = Vector2(720, 44)
-	content.add_child(vs_label)
+	if career_level > 7:
+		# Player has completed all levels — show all as beaten
+		for i in range(7):
+			_add_beaten_opponent(content, OpponentData.OPPONENT_ORDER[i])
+		_add_spacer(content, 20)
+		var champ_label := Label.new()
+		champ_label.text = "WORLD CHAMPION!"
+		UIFont.apply(champ_label, UIFont.HEADING)
+		champ_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+		champ_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		champ_label.custom_minimum_size = Vector2(720, 60)
+		content.add_child(champ_label)
+	else:
+		# Show beaten opponents (greyed out, strikethrough)
+		for i in range(career_level - 1):
+			_add_beaten_opponent(content, OpponentData.OPPONENT_ORDER[i])
 
-	var vs_gap := Control.new()
-	vs_gap.custom_minimum_size = Vector2(720, 10)
-	content.add_child(vs_gap)
-
-	# Career Mode: only show Big Kev for now (unlock others later)
-	var career_opponents := ["big_kev"]
-	for opp_id in career_opponents:
+		# Current opponent — green, bigger, clickable
+		var opp_id: String = OpponentData.OPPONENT_ORDER[career_level - 1]
 		var label_text: String = OpponentData.get_menu_label(opp_id)
-		var btn := _create_menu_button(label_text, 640, 80, UIFont.HEADING)
-		# Red-tinted style for VS buttons
-		var vs_style := StyleBoxFlat.new()
-		vs_style.bg_color = Color(0.2, 0.1, 0.12)
-		vs_style.corner_radius_top_left = 12
-		vs_style.corner_radius_top_right = 12
-		vs_style.corner_radius_bottom_left = 12
-		vs_style.corner_radius_bottom_right = 12
-		vs_style.border_width_left = 3
-		vs_style.border_width_right = 3
-		vs_style.border_width_top = 3
-		vs_style.border_width_bottom = 3
-		vs_style.border_color = Color(0.4, 0.2, 0.2)
-		btn.add_theme_stylebox_override("normal", vs_style)
-		var vs_hover := vs_style.duplicate()
-		vs_hover.bg_color = Color(0.3, 0.15, 0.15)
-		vs_hover.border_color = Color(0.6, 0.3, 0.3)
-		btn.add_theme_stylebox_override("hover", vs_hover)
-		var vs_pressed := vs_style.duplicate()
-		vs_pressed.bg_color = Color(0.35, 0.18, 0.18)
-		btn.add_theme_stylebox_override("pressed", vs_pressed)
-		btn.add_theme_color_override("font_hover_color", Color(1.0, 0.6, 0.5))
+		var btn := _create_career_button(label_text, true)
 		btn.pressed.connect(_on_vs_selected.bind(opp_id))
 		var wrapper := CenterContainer.new()
-		wrapper.custom_minimum_size = Vector2(720, 90)
+		wrapper.custom_minimum_size = Vector2(720, 100)
 		wrapper.add_child(btn)
 		content.add_child(wrapper)
 
-	# ── Back button ──
-	var back_spacer := Control.new()
-	back_spacer.custom_minimum_size = Vector2(720, 30)
-	content.add_child(back_spacer)
+		# Next opponent — locked, recessed
+		if career_level < 7:
+			_add_spacer(content, 5)
+			var next_opp_id: String = OpponentData.OPPONENT_ORDER[career_level]
+			var next_label: String = OpponentData.get_menu_label(next_opp_id)
+			var locked_btn := _create_career_button(next_label, false)
+			locked_btn.disabled = true
+			var locked_wrapper := CenterContainer.new()
+			locked_wrapper.custom_minimum_size = Vector2(720, 70)
+			locked_wrapper.add_child(locked_btn)
+			content.add_child(locked_wrapper)
 
+	# Big gap for future levels
+	_add_spacer(content, 200)
+
+	# ── Back button ──
 	var back_btn := _create_menu_button("BACK", 640, 80, UIFont.SUBHEADING)
 	var back_style := StyleBoxFlat.new()
 	back_style.bg_color = Color(0.1, 0.1, 0.13)
@@ -183,10 +158,104 @@ func _build_menu() -> void:
 	back_wrapper.add_child(back_btn)
 	content.add_child(back_wrapper)
 
+	# ── Drink Effects (test mode — suppressed at very bottom) ──
+	_add_spacer(content, 60)
+
+	var drink_test_btn := _create_menu_button("Drink Effects", 400, 60, UIFont.CAPTION)
+	var dt_style := StyleBoxFlat.new()
+	dt_style.bg_color = Color(0.08, 0.08, 0.1)
+	dt_style.corner_radius_top_left = 8
+	dt_style.corner_radius_top_right = 8
+	dt_style.corner_radius_bottom_left = 8
+	dt_style.corner_radius_bottom_right = 8
+	dt_style.border_width_left = 1
+	dt_style.border_width_right = 1
+	dt_style.border_width_top = 1
+	dt_style.border_width_bottom = 1
+	dt_style.border_color = Color(0.15, 0.15, 0.18)
+	drink_test_btn.add_theme_stylebox_override("normal", dt_style)
+	var dt_hover := dt_style.duplicate()
+	dt_hover.bg_color = Color(0.12, 0.12, 0.15)
+	drink_test_btn.add_theme_stylebox_override("hover", dt_hover)
+	drink_test_btn.add_theme_color_override("font_color", Color(0.3, 0.3, 0.35))
+	drink_test_btn.add_theme_color_override("font_hover_color", Color(0.4, 0.4, 0.45))
+	drink_test_btn.pressed.connect(_on_drink_test_pressed)
+	var dt_wrapper := CenterContainer.new()
+	dt_wrapper.custom_minimum_size = Vector2(720, 70)
+	dt_wrapper.add_child(drink_test_btn)
+	content.add_child(dt_wrapper)
+
 	# Bottom padding
-	var bottom_spacer := Control.new()
-	bottom_spacer.custom_minimum_size = Vector2(720, 40)
-	content.add_child(bottom_spacer)
+	_add_spacer(content, 40)
+
+# ── Beaten opponent row (greyed out with strikethrough) ──
+
+func _add_beaten_opponent(parent: Control, opp_id: String) -> void:
+	var label_text: String = OpponentData.get_menu_label(opp_id)
+
+	var row := Control.new()
+	row.custom_minimum_size = Vector2(720, 50)
+
+	# Greyed-out text
+	var lbl := Label.new()
+	lbl.text = label_text
+	UIFont.apply(lbl, UIFont.BODY)
+	lbl.add_theme_color_override("font_color", Color(0.3, 0.3, 0.33))
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.position = Vector2(0, 0)
+	lbl.size = Vector2(720, 50)
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(lbl)
+
+	# Strikethrough line
+	var line := ColorRect.new()
+	line.color = Color(0.3, 0.3, 0.33)
+	var line_w := 300
+	line.position = Vector2((720 - line_w) / 2.0, 24)
+	line.size = Vector2(line_w, 2)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(line)
+
+	parent.add_child(row)
+
+func _add_spacer(parent: Control, height: int) -> void:
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(720, height)
+	parent.add_child(spacer)
+
+func _create_green_button(text: String, w: int, h: int, font_size: int) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(w, h)
+	UIFont.apply_button(btn, font_size)
+
+	var normal_style := StyleBoxFlat.new()
+	normal_style.bg_color = Color(0.15, 0.55, 0.2)
+	normal_style.corner_radius_top_left = 12
+	normal_style.corner_radius_top_right = 12
+	normal_style.corner_radius_bottom_left = 12
+	normal_style.corner_radius_bottom_right = 12
+	normal_style.border_width_left = 3
+	normal_style.border_width_right = 3
+	normal_style.border_width_top = 3
+	normal_style.border_width_bottom = 3
+	normal_style.border_color = Color(0.3, 0.85, 0.4)
+	btn.add_theme_stylebox_override("normal", normal_style)
+
+	var hover_style := normal_style.duplicate()
+	hover_style.bg_color = Color(0.2, 0.65, 0.25)
+	hover_style.border_color = Color(0.4, 0.9, 0.5)
+	btn.add_theme_stylebox_override("hover", hover_style)
+
+	var pressed_style := normal_style.duplicate()
+	pressed_style.bg_color = Color(0.1, 0.45, 0.15)
+	btn.add_theme_stylebox_override("pressed", pressed_style)
+
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+
+	return btn
 
 func _create_menu_button(text: String, w: int, h: int, font_size: int) -> Button:
 	var btn := Button.new()
@@ -221,6 +290,49 @@ func _create_menu_button(text: String, w: int, h: int, font_size: int) -> Button
 
 	return btn
 
+## Career opponent button — active (green, clickable) or locked (dark, disabled)
+func _create_career_button(text: String, active: bool) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	UIFont.apply_button(btn, UIFont.HEADING)
+
+	var style := StyleBoxFlat.new()
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
+	style.corner_radius_bottom_left = 12
+	style.corner_radius_bottom_right = 12
+	style.border_width_left = 3
+	style.border_width_right = 3
+	style.border_width_top = 3
+	style.border_width_bottom = 3
+
+	if active:
+		# Green, bigger — the main call to action
+		btn.custom_minimum_size = Vector2(640, 90)
+		style.bg_color = Color(0.1, 0.35, 0.12)
+		style.border_color = Color(0.2, 0.6, 0.25)
+		btn.add_theme_stylebox_override("normal", style)
+		var hover := style.duplicate()
+		hover.bg_color = Color(0.15, 0.45, 0.18)
+		hover.border_color = Color(0.3, 0.75, 0.35)
+		btn.add_theme_stylebox_override("hover", hover)
+		var pressed := style.duplicate()
+		pressed.bg_color = Color(0.08, 0.28, 0.1)
+		btn.add_theme_stylebox_override("pressed", pressed)
+		btn.add_theme_color_override("font_color", Color.WHITE)
+		btn.add_theme_color_override("font_hover_color", Color(0.8, 1.0, 0.8))
+	else:
+		# Locked — dark, muted, not interactive
+		btn.custom_minimum_size = Vector2(640, 65)
+		style.bg_color = Color(0.1, 0.07, 0.08)
+		style.border_color = Color(0.2, 0.12, 0.12)
+		btn.add_theme_stylebox_override("normal", style)
+		btn.add_theme_stylebox_override("disabled", style)
+		btn.add_theme_color_override("font_color", Color(0.3, 0.2, 0.2))
+		btn.add_theme_color_override("font_disabled_color", Color(0.3, 0.2, 0.2))
+
+	return btn
+
 func _on_tutorial_pressed() -> void:
 	GameState.game_mode = GameState.GameMode.TUTORIAL
 	GameState.dart_tier = 0
@@ -229,16 +341,8 @@ func _on_tutorial_pressed() -> void:
 	CareerState.career_mode_active = false
 	get_tree().change_scene_to_file("res://scenes/match.tscn")
 
-func _on_mode_selected(mode: String, score: int) -> void:
-	GameState.is_vs_ai = false
-	GameState.opponent_id = ""
-	CareerState.career_mode_active = false
-	if mode == "rtc":
-		GameState.game_mode = GameState.GameMode.ROUND_THE_CLOCK
-	else:
-		GameState.game_mode = GameState.GameMode.COUNTDOWN
-		GameState.starting_score = score
-	get_tree().change_scene_to_file("res://scenes/dart_select.tscn")
+func _on_practise_pressed() -> void:
+	get_tree().change_scene_to_file("res://scenes/practise_menu.tscn")
 
 func _on_vs_selected(opponent_id: String) -> void:
 	var opp: Dictionary = OpponentData.get_opponent(opponent_id)
@@ -252,6 +356,9 @@ func _on_vs_selected(opponent_id: String) -> void:
 		GameState.game_mode = GameState.GameMode.COUNTDOWN
 		GameState.starting_score = opp["starting_score"]
 	get_tree().change_scene_to_file("res://scenes/career_dart_choice.tscn")
+
+func _on_drink_test_pressed() -> void:
+	get_tree().change_scene_to_file("res://scenes/drink_test.tscn")
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/character_select.tscn")

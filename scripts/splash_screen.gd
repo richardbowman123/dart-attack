@@ -99,7 +99,7 @@ func _build_scene() -> void:
 	_play_button.modulate.a = 0.0
 
 	var btn_normal := StyleBoxFlat.new()
-	btn_normal.bg_color = Color(0.85, 0.15, 0.15)
+	btn_normal.bg_color = Color(0.15, 0.55, 0.2)
 	btn_normal.corner_radius_top_left = 12
 	btn_normal.corner_radius_top_right = 12
 	btn_normal.corner_radius_bottom_left = 12
@@ -108,15 +108,15 @@ func _build_scene() -> void:
 	btn_normal.border_width_right = 3
 	btn_normal.border_width_top = 3
 	btn_normal.border_width_bottom = 3
-	btn_normal.border_color = Color(1.0, 1.0, 1.0)
+	btn_normal.border_color = Color(0.3, 0.85, 0.4)
 	_play_button.add_theme_stylebox_override("normal", btn_normal)
 
 	var btn_hover := btn_normal.duplicate()
-	btn_hover.bg_color = Color(1.0, 0.2, 0.2)
+	btn_hover.bg_color = Color(0.2, 0.65, 0.25)
 	_play_button.add_theme_stylebox_override("hover", btn_hover)
 
 	var btn_pressed := btn_normal.duplicate()
-	btn_pressed.bg_color = Color(0.65, 0.1, 0.1)
+	btn_pressed.bg_color = Color(0.1, 0.45, 0.15)
 	_play_button.add_theme_stylebox_override("pressed", btn_pressed)
 
 	_play_button.add_theme_color_override("font_color", Color.WHITE)

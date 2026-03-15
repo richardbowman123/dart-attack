@@ -90,35 +90,36 @@ func _build_screen() -> void:
 		_build_character_card(Vector2(x, y), card_w, card_h, data, i)
 
 	# Selected character info below grid
-	var info_y: int = grid_top + card_h * 2 + card_gap + 25
+	var info_y: int = grid_top + card_h * 2 + card_gap + 15
 	_info_name = Label.new()
 	UIFont.apply(_info_name, UIFont.SUBHEADING)
 	_info_name.add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
 	_info_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_info_name.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	_info_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_info_name.position = Vector2(20, info_y)
-	_info_name.size = Vector2(680, 50)
+	_info_name.size = Vector2(680, 85)
 	add_child(_info_name)
 
 	_info_origin = Label.new()
 	UIFont.apply(_info_origin, UIFont.CAPTION)
 	_info_origin.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 	_info_origin.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_info_origin.position = Vector2(0, info_y + 55)
+	_info_origin.position = Vector2(0, info_y + 100)
 	_info_origin.size = Vector2(720, 35)
 	add_child(_info_origin)
 
 	_update_selection(characters)
 
-	# ── NEXT button ──
+	# ── NEXT button (green, matching splash screen PLAY) ──
 	var next_btn := Button.new()
 	next_btn.text = "NEXT"
-	next_btn.position = Vector2(160, info_y + 110)
+	next_btn.position = Vector2(160, info_y + 150)
 	next_btn.size = Vector2(400, 80)
 	UIFont.apply_button(next_btn, UIFont.HEADING)
 
 	var normal_style := StyleBoxFlat.new()
-	normal_style.bg_color = Color(0.85, 0.15, 0.15)
+	normal_style.bg_color = Color(0.15, 0.55, 0.2)
 	normal_style.corner_radius_top_left = 12
 	normal_style.corner_radius_top_right = 12
 	normal_style.corner_radius_bottom_left = 12
@@ -127,15 +128,15 @@ func _build_screen() -> void:
 	normal_style.border_width_right = 3
 	normal_style.border_width_top = 3
 	normal_style.border_width_bottom = 3
-	normal_style.border_color = Color(1.0, 1.0, 1.0)
+	normal_style.border_color = Color(0.3, 0.85, 0.4)
 	next_btn.add_theme_stylebox_override("normal", normal_style)
 
 	var hover_style := normal_style.duplicate()
-	hover_style.bg_color = Color(1.0, 0.2, 0.2)
+	hover_style.bg_color = Color(0.2, 0.65, 0.25)
 	next_btn.add_theme_stylebox_override("hover", hover_style)
 
 	var pressed_style := normal_style.duplicate()
-	pressed_style.bg_color = Color(0.65, 0.1, 0.1)
+	pressed_style.bg_color = Color(0.1, 0.45, 0.15)
 	next_btn.add_theme_stylebox_override("pressed", pressed_style)
 
 	next_btn.add_theme_color_override("font_color", Color.WHITE)

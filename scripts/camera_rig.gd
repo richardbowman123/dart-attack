@@ -1,9 +1,12 @@
 extends Node3D
 class_name CameraRig
 
+signal first_zoomed
+
 var _camera: Camera3D
 var _target := Vector2.ZERO  # Where the camera is looking (X, Y on the board plane)
 var _zoom := 0.0             # 0 = full board view, 1 = zoomed in tight
+var _has_zoomed := false
 
 const DEFAULT_DISTANCE := 10.0
 const ZOOMED_DISTANCE := 5.0
@@ -100,6 +103,9 @@ func _handle_pinch_pan() -> void:
 	# Pinch zoom — spread fingers to zoom in, pinch to zoom out
 	var dist_delta := dist - _prev_pinch_dist
 	_zoom = clampf(_zoom + dist_delta * 0.003, 0.0, 1.0)
+	if _zoom > 0.0 and not _has_zoomed:
+		_has_zoomed = true
+		first_zoomed.emit()
 
 	# Two-finger pan — drag both fingers to move the view
 	var mid_delta := mid - _prev_pinch_mid
@@ -120,6 +126,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		# Scroll wheel to zoom
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_zoom = clampf(_zoom + ZOOM_SPEED, 0.0, 1.0)
+			if _zoom > 0.0 and not _has_zoomed:
+				_has_zoomed = true
+				first_zoomed.emit()
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_zoom = clampf(_zoom - ZOOM_SPEED, 0.0, 1.0)
 		# Right-click to start/stop pan drag

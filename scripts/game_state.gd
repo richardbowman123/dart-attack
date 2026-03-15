@@ -15,6 +15,11 @@ var throw_tip_dismissed: bool = false
 var is_vs_ai: bool = false
 var opponent_id: String = ""
 
+# Match result (transient — set before navigating to results screen)
+var match_won: bool = false
+var match_prize: int = 0
+var match_career_over: bool = false
+
 func _ready() -> void:
 	var config := ConfigFile.new()
 	if config.load(SETTINGS_PATH) == OK:

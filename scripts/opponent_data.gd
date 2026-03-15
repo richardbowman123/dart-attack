@@ -21,6 +21,9 @@ const OPPONENTS := {
 		"starting_score": 0,
 		"image": "res://Big Kev.jpg",
 		"vibe": "Back room of the local. Sticky carpet, fruit machine, three regulars watching.",
+		"buy_in": 0,
+		"prize_money": 1000,
+		"max_losses": 3,
 		# RTC scatter: single Gaussian spread applied to every throw.
 		# No hit/miss branching — just natural scatter like a real player.
 		# Outer single is ~0.49 wide, ~0.65 deep. At 0.22, most darts
@@ -43,8 +46,11 @@ const OPPONENTS := {
 		"throw_delay": 0.7,
 		"game_mode": "countdown",
 		"starting_score": 101,
-		"image": "",
+		"image": "res://Derek.jpg",
 		"vibe": "Friday night tournament. Tables pushed back, chalked bracket on the blackboard, pints everywhere.",
+		"buy_in": 500,
+		"prize_money": 5000,
+		"max_losses": 3,
 		"dart_quality": 35,
 		"base_confidence": 50,
 		"base_anger": 15,
@@ -61,6 +67,9 @@ const OPPONENTS := {
 		"starting_score": 101,
 		"image": "",
 		"vibe": "Working men's club. Proper oche, small stage, folding chairs for fifty, commentator with a microphone.",
+		"buy_in": 2000,
+		"prize_money": 20000,
+		"max_losses": 3,
 		"dart_quality": 45,
 		"base_confidence": 55,
 		"base_anger": 20,
@@ -78,6 +87,9 @@ const OPPONENTS := {
 		"venue": "County Darts Club",
 		"image": "",
 		"vibe": "Civic hall. Lighting rig, raised oche, sponsor banners, two hundred in the crowd, regional TV cameras.",
+		"buy_in": 7500,
+		"prize_money": 75000,
+		"max_losses": 3,
 		"dart_quality": 60,
 		"base_confidence": 65,
 		"base_anger": 10,
@@ -95,6 +107,9 @@ const OPPONENTS := {
 		"venue": "National Qualifying, Milton Keynes",
 		"image": "",
 		"vibe": "Conference centre. Harsh fluorescent lighting, professional oche, five hundred watching. Everyone thinks they're good enough.",
+		"buy_in": 20000,
+		"prize_money": 300000,
+		"max_losses": 1,
 		"dart_quality": 55,
 		"base_confidence": 60,
 		"base_anger": 40,
@@ -109,9 +124,12 @@ const OPPONENTS := {
 		"throw_delay": 0.55,
 		"game_mode": "countdown",
 		"starting_score": 501,
-		"venue": "Alexandra Palace, London",
+		"venue": "The Arrow Palace, London",
 		"image": "",
 		"vibe": "The cathedral of darts. Walk-on music, pyrotechnics, two thousand in fancy dress. The board is lit like a shrine.",
+		"buy_in": 50000,
+		"prize_money": 1000000,
+		"max_losses": 1,
 		"dart_quality": 80,
 		"base_confidence": 75,
 		"base_anger": 15,
@@ -126,9 +144,12 @@ const OPPONENTS := {
 		"throw_delay": 0.45,
 		"game_mode": "countdown",
 		"starting_score": 501,
-		"venue": "Alexandra Palace, London",
+		"venue": "The Arrow Palace, London",
 		"image": "",
 		"vibe": "World Championship Final. Gold confetti, fireworks, the crowd is on their feet. This is it.",
+		"buy_in": 100000,
+		"prize_money": 5000000,
+		"max_losses": 1,
 		"dart_quality": 95,
 		"base_confidence": 85,
 		"base_anger": 25,
@@ -248,6 +269,15 @@ static func get_base_anger(id: String) -> float:
 
 static func get_anger_rate(id: String) -> float:
 	return OPPONENTS[id].get("anger_rate", 1.0)
+
+static func get_prize_money(id: String) -> int:
+	return OPPONENTS[id].get("prize_money", 0)
+
+static func get_buy_in(id: String) -> int:
+	return OPPONENTS[id].get("buy_in", 0)
+
+static func get_max_losses(id: String) -> int:
+	return OPPONENTS[id].get("max_losses", 3)
 
 static func get_menu_label(id: String) -> String:
 	var opp: Dictionary = OPPONENTS[id]

@@ -64,7 +64,6 @@ var _score_hud: ScoreHUD
 var _darts_container: Node3D
 var _tutorial_overlay: TutorialOverlay
 var _tutorial_last_was_hit := false
-var _drinking_prompt: DrinkingPrompt
 
 # Confidence decay while aiming
 var _confidence_decay_timer: float = 0.0
@@ -114,14 +113,17 @@ func _setup_environment() -> void:
 	world_env.environment = env
 	add_child(world_env)
 
-	# LED oche lighting — bright spots from above, like TV darts coverage.
-	# Three spots at different angles so darts are always well-lit.
+	# LED oche lighting — bright spots from above and below for even coverage.
+	# Three main spots from above (like TV darts), plus two fill lights
+	# from below to stop the bottom of the board looking too dark.
 	var spot_positions := [
 		Vector3(0.0, 2.5, 2.5),    # Centre-above: main key light
 		Vector3(-1.8, 2.0, 2.0),   # Left-above: fills left side
 		Vector3(1.8, 2.0, 2.0),    # Right-above: fills right side
+		Vector3(-1.2, -1.8, 2.0),  # Left-below: fills bottom-left wire
+		Vector3(1.2, -1.8, 2.0),   # Right-below: fills bottom-right wire
 	]
-	var spot_energies := [2.5, 1.5, 1.5]
+	var spot_energies := [2.5, 1.5, 1.5, 1.0, 1.0]
 
 	for i in range(spot_positions.size()):
 		var spot := SpotLight3D.new()
@@ -154,21 +156,36 @@ func _build_scene() -> void:
 	_throw_system.setup(_darts_container, viewport_size, _camera_rig.get_camera())
 	_throw_system.set_dart_tier(GameState.dart_tier)
 
+	# Set AI dart tier — one tier above the player, capped at 3 (premium tungsten).
+	# Level 7 (final) opponent matches the player's tier.
+	if _is_vs_ai:
+		var opp_level: int = OpponentData.get_opponent(_opponent_id)["level"]
+		if opp_level >= 7:
+			_throw_system.ai_dart_tier = GameState.dart_tier
+		else:
+			_throw_system.ai_dart_tier = mini(GameState.dart_tier + 1, 3)
+
 	_score_hud = ScoreHUD.new()
 	add_child(_score_hud)
 
 	# Career mode extras
 	if CareerState.career_mode_active:
+		# Deduct entry fee (buy-in) at match start
+		if _is_vs_ai:
+			var buy_in: int = OpponentData.get_buy_in(_opponent_id)
+			if buy_in > 0:
+				CareerState.money -= buy_in
 		_score_hud.update_balance(CareerState.money)
-		_drinking_prompt = DrinkingPrompt.new()
-		add_child(_drinking_prompt)
-		_drinking_prompt.choice_made.connect(_on_drink_choice)
 
 func _connect_signals() -> void:
 	_throw_system.dart_thrown.connect(_on_dart_thrown)
 	_throw_system.throw_rejected.connect(_on_throw_rejected)
+	_camera_rig.first_zoomed.connect(_on_first_zoom)
 	if _is_tutorial():
 		_setup_tutorial()
+
+func _on_first_zoom() -> void:
+	_score_hud.hide_zoom_hint_forever()
 
 func _init_game_mode() -> void:
 	if _is_countdown():
@@ -195,8 +212,8 @@ func _init_game_mode() -> void:
 		_player_anger = 0.0
 		_drinks_this_match = 0
 
-		# Load opponent stats
-		_opp_dart_quality = float(OpponentData.get_dart_quality(_opponent_id))
+		# Opponent dart quality matches their actual dart tier (one above player, capped at 3)
+		_opp_dart_quality = _tier_to_quality(_throw_system.ai_dart_tier)
 		_opp_nerves = OpponentData.get_base_nerves(_opponent_id)
 		_opp_confidence = OpponentData.get_base_confidence(_opponent_id)
 		_opp_anger = OpponentData.get_base_anger(_opponent_id)
@@ -262,6 +279,7 @@ func _start_visit() -> void:
 
 		_throw_system.set_can_throw(true)
 		_start_confidence_decay()
+		DrinkManager.flash_tier_name()
 
 		if _is_vs_ai:
 			_score_hud.update_turn_indicator(true)
@@ -782,23 +800,6 @@ func _schedule_clear() -> void:
 	var tween := create_tween()
 	tween.tween_interval(SUMMARY_DISPLAY_TIME)
 
-	# In career mode, show drinking prompt after player's visit (not AI's)
-	if CareerState.career_mode_active and _is_player_turn and _drinking_prompt:
-		tween.tween_callback(_show_drinking_prompt)
-	else:
-		tween.tween_callback(_clear_and_next_visit)
-
-func _show_drinking_prompt() -> void:
-	_drinking_prompt.show_prompt()
-
-func _on_drink_choice(drink_type: int) -> void:
-	if drink_type == DrinkingPrompt.DRINK_HALF:
-		apply_drink(false)
-	elif drink_type == DrinkingPrompt.DRINK_FULL:
-		apply_drink(true)
-	# Brief pause after choice, then clear and continue
-	var tween := create_tween()
-	tween.tween_interval(0.5)
 	tween.tween_callback(_clear_and_next_visit)
 
 func _clear_and_next_visit() -> void:
@@ -951,7 +952,7 @@ func _update_opponent_stats(nerves_d: float, confidence_d: float, anger_d: float
 	if _opp_anger >= 100.0:
 		_trigger_fight_scene()
 
-## Stub — opponent anger has hit 100%. Show "FIGHT!" and return to menu.
+## Stub — opponent anger has hit 100%. Show "FIGHT!" and treat as a loss.
 func _trigger_fight_scene() -> void:
 	_cancel_ai_turn()
 	_throw_system.set_can_throw(false)
@@ -960,21 +961,42 @@ func _trigger_fight_scene() -> void:
 	_score_hud.show_message("FIGHT!", 3.0)
 	var tween := create_tween()
 	tween.tween_interval(3.5)
-	tween.tween_callback(_restart_game)
+	tween.tween_callback(_on_player_loses)
 
 func _on_player_wins() -> void:
 	if CareerState.career_mode_active:
 		CareerState.confidence_carry = _player_confidence * 0.5
 		CareerState.losses_at_current_level = 0
-		# Prize money (future: add to CareerState.money here)
+		var prize: int = OpponentData.get_prize_money(_opponent_id)
+		CareerState.money += prize
+		CareerState.career_level += 1
+		GameState.match_won = true
+		GameState.match_prize = prize
+		GameState.match_career_over = false
+		_goto_results()
+		return
 	_restart_game()
 
 func _on_player_loses() -> void:
 	if CareerState.career_mode_active:
 		CareerState.confidence_carry = 20.0
 		CareerState.losses_at_current_level += 1
-		# Future: if losses >= 3, career over screen
+		var max_losses: int = OpponentData.get_max_losses(_opponent_id)
+		var is_career_over: bool = CareerState.losses_at_current_level >= max_losses
+		GameState.match_won = false
+		GameState.match_prize = 0
+		GameState.match_career_over = is_career_over
+		_goto_results()
+		return
 	_restart_game()
+
+func _goto_results() -> void:
+	_cancel_ai_turn()
+	for dart in _active_darts:
+		if is_instance_valid(dart):
+			dart.queue_free()
+	_active_darts.clear()
+	get_tree().change_scene_to_file("res://scenes/match_results.tscn")
 
 func _restart_game() -> void:
 	_cancel_ai_turn()

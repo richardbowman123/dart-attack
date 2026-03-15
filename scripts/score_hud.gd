@@ -2,21 +2,27 @@ extends CanvasLayer
 class_name ScoreHUD
 
 # ── Layout constants ──
-const DART_ICON_Y := 1225        # Near the bottom of the screen
-const DART_ICON_SPACING := 60    # Gap between dart icons
-const DART_BARREL_W := 4
-const DART_BARREL_H := 40
-const DART_FLIGHT_W := 16
-const DART_FLIGHT_H := 10
-const DART_TIP_H := 8
-
 const REMAINING_MARGIN := 20
 const IMPACT_FADE_TIME := 1.2
 const SUMMARY_DISPLAY_TIME := 2.5
 
+# ── Bottom card layout ──
+const CARD_MARGIN := 10
+const CARD_Y := 1000
+const CARD_W := 700
+const CARD_H := 270
+const CARD_PORTRAIT_SIZE := 90
+const CARD_PAD := 12          # Inner padding on all sides
+const CARD_DOT_SIZE := 12
+const CARD_DOT_GAP := 20
+# Row Y offsets inside the card (from top of card):
+const ROW_PORTRAIT_Y := 10   # Portraits + names row
+const ROW_DIVIDER_Y := 108   # Thin line after portraits
+const ROW_DOTS_Y := 116      # Dart dots
+const ROW_STATS_Y := 140     # Stats bars start
+
 # ── Node references ──
 var _remaining_label: Label
-var _dart_icons: Array[Control] = []
 var _impact_label: Label
 var _summary_panel: PanelContainer
 var _summary_content: VBoxContainer
@@ -31,19 +37,21 @@ var _vs_opponent_id := ""
 var _opponent_label: Label
 var _turn_indicator: Label
 
-# ── Identity display (bottom of screen, VS mode only) ──
-const IDENTITY_Y := 1115
-const IDENTITY_PORTRAIT_SIZE := 80
-const IDENTITY_MARGIN := 16
-var _identity_left: Control    # Container on the left side
-var _identity_right: Control   # Container on the right side
+# ── Bottom card (unified HUD — VS mode only) ──
+var _card_accent: StyleBoxFlat  # Accent border style (changes colour on turn)
 var _player_portrait: Control
 var _player_name_label: Label
 var _player_nick_label: Label
-var _opp_portrait_panel: Control  # Clipping container for opponent portrait
+var _opp_portrait_panel: Control
 var _opp_initial_label: Label
 var _opp_name_label: Label
 var _opp_nick_label: Label
+var _portrait_left: Control    # Left slot in card
+var _portrait_right: Control   # Right slot in card
+var _name_left: Control        # Left name area
+var _name_right: Control       # Right name area
+var _dart_dot_container: Control
+var _dart_dots: Array[Control] = []
 
 var _zoom_hint: Label
 
@@ -58,11 +66,9 @@ var _balance_panel: PanelContainer
 var _balance_label: Label
 
 # ── Stats bars (career mode only) ──
-const STATS_BAR_WIDTH := 140
+const STATS_BAR_WIDTH := 220
 const STATS_BAR_HEIGHT := 12
-const STATS_LABEL_W := 200
 const STATS_GAP := 8
-const STATS_FIRST_ROW_Y := 970
 const STATS_ROW_STEP := 24
 const BAR_NAMES: Array[String] = ["DARTS", "NERVES", "CONFIDENCE", "ANGER"]
 
@@ -73,12 +79,14 @@ var _stats_container: Control
 
 func _ready() -> void:
 	_build_remaining_display()
-	_build_dart_icons()
 	_build_impact_flash()
 	_build_summary_panel()
 	_build_zoom_hint()
 	_build_balance_display()
 	_build_throw_tip()
+	# In non-VS mode, build standalone dart dots at the bottom
+	if not GameState.is_vs_ai:
+		_build_standalone_dart_dots()
 
 # ── Remaining score (small, top-right corner) ──
 
@@ -93,67 +101,85 @@ func _build_remaining_display() -> void:
 	_remaining_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_remaining_label)
 
-# ── Three dart icons at the bottom ──
+# ── Mini dart shape builder ──
 
-func _build_dart_icons() -> void:
-	var centre_x := 360.0  # Middle of 720px screen
-	var start_x := centre_x - DART_ICON_SPACING
-
-	for i in range(3):
-		var icon := _create_dart_icon()
-		icon.position = Vector2(start_x + i * DART_ICON_SPACING, DART_ICON_Y)
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(icon)
-		_dart_icons.append(icon)
-
-func _create_dart_icon() -> Control:
-	var container := Control.new()
-	container.size = Vector2(DART_FLIGHT_W, DART_BARREL_H + DART_FLIGHT_H + DART_TIP_H)
-	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	# Pull colours from the selected dart tier and character
-	var tier_data := DartData.get_tier(GameState.dart_tier)
-	var flight_cols := DartData.get_flight_colors(GameState.character)
-	var barrel_col: Color = tier_data["barrel_color"]
-	var flight_col: Color = flight_cols["front"]
-
-	# Flight — shield shape with 45-deg leading edges
-	# Narrow stem at bottom widens at 45 deg to full width, flat top
-	var cx := DART_FLIGHT_W / 2.0
-	var half_barrel := DART_BARREL_W / 2.0
-	var spread := (DART_FLIGHT_W / 2.0) - half_barrel  # Pixels to widen on each side
-	var angle_h := spread  # At 45 deg, height = spread (tan45=1)
-
-	var flight := Polygon2D.new()
-	flight.polygon = PackedVector2Array([
-		Vector2(cx - half_barrel, DART_FLIGHT_H),    # Bottom left (stem)
-		Vector2(0, DART_FLIGHT_H - angle_h),          # Full width reached, left
-		Vector2(0, 0),                                 # Top left
-		Vector2(DART_FLIGHT_W, 0),                     # Top right
-		Vector2(DART_FLIGHT_W, DART_FLIGHT_H - angle_h), # Full width reached, right
-		Vector2(cx + half_barrel, DART_FLIGHT_H),     # Bottom right (stem)
-	])
-	flight.color = Color(flight_col.r, flight_col.g, flight_col.b, 0.9)
-	flight.position = Vector2(0, 0)
-	container.add_child(flight)
-
-	# Barrel (thin middle)
-	var barrel := ColorRect.new()
-	barrel.color = Color(barrel_col.r, barrel_col.g, barrel_col.b, 0.9)
-	barrel.size = Vector2(DART_BARREL_W, DART_BARREL_H)
-	barrel.position = Vector2((DART_FLIGHT_W - DART_BARREL_W) / 2.0, DART_FLIGHT_H)
-	barrel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	container.add_child(barrel)
-
-	# Tip (tiny point at bottom)
+func _build_mini_dart(flight_color: Color, barrel_color: Color) -> Control:
+	# Vertical dart (tip at top, flight at bottom) — doubled size
+	var dart := Control.new()
+	var w := 20
+	var h := 40
+	dart.size = Vector2(w, h)
+	dart.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Tip (top, tiny point)
 	var tip := ColorRect.new()
-	tip.color = Color(0.8, 0.8, 0.85, 0.9)
-	tip.size = Vector2(2, DART_TIP_H)
-	tip.position = Vector2((DART_FLIGHT_W - 2) / 2.0, DART_FLIGHT_H + DART_BARREL_H)
+	tip.color = Color(0.7, 0.7, 0.72)
+	tip.position = Vector2((w - 4) / 2.0, 0)
+	tip.size = Vector2(4, 6)
 	tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	container.add_child(tip)
+	dart.add_child(tip)
+	# Barrel (middle, narrow)
+	var barrel := ColorRect.new()
+	barrel.color = barrel_color
+	barrel.position = Vector2((w - 8) / 2.0, 6)
+	barrel.size = Vector2(8, 20)
+	barrel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dart.add_child(barrel)
+	# Flight (bottom, widest — gives dart its silhouette)
+	var flight := ColorRect.new()
+	flight.color = flight_color
+	flight.position = Vector2(0, 26)
+	flight.size = Vector2(w, 14)
+	flight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dart.add_child(flight)
+	return dart
 
-	return container
+# ── Three mini darts (built inside the bottom card, not standalone) ──
+
+func _build_dart_dots(parent: Control, y_offset: float) -> void:
+	_dart_dot_container = Control.new()
+	_dart_dot_container.position = Vector2(0, y_offset)
+	_dart_dot_container.size = Vector2(CARD_W, 50)
+	_dart_dot_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(_dart_dot_container)
+
+	var flight_cols := DartData.get_flight_colors(GameState.character)
+	var barrel_col: Color = DartData.get_tier(GameState.dart_tier)["barrel_color"]
+
+	var dart_w := 20
+	var gap := 12
+	var total_w := 3 * dart_w + 2 * gap
+	var start_x := (CARD_W - total_w) / 2.0
+
+	_dart_dots.clear()
+	for i in range(3):
+		var mini := _build_mini_dart(flight_cols["front"], barrel_col)
+		mini.position = Vector2(start_x + i * (dart_w + gap), 0)
+		_dart_dot_container.add_child(mini)
+		_dart_dots.append(mini)
+
+func _build_standalone_dart_dots() -> void:
+	# Mini darts for practise/tutorial mode (no card)
+	var y := 1220.0
+	var container := Control.new()
+	container.position = Vector2(0, y)
+	container.size = Vector2(720, 50)
+	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(container)
+
+	var flight_cols := DartData.get_flight_colors(GameState.character)
+	var barrel_col: Color = DartData.get_tier(GameState.dart_tier)["barrel_color"]
+
+	var dart_w := 20
+	var gap := 12
+	var total_w := 3 * dart_w + 2 * gap
+	var start_x := (720 - total_w) / 2.0
+
+	_dart_dots.clear()
+	for i in range(3):
+		var mini := _build_mini_dart(flight_cols["front"], barrel_col)
+		mini.position = Vector2(start_x + i * (dart_w + gap), 0)
+		container.add_child(mini)
+		_dart_dots.append(mini)
 
 # ── Zoom hint ──
 
@@ -163,10 +189,15 @@ func _build_zoom_hint() -> void:
 	UIFont.apply(_zoom_hint, UIFont.CAPTION)
 	_zoom_hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55, 0.6))
 	_zoom_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_zoom_hint.position = Vector2(0, 935)
-	_zoom_hint.size = Vector2(720, 28)
+	_zoom_hint.position = Vector2(60, 210)
+	_zoom_hint.size = Vector2(600, 28)
 	_zoom_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_zoom_hint)
+
+func hide_zoom_hint_forever() -> void:
+	if _zoom_hint:
+		_zoom_hint.visible = false
+		_zoom_hint = null
 
 # ── Balance display (career mode only, top-centre) ──
 
@@ -421,262 +452,287 @@ func setup_vs_mode(opponent_id: String) -> void:
 	_turn_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_turn_indicator)
 
-	# Build identity display at bottom of screen
-	_build_identity_display(opponent_id)
+	# Build unified bottom card (portraits, names, dart dots, stats)
+	_build_bottom_card(opponent_id)
 
-	# Build stats bars if career mode
+# ── Bottom card (unified HUD — portraits, names, dots, stats) ──
+
+func _build_bottom_card(opponent_id: String) -> void:
+	# Use Panel (NOT PanelContainer) so children keep their explicit sizes
+	var card := Panel.new()
+	_card_accent = StyleBoxFlat.new()
+	_card_accent.bg_color = Color(0.06, 0.06, 0.09, 0.92)
+	_card_accent.corner_radius_top_left = 14
+	_card_accent.corner_radius_top_right = 14
+	_card_accent.corner_radius_bottom_left = 14
+	_card_accent.corner_radius_bottom_right = 14
+	_card_accent.border_width_left = 2
+	_card_accent.border_width_right = 2
+	_card_accent.border_width_top = 2
+	_card_accent.border_width_bottom = 2
+	_card_accent.border_color = Color(0.2, 0.6, 0.25)
+	card.add_theme_stylebox_override("panel", _card_accent)
+	card.position = Vector2(CARD_MARGIN, CARD_Y)
+	card.size = Vector2(CARD_W, CARD_H)
+	card.clip_contents = true
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(card)
+
+	# ── Zone calculations (all relative to card top-left) ──
+	# Left portrait: x=PAD, y=ROW_PORTRAIT_Y, 90x90
+	# Left name: x=PAD+90+10, y=ROW_PORTRAIT_Y, width=to centre, height=90
+	# Right name: x=centre+5, y=ROW_PORTRAIT_Y, width=to right portrait, height=90
+	# Right portrait: x=CARD_W-PAD-90, y=ROW_PORTRAIT_Y, 90x90
+	var name_left_x := CARD_PAD + CARD_PORTRAIT_SIZE + 10
+	var name_w := (CARD_W / 2.0) - name_left_x
+	var right_portrait_x := CARD_W - CARD_PAD - CARD_PORTRAIT_SIZE
+	var name_right_x := CARD_W / 2.0 + 5
+
+	# ── Left portrait slot ──
+	_portrait_left = Control.new()
+	_portrait_left.position = Vector2(CARD_PAD, ROW_PORTRAIT_Y)
+	_portrait_left.size = Vector2(CARD_PORTRAIT_SIZE, CARD_PORTRAIT_SIZE)
+	_portrait_left.clip_contents = true
+	_portrait_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(_portrait_left)
+
+	# ── Right portrait slot ──
+	_portrait_right = Control.new()
+	_portrait_right.position = Vector2(right_portrait_x, ROW_PORTRAIT_Y)
+	_portrait_right.size = Vector2(CARD_PORTRAIT_SIZE, CARD_PORTRAIT_SIZE)
+	_portrait_right.clip_contents = true
+	_portrait_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(_portrait_right)
+
+	# ── Left name area ──
+	_name_left = Control.new()
+	_name_left.position = Vector2(name_left_x, ROW_PORTRAIT_Y)
+	_name_left.size = Vector2(name_w, CARD_PORTRAIT_SIZE)
+	_name_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(_name_left)
+
+	# ── Right name area ──
+	_name_right = Control.new()
+	_name_right.position = Vector2(name_right_x, ROW_PORTRAIT_Y)
+	_name_right.size = Vector2(name_w, CARD_PORTRAIT_SIZE)
+	_name_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(_name_right)
+
+	# ── Thin divider line ──
+	var divider := ColorRect.new()
+	divider.color = Color(0.2, 0.2, 0.25)
+	divider.position = Vector2(20, ROW_DIVIDER_Y)
+	divider.size = Vector2(CARD_W - 40, 1)
+	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(divider)
+
+	# ── Stats bars + dart dots (career mode) or standalone dots (non-career) ──
 	if CareerState.career_mode_active:
-		_build_stats_bars()
+		_build_stats_bars_in_card(card, ROW_STATS_Y)
+	else:
+		_build_dart_dots(card, ROW_DOTS_Y)
 
-# ── Identity display (portraits + names at bottom of screen) ──
-
-func _build_identity_display(opponent_id: String) -> void:
-	# Left container — positioned at bottom-left
-	_identity_left = Control.new()
-	_identity_left.position = Vector2(IDENTITY_MARGIN, IDENTITY_Y)
-	_identity_left.size = Vector2(200, 100)
-	_identity_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_identity_left)
-
-	# Right container — positioned at bottom-right
-	_identity_right = Control.new()
-	_identity_right.position = Vector2(720 - 200 - IDENTITY_MARGIN, IDENTITY_Y)
-	_identity_right.size = Vector2(200, 100)
-	_identity_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_identity_right)
-
-	# Build player portrait
+	# ── Build portrait + label elements ──
 	_player_portrait = _build_player_portrait()
+	_portrait_left.add_child(_player_portrait)
+	_player_portrait.position = Vector2.ZERO
+	_player_portrait.size = Vector2(CARD_PORTRAIT_SIZE, CARD_PORTRAIT_SIZE)
 
-	# Build player name/nickname labels
 	_player_name_label = Label.new()
 	_player_name_label.text = DartData.get_character_name(GameState.character)
-	UIFont.apply(_player_name_label, UIFont.CAPTION)
-	_player_name_label.add_theme_color_override("font_color", Color.WHITE)
 	_player_name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_player_nick_label = Label.new()
 	_player_nick_label.text = DartData.get_character_nickname(GameState.character)
-	UIFont.apply(_player_nick_label, 18)
-	# Use the character's flight front colour for the nickname
-	var flight_col: Color = DartData.get_flight_colors(GameState.character)["front"]
-	_player_nick_label.add_theme_color_override("font_color", flight_col)
 	_player_nick_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# Build opponent portrait placeholder
 	_opp_portrait_panel = _build_opponent_placeholder(opponent_id)
+	_portrait_right.add_child(_opp_portrait_panel)
+	_opp_portrait_panel.position = Vector2.ZERO
+	_opp_portrait_panel.size = Vector2(CARD_PORTRAIT_SIZE, CARD_PORTRAIT_SIZE)
 
-	# Build opponent name/nickname labels
 	_opp_name_label = Label.new()
 	_opp_name_label.text = OpponentData.get_display_name(opponent_id)
-	UIFont.apply(_opp_name_label, UIFont.CAPTION)
-	_opp_name_label.add_theme_color_override("font_color", Color.WHITE)
 	_opp_name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_opp_nick_label = Label.new()
 	_opp_nick_label.text = OpponentData.get_nickname(opponent_id)
-	UIFont.apply(_opp_nick_label, 18)
-	_opp_nick_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
 	_opp_nick_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# Default layout: player turn (portrait left, stats right)
-	_set_identity_layout(true)
+	# Default layout: player turn
+	_set_card_layout(true)
 
 func _build_player_portrait() -> Control:
-	# Wrap in a clipping container to enforce fixed size
-	var clip := Control.new()
-	clip.clip_contents = true
-	clip.custom_minimum_size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-	clip.size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	# Dark background so empty/loading state isn't white
-	var bg := ColorRect.new()
-	bg.color = Color(0.1, 0.1, 0.13)
-	bg.size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	clip.add_child(bg)
-
+	var sz := CARD_PORTRAIT_SIZE
+	# Load image directly (no ResourceLoader.exists check — it fails on spaced paths)
 	var image_path := DartData.get_profile_image(GameState.character)
-	var tex: Texture2D = null
-	if ResourceLoader.exists(image_path):
-		tex = load(image_path)
+	var tex: Texture2D = load(image_path)
 
 	if tex:
 		var portrait := TextureRect.new()
 		portrait.texture = tex
-		portrait.custom_minimum_size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-		portrait.size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		portrait.custom_minimum_size = Vector2(sz, sz)
+		portrait.size = Vector2(sz, sz)
+		portrait.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		clip.add_child(portrait)
-	else:
-		# Fallback: coloured panel with initial letter
-		var panel := PanelContainer.new()
-		var style := StyleBoxFlat.new()
-		var flight_col: Color = DartData.get_flight_colors(GameState.character)["front"]
-		style.bg_color = flight_col.darkened(0.6)
-		style.corner_radius_top_left = 8
-		style.corner_radius_top_right = 8
-		style.corner_radius_bottom_left = 8
-		style.corner_radius_bottom_right = 8
-		panel.add_theme_stylebox_override("panel", style)
-		panel.custom_minimum_size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-		panel.size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return portrait
 
-		var initial := Label.new()
-		var char_name := DartData.get_character_name(GameState.character)
-		initial.text = char_name.substr(0, 1)
-		UIFont.apply(initial, UIFont.HEADING)
-		initial.add_theme_color_override("font_color", flight_col)
-		initial.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		initial.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		initial.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(initial)
-		clip.add_child(panel)
-	return clip
+	# Fallback: coloured initial
+	var container := Control.new()
+	container.custom_minimum_size = Vector2(sz, sz)
+	container.size = Vector2(sz, sz)
+	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var flight_col: Color = DartData.get_flight_colors(GameState.character)["front"]
+	var bg := ColorRect.new()
+	bg.color = flight_col.darkened(0.6)
+	bg.position = Vector2.ZERO
+	bg.size = Vector2(sz, sz)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.add_child(bg)
+	var initial := Label.new()
+	initial.text = DartData.get_character_name(GameState.character).substr(0, 1)
+	UIFont.apply(initial, UIFont.SUBHEADING)
+	initial.add_theme_color_override("font_color", flight_col)
+	initial.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	initial.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	initial.position = Vector2.ZERO
+	initial.size = Vector2(sz, sz)
+	initial.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.add_child(initial)
+	return container
 
 func _build_opponent_placeholder(opponent_id: String) -> Control:
-	# Wrap in a clipping container to enforce fixed size
-	var clip := Control.new()
-	clip.clip_contents = true
-	clip.custom_minimum_size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-	clip.size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	# Check if opponent has a real image
+	var sz := CARD_PORTRAIT_SIZE
 	var img_path := OpponentData.get_image(opponent_id)
 
-	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.15, 0.15, 0.18)
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	panel.add_theme_stylebox_override("panel", style)
-	panel.custom_minimum_size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-	panel.size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-
-	if img_path != "" and ResourceLoader.exists(img_path):
-		# Real image — load as TextureRect inside the panel
-		var portrait := TextureRect.new()
+	# Try loading image directly
+	if img_path != "":
 		var tex: Texture2D = load(img_path)
-		portrait.texture = tex
-		portrait.custom_minimum_size = Vector2(IDENTITY_PORTRAIT_SIZE, IDENTITY_PORTRAIT_SIZE)
-		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-		panel.add_child(portrait)
-	else:
-		# No image — dark panel with initial letter and nickname
-		var vbox := VBoxContainer.new()
-		vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-		vbox.add_theme_constant_override("separation", 0)
+		if tex:
+			var portrait := TextureRect.new()
+			portrait.texture = tex
+			portrait.custom_minimum_size = Vector2(sz, sz)
+			portrait.size = Vector2(sz, sz)
+			portrait.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+			portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			return portrait
 
-		_opp_initial_label = Label.new()
-		var opp_name := OpponentData.get_display_name(opponent_id)
-		_opp_initial_label.text = opp_name.substr(0, 1)
-		UIFont.apply(_opp_initial_label, UIFont.HEADING)
-		_opp_initial_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3, 0.8))
-		_opp_initial_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		vbox.add_child(_opp_initial_label)
+	# Fallback: dark panel with initial letter
+	var container := Control.new()
+	container.custom_minimum_size = Vector2(sz, sz)
+	container.size = Vector2(sz, sz)
+	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bg := ColorRect.new()
+	bg.color = Color(0.15, 0.15, 0.18)
+	bg.position = Vector2.ZERO
+	bg.size = Vector2(sz, sz)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.add_child(bg)
+	_opp_initial_label = Label.new()
+	_opp_initial_label.text = OpponentData.get_display_name(opponent_id).substr(0, 1)
+	UIFont.apply(_opp_initial_label, UIFont.SUBHEADING)
+	_opp_initial_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3, 0.8))
+	_opp_initial_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_opp_initial_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_opp_initial_label.position = Vector2.ZERO
+	_opp_initial_label.size = Vector2(sz, sz)
+	_opp_initial_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.add_child(_opp_initial_label)
+	return container
 
-		var nick := Label.new()
-		nick.text = OpponentData.get_nickname(opponent_id)
-		UIFont.apply(nick, UIFont.CAPTION)
-		nick.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
-		nick.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		vbox.add_child(nick)
+func _set_card_layout(is_player_turn: bool) -> void:
+	# Portraits stay fixed: player always left, opponent always right.
+	# Only the active player's name+nickname appears.
+	for child in _name_left.get_children():
+		_name_left.remove_child(child)
+	for child in _name_right.get_children():
+		_name_right.remove_child(child)
 
-		panel.add_child(vbox)
-
-	clip.add_child(panel)
-	return clip
-
-func _set_identity_layout(is_player_turn: bool) -> void:
-	# Remove all children from both containers
-	for child in _identity_left.get_children():
-		_identity_left.remove_child(child)
-	for child in _identity_right.get_children():
-		_identity_right.remove_child(child)
+	var full_text_w := _portrait_right.position.x - _name_left.position.x - 10
 
 	if is_player_turn:
-		# Player portrait on the left
-		_identity_left.add_child(_player_portrait)
-		_player_portrait.position = Vector2(0, 0)
+		# Player name + nickname — left-aligned, next to player portrait
+		_name_left.add_child(_player_name_label)
+		_player_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_player_name_label.position = Vector2(0, 5)
+		_player_name_label.size = Vector2(full_text_w, 35)
+		UIFont.apply(_player_name_label, UIFont.BODY)
+		_player_name_label.add_theme_color_override("font_color", Color.WHITE)
 
-		# Player name/nickname on the right, right-aligned
-		_identity_right.add_child(_player_name_label)
-		_player_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		_player_name_label.position = Vector2(0, 10)
-		_player_name_label.size = Vector2(200, 30)
-		_identity_right.add_child(_player_nick_label)
-		_player_nick_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		_player_nick_label.position = Vector2(0, 40)
-		_player_nick_label.size = Vector2(200, 20)
+		_name_left.add_child(_player_nick_label)
+		_player_nick_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_player_nick_label.position = Vector2(0, 42)
+		_player_nick_label.size = Vector2(full_text_w, 40)
+		UIFont.apply(_player_nick_label, UIFont.HEADING)
+		var flight_col: Color = DartData.get_flight_colors(GameState.character)["front"]
+		_player_nick_label.add_theme_color_override("font_color", flight_col)
+
+		# Green border
+		_card_accent.border_color = Color(0.2, 0.6, 0.25)
 	else:
-		# Opponent portrait on the right
-		_identity_right.add_child(_opp_portrait_panel)
-		_opp_portrait_panel.position = Vector2(200 - IDENTITY_PORTRAIT_SIZE, 0)
+		# Opponent name + nickname — right-aligned, next to opponent portrait
+		_name_left.add_child(_opp_name_label)
+		_opp_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_opp_name_label.position = Vector2(0, 5)
+		_opp_name_label.size = Vector2(full_text_w, 35)
+		UIFont.apply(_opp_name_label, UIFont.BODY)
+		_opp_name_label.add_theme_color_override("font_color", Color.WHITE)
 
-		# Opponent name/nickname on the left, left-aligned
-		_identity_left.add_child(_opp_name_label)
-		_opp_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		_opp_name_label.position = Vector2(0, 10)
-		_opp_name_label.size = Vector2(200, 30)
-		_identity_left.add_child(_opp_nick_label)
-		_opp_nick_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		_opp_nick_label.position = Vector2(0, 40)
-		_opp_nick_label.size = Vector2(200, 20)
+		_name_left.add_child(_opp_nick_label)
+		_opp_nick_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_opp_nick_label.position = Vector2(0, 42)
+		_opp_nick_label.size = Vector2(full_text_w, 40)
+		UIFont.apply(_opp_nick_label, UIFont.HEADING)
+		_opp_nick_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
 
-# ── Stats bars (inline layout, career mode only) ──
+		# Red border
+		_card_accent.border_color = Color(0.6, 0.2, 0.2)
 
-func _build_stats_bars() -> void:
+# ── Stats bars (inside the bottom card, career mode only) ──
+
+func _build_stats_bars_in_card(parent: Control, y_start: int) -> void:
 	_stats_container = Control.new()
-	_stats_container.position = Vector2(0, 0)
-	_stats_container.size = Vector2(720, 1280)
+	_stats_container.position = Vector2(0, y_start)
+	_stats_container.size = Vector2(CARD_W, STATS_ROW_STEP * 4)
 	_stats_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_stats_container)
+	parent.add_child(_stats_container)
 
-	# Total row width: label + gap + bar
-	var total_w := STATS_LABEL_W + STATS_GAP + STATS_BAR_WIDTH
-	var start_x := (720 - total_w) / 2.0
-	var bar_x := start_x + STATS_LABEL_W + STATS_GAP
+	var card_label_w := 160  # Wide enough for CONFIDENCE
+	var total_w := card_label_w + STATS_GAP + STATS_BAR_WIDTH
+	# Shift slightly left of centre so dart dots fit to the right
+	var start_x := (CARD_W - total_w) / 2.0 - 30
+	var bar_x := start_x + card_label_w + STATS_GAP
 
-	# Build 4 bars: DARTS, NERVES, CONFIDENCE, ANGER
 	_bar_bgs.clear()
 	_bar_fills.clear()
 	_bar_labels.clear()
 
 	for i in range(4):
-		var row_y := STATS_FIRST_ROW_Y + i * STATS_ROW_STEP
-		var bar_y := row_y + (STATS_ROW_STEP - STATS_BAR_HEIGHT) / 2.0  # Centre bar vertically
+		var row_y := i * STATS_ROW_STEP
+		var bar_y := row_y + (STATS_ROW_STEP - STATS_BAR_HEIGHT) / 2.0
 
-		# Label — left of the bar, right-aligned
 		var lbl := Label.new()
 		lbl.text = BAR_NAMES[i]
 		UIFont.apply(lbl, UIFont.CAPTION)
-		lbl.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
+		lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
 		lbl.position = Vector2(start_x, row_y)
-		lbl.size = Vector2(STATS_LABEL_W, STATS_ROW_STEP)
+		lbl.size = Vector2(card_label_w, STATS_ROW_STEP)
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_stats_container.add_child(lbl)
 		_bar_labels.append(lbl)
 
-		# Background
 		var bg := ColorRect.new()
-		bg.color = Color(0.15, 0.15, 0.18)
+		bg.color = Color(0.12, 0.12, 0.15)
 		bg.position = Vector2(bar_x, bar_y)
 		bg.size = Vector2(STATS_BAR_WIDTH, STATS_BAR_HEIGHT)
 		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_stats_container.add_child(bg)
 		_bar_bgs.append(bg)
 
-		# Fill
 		var fill := ColorRect.new()
 		fill.color = Color(0.5, 0.5, 0.5)
 		fill.position = Vector2(bar_x, bar_y)
@@ -684,6 +740,22 @@ func _build_stats_bars() -> void:
 		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_stats_container.add_child(fill)
 		_bar_fills.append(fill)
+
+	# ── Mini darts — 3 side by side to the right of the bars ──
+	var darts_x := bar_x + STATS_BAR_WIDTH + 16
+	var dart_w := 20
+	var dart_gap := 6
+	var dart_h := 40
+	# Centre vertically in the stats area
+	var darts_y := (STATS_ROW_STEP * 4 - dart_h) / 2.0
+	_dart_dots.clear()
+	var flight_cols := DartData.get_flight_colors(GameState.character)
+	var barrel_col: Color = DartData.get_tier(GameState.dart_tier)["barrel_color"]
+	for i in range(3):
+		var mini := _build_mini_dart(flight_cols["front"], barrel_col)
+		mini.position = Vector2(darts_x + i * (dart_w + dart_gap), darts_y)
+		_stats_container.add_child(mini)
+		_dart_dots.append(mini)
 
 ## Kept for API compatibility — owner label removed to reduce clutter
 func set_stats_owner(_owner_name: String) -> void:
@@ -779,15 +851,15 @@ func update_turn_indicator(is_player_turn: bool) -> void:
 	# Hide zoom hint during opponent's turn
 	if _zoom_hint:
 		_zoom_hint.visible = is_player_turn
-	# Flip identity display sides
-	if _identity_left:
-		_set_identity_layout(is_player_turn)
+	# Flip card layout sides
+	if _portrait_left:
+		_set_card_layout(is_player_turn)
 
 func on_dart_thrown(dart_index: int) -> void:
-	# Hide the dart icon for the thrown dart (0, 1, or 2)
-	if dart_index >= 0 and dart_index < _dart_icons.size():
+	# Fade out the dart dot for the thrown dart (0, 1, or 2)
+	if dart_index >= 0 and dart_index < _dart_dots.size():
 		var tween := create_tween()
-		tween.tween_property(_dart_icons[dart_index], "modulate", Color(1, 1, 1, 0), 0.2)
+		tween.tween_property(_dart_dots[dart_index], "modulate", Color(1, 1, 1, 0.15), 0.2)
 
 func show_impact(label_text: String, screen_pos: Vector2) -> void:
 	# Brief score flash near where the dart hit
@@ -866,8 +938,8 @@ func hide_summary() -> void:
 	_summary_panel.visible = false
 
 func reset_dart_icons() -> void:
-	for icon in _dart_icons:
-		icon.modulate = Color(1, 1, 1, 1)
+	for dot in _dart_dots:
+		dot.modulate = Color(1, 1, 1, 1)
 
 # ── Private helpers ──
 

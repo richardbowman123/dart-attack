@@ -190,11 +190,15 @@ func _do_throw(aim: Vector2, swipe_speed: float) -> void:
 	_spawn_and_fire(target, throw_speed, _dart_tier, _character)
 
 ## AI throw — spawns a dart aimed at the target position, bypassing swipe input.
-## Called by match_manager during AI turns. Uses brass darts with Terry's colours
-## so AI darts are visually distinct from the player's.
+## AI dart tier — set by match_manager based on opponent level.
+## Opponents use one tier above the player, capped at 3.
+## Final opponent (level 7) matches the player's tier.
+var ai_dart_tier: int = 0
+
+## Called by match_manager during AI turns.
 func do_ai_throw(target: Vector2) -> void:
 	var throw_speed := DART_SPEED_MAX * 0.9  # Slightly faster for snappy AI turns
-	_spawn_and_fire(target, throw_speed, 0, DartData.Character.TERRY)
+	_spawn_and_fire(target, throw_speed, ai_dart_tier, DartData.Character.TERRY)
 
 func _spawn_and_fire(target: Vector2, throw_speed: float, tier: int, character: DartData.Character) -> void:
 	var dart := Dart.create(tier, character)
