@@ -104,33 +104,33 @@ func _build_remaining_display() -> void:
 # ── Mini dart shape builder ──
 
 func _build_mini_dart(flight_color: Color, barrel_color: Color) -> Control:
-	# Vertical dart (tip at top, flight at bottom) — doubled size
+	# Vertical dart (flight at top, tip at bottom — pointing down) — doubled size
 	var dart := Control.new()
 	var w := 20
 	var h := 40
 	dart.size = Vector2(w, h)
 	dart.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Tip (top, tiny point)
-	var tip := ColorRect.new()
-	tip.color = Color(0.7, 0.7, 0.72)
-	tip.position = Vector2((w - 4) / 2.0, 0)
-	tip.size = Vector2(4, 6)
-	tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	dart.add_child(tip)
-	# Barrel (middle, narrow)
-	var barrel := ColorRect.new()
-	barrel.color = barrel_color
-	barrel.position = Vector2((w - 8) / 2.0, 6)
-	barrel.size = Vector2(8, 20)
-	barrel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	dart.add_child(barrel)
-	# Flight (bottom, widest — gives dart its silhouette)
+	# Flight (top, widest — gives dart its silhouette)
 	var flight := ColorRect.new()
 	flight.color = flight_color
-	flight.position = Vector2(0, 26)
+	flight.position = Vector2(0, 0)
 	flight.size = Vector2(w, 14)
 	flight.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dart.add_child(flight)
+	# Barrel (middle, narrow)
+	var barrel := ColorRect.new()
+	barrel.color = barrel_color
+	barrel.position = Vector2((w - 8) / 2.0, 14)
+	barrel.size = Vector2(8, 20)
+	barrel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dart.add_child(barrel)
+	# Tip (bottom, tiny point)
+	var tip := ColorRect.new()
+	tip.color = Color(0.7, 0.7, 0.72)
+	tip.position = Vector2((w - 4) / 2.0, 34)
+	tip.size = Vector2(4, 6)
+	tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dart.add_child(tip)
 	return dart
 
 # ── Three mini darts (built inside the bottom card, not standalone) ──

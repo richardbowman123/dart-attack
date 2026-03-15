@@ -46,9 +46,9 @@ static func get_score(pos: Vector2) -> Dictionary:
 	if dist > DOUBLE_OUTER_R:
 		return {"number": 0, "multiplier": 0, "label": "Miss"}
 
-	# Bullseye
+	# Bullseye — double 25 (counts as a double for checkout)
 	if dist <= BULLSEYE_R:
-		return {"number": 50, "multiplier": 1, "label": "BULLSEYE!"}
+		return {"number": 25, "multiplier": 2, "label": "BULLSEYE!"}
 
 	# Outer bull
 	if dist <= OUTER_BULL_R:

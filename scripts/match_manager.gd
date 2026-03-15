@@ -418,10 +418,9 @@ func _handle_countdown_hit(score_data: Dictionary) -> void:
 	elif new_remaining == 1:
 		is_bust = true
 	elif new_remaining == 0:
-		# Must finish on a double (or inner bull which is 50)
+		# Must finish on a double (bullseye counts as double 25)
 		var mult: int = score_data.get("multiplier", 1)
-		var num: int = score_data.get("number", 0)
-		if mult != 2 and num != 50:
+		if mult != 2:
 			is_bust = true
 
 	if is_bust:
@@ -478,9 +477,9 @@ func _handle_ai_countdown_hit(score_data: Dictionary) -> void:
 	elif new_remaining == 1:
 		is_bust = true
 	elif new_remaining == 0:
+		# Must finish on a double (bullseye counts as double 25)
 		var mult: int = score_data.get("multiplier", 1)
-		var num: int = score_data.get("number", 0)
-		if mult != 2 and num != 50:
+		if mult != 2:
 			is_bust = true
 
 	if is_bust:
@@ -560,8 +559,8 @@ func _handle_rtc_hit(score_data: Dictionary) -> void:
 		else:
 			_rtc_hits_this_visit.append("-")
 	else:
-		# Must hit bullseye (50) specifically
-		if hit_number == 50:
+		# Must hit bullseye (double 25) specifically
+		if hit_number == 25 and multiplier == 2:
 			_rtc_hits_this_visit.append("Bullseye")
 			_rtc_target += 1
 			_score_hud.update_remaining_text(_rtc_target_label())
@@ -633,8 +632,8 @@ func _handle_ai_rtc_hit(score_data: Dictionary) -> void:
 		else:
 			_opp_rtc_hits_this_visit.append("-")
 	else:
-		# Must hit bullseye (50) specifically
-		if hit_number == 50:
+		# Must hit bullseye (double 25) specifically
+		if hit_number == 25 and multiplier == 2:
 			_opp_rtc_hits_this_visit.append("Bullseye")
 			_opp_rtc_target += 1
 			_score_hud.update_opponent_remaining_text(_opp_rtc_target_label())

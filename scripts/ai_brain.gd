@@ -20,7 +20,7 @@ static var CHECKOUTS := {
 	56: [16, 2],
 	54: [14, 2],
 	52: [12, 2],
-	50: [25, 1],   # Bull (counts as double for checkout)
+	50: [25, 2],   # Bullseye (double 25 — counts as double for checkout)
 	48: [8, 2],    # D8 — leave nice even number routes
 	46: [6, 2],    # S14 then D16, but simplified: aim D6 area
 	44: [12, 2],
@@ -115,8 +115,8 @@ static func _aim_rtc(target: int) -> Vector2:
 
 ## Get the board position for a specific number and ring
 static func _get_ring_position(number: int, multiplier: int) -> Vector2:
-	# Bull
-	if number == 25 or number == 50:
+	# Bull (bullseye is now number=25, multiplier=2)
+	if number == 25:
 		return Vector2.ZERO
 
 	# Find segment index
