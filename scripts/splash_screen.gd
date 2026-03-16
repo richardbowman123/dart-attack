@@ -37,6 +37,7 @@ func _build_scene() -> void:
 	# This reveals dart profiles from the front without looking down from above
 	var dartboard := Dartboard.new()
 	dartboard.rotation_degrees.x = -35.0
+	dartboard.rotation_degrees.z = -5.0  # Slight clockwise twist for visual interest
 	add_child(dartboard)
 
 	# Camera — at bullseye height, straight-on, bullseye centred

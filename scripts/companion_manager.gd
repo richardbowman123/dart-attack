@@ -1,4 +1,3 @@
-class_name CompanionManager
 extends Node
 
 ## CompanionManager — autoload that orchestrates companion dialogue.
@@ -181,6 +180,10 @@ func _check_condition(condition: String, context: Dictionary) -> bool:
 			return context.get("missed_checkout", false)
 		"high_stakes":
 			return context.get("high_stakes", false)
+		"reached_18":
+			return context.get("reached_18", false)
+		"second_drink_offer":
+			return context.get("second_drink_offer", false)
 		"periodic":
 			# Always valid when explicitly triggered
 			return true
@@ -233,14 +236,15 @@ func _on_panel_broadcast_finished() -> void:
 		_panel.show_broadcast(speaker, next_line, companion_stage)
 		return
 
-	# All done
-	dialogue_finished.emit(_current_trigger)
+	# Fire consequence BEFORE dialogue_finished so game logic can set
+	# flags (e.g. re-offer drink) that the finished handler checks.
+	var trigger := _current_trigger
 	_current_trigger = ""
-
-	# Fire pending consequence after panel is dismissed
 	if _pending_consequence != "":
 		_handle_consequence(_pending_consequence)
 		_pending_consequence = ""
+
+	dialogue_finished.emit(trigger)
 
 func _on_panel_response_chosen(index: int) -> void:
 	var exchange: Dictionary = get_meta("_current_exchange", {})

@@ -78,7 +78,7 @@ static var COMPANION_NAMES := {
 	5: "The Team",
 }
 
-# ---- Portrait colours per stage (placeholder until art exists) ----
+# ---- Portrait colours per stage (fallback when no image exists) ----
 
 static var PORTRAIT_COLORS := {
 	0: Color(0.35, 0.25, 0.15),   # dark brown
@@ -87,6 +87,17 @@ static var PORTRAIT_COLORS := {
 	3: Color(0.4, 0.4, 0.45),     # steel grey
 	4: Color(0.6, 0.5, 0.15),     # gold
 	5: Color(0.7, 0.2, 0.2),      # red
+}
+
+# ---- Portrait images per stage (empty string = use colour fallback) ----
+
+static var PORTRAIT_IMAGES := {
+	0: "res://Barman.jpg",
+	1: "",
+	2: "",
+	3: "",
+	4: "",
+	5: "",
 }
 
 # =====================================================================
@@ -101,17 +112,17 @@ static var BROADCAST := {
 	"0_PRE_MATCH": [
 		"Right. Board's free. Off you go.",
 		"Don't take all night, will you.",
-		"Your turn. Try not to hit the wall this time.",
+		"Your turn.\n\nTry not to hit the wall this time.",
 	],
 	"0_POST_WIN": [
 		"Well. Didn't see that coming.",
-		"Not bad. Don't let it go to your head.",
-		"Right then. You might not be completely useless.",
+		"Not bad.\n\nDon't let it go to your head.",
+		"Right then.\n\nYou might not be completely useless.",
 	],
 	"0_POST_LOSS": [
-		"Could've been worse. Probably.",
-		"These things happen. To you, mostly.",
-		"Chin up. There's always the fruit machine.",
+		"Could've been worse.\n\nProbably.",
+		"These things happen.\n\nTo you, mostly.",
+		"Chin up.\n\nThere's always the fruit machine.",
 	],
 	"0_BETWEEN_ROUND": [
 		"Decent enough. Get back out there.",
@@ -443,6 +454,55 @@ static var INTERACTIVE_EXCHANGES: Array = [
 				"label": "Not interested.",
 				"reply": "Leaving money on the table. Your funeral.",
 				"consequence": "",
+			},
+		],
+	},
+
+	# --- BARMAN: First drink at 18 (Round the Clock tradition) ---
+	{
+		"id": "barman_drink_at_18",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 0,
+		"speaker": "Barman",
+		"condition": "reached_18",
+		"prompt": "Getting to the final stages now.\n\nYou look like you're getting nervy.\n\nHave a pint on me to settle the nerves.",
+		"responses": [
+			{
+				"label": "Yes",
+				"reply": "That'll calm you down.",
+				"consequence": "add_half_pint",
+			},
+			{
+				"label": "No",
+				"reply": "Fair enough. Your choice.",
+				"consequence": "",
+			},
+		],
+	},
+
+	# --- BARMAN: Second drink offer (after next visit post-first-drink) ---
+	{
+		"id": "barman_second_drink",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 0,
+		"speaker": "Barman",
+		"condition": "second_drink_offer",
+		"prompt": "Another.\n\nYou're paying this time.",
+		"responses": [
+			{
+				"label": "No thanks",
+				"reply": "Fair enough. Worth asking.",
+				"consequence": "",
+			},
+			{
+				"label": "Half pint",
+				"reply": "Coming right up.",
+				"consequence": "buy_half_pint",
+			},
+			{
+				"label": "Full pint",
+				"reply": "Don't think £3.40 is going to cover that, mate.",
+				"consequence": "reject_full_pint",
 			},
 		],
 	},

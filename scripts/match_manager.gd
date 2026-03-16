@@ -50,6 +50,20 @@ var _player_dart_quality: float = 0.0
 var _player_anger: float = 0.0
 var _drinks_this_match: int = 0
 
+# ── Barman drink offer at 18 (career RTC only) ──
+var _drink_offered_at_18 := false
+var _drink_offer_pending := false
+
+# ── Second drink offer (after next visit post-first-drink) ──
+var _second_drink_after_visits: int = -1  # Visits until offer, -1 = inactive
+var _second_drink_pending := false
+var _re_offer_drink := false
+
+# ── Animated nerves bar (slow decrease visible at the oche) ──
+var _pending_nerves_anim: float = -1.0  # Target nerves value, -1 = no pending anim
+var _nerves_before_drink: float = 0.0
+var _suppress_hud_update := false
+
 # ── Opponent stats (career mode) ──
 var _opp_dart_quality: float = 0.0
 var _opp_nerves: float = 50.0
@@ -64,6 +78,13 @@ var _score_hud: ScoreHUD
 var _darts_container: Node3D
 var _tutorial_overlay: TutorialOverlay
 var _tutorial_last_was_hit := false
+
+# ── Sandbox mode (free throw after tutorial) ──
+var _sandbox_mode := false
+var _sandbox_overlay: SandboxOverlay
+
+# Zoom reminder — escalates to red if player doesn't zoom during a visit
+var _player_missed_zoom := false
 
 # Confidence decay while aiming
 var _confidence_decay_timer: float = 0.0
@@ -181,11 +202,19 @@ func _connect_signals() -> void:
 	_throw_system.dart_thrown.connect(_on_dart_thrown)
 	_throw_system.throw_rejected.connect(_on_throw_rejected)
 	_camera_rig.first_zoomed.connect(_on_first_zoom)
+	_camera_rig.visit_zoom_detected.connect(_on_visit_zoom)
 	if _is_tutorial():
 		_setup_tutorial()
+	# Connect companion dialogue signals (career mode only)
+	if CareerState.career_mode_active:
+		CompanionManager.dialogue_finished.connect(_on_companion_dialogue_finished)
+		CompanionManager.consequence_triggered.connect(_on_companion_consequence)
 
 func _on_first_zoom() -> void:
-	_score_hud.hide_zoom_hint_forever()
+	_score_hud.hide_zoom_reminder()
+
+func _on_visit_zoom() -> void:
+	_score_hud.hide_zoom_reminder()
 
 func _init_game_mode() -> void:
 	if _is_countdown():
@@ -240,13 +269,21 @@ func _is_rtc() -> bool:
 	return GameState.game_mode == GameState.GameMode.ROUND_THE_CLOCK
 
 func _is_tutorial() -> bool:
-	return GameState.game_mode == GameState.GameMode.TUTORIAL
+	return GameState.game_mode == GameState.GameMode.TUTORIAL and not _sandbox_mode
+
+func _is_free_throw() -> bool:
+	return GameState.game_mode == GameState.GameMode.FREE_THROW
 
 # ── Visit flow ──
 
 func _start_visit() -> void:
 	_darts_this_visit = 0
 	_visit_dart_labels.clear()
+
+	# Free Throw from practice menu — go straight to sandbox
+	if _is_free_throw() and not _sandbox_mode:
+		_enter_sandbox()
+		return
 
 	if _is_tutorial():
 		_state = MatchState.THROWING
@@ -260,6 +297,34 @@ func _start_visit() -> void:
 		return
 
 	if _is_player_turn or not _is_vs_ai:
+		# Check for barman drink offer (career RTC only, once per match)
+		if _drink_offer_pending and _is_rtc() and CareerState.career_mode_active:
+			_drink_offer_pending = false
+			_state = MatchState.BETWEEN_DARTS
+			_throw_system.set_can_throw(false)
+			_score_hud.reset_dart_icons()
+			_score_hud.hide_summary()
+			if _is_vs_ai:
+				_score_hud.update_turn_indicator(true)
+				if CareerState.career_mode_active:
+					_show_player_stats()
+			CompanionManager.request_dialogue(CompanionData.DRINK_OFFER, {"reached_18": true})
+			return
+
+		# Check for second barman drink offer (after next visit post-first-drink)
+		if _second_drink_pending and CareerState.career_mode_active:
+			_second_drink_pending = false
+			_state = MatchState.BETWEEN_DARTS
+			_throw_system.set_can_throw(false)
+			_score_hud.reset_dart_icons()
+			_score_hud.hide_summary()
+			if _is_vs_ai:
+				_score_hud.update_turn_indicator(true)
+				if CareerState.career_mode_active:
+					_show_player_stats()
+			CompanionManager.request_dialogue(CompanionData.DRINK_OFFER, {"second_drink_offer": true})
+			return
+
 		# Player's turn
 		_state = MatchState.THROWING
 		if _is_countdown():
@@ -281,10 +346,24 @@ func _start_visit() -> void:
 		_start_confidence_decay()
 		DrinkManager.flash_tier_name()
 
+		# Zoom reminder — reset per-visit tracking and show hint
+		_camera_rig.reset_visit_zoom()
+		if not _is_tutorial() and not _sandbox_mode:
+			_score_hud.show_zoom_reminder(_player_missed_zoom)
+
 		if _is_vs_ai:
 			_score_hud.update_turn_indicator(true)
 			if CareerState.career_mode_active:
-				_show_player_stats()
+				# Show stats with pre-drink nerves if animation is pending
+				if _pending_nerves_anim >= 0.0:
+					_score_hud.update_stats_bars(_player_dart_quality, _nerves_before_drink, _player_confidence, _player_anger)
+				else:
+					_show_player_stats()
+
+		# Animate nerves decrease if pending from a drink
+		if _pending_nerves_anim >= 0.0:
+			_score_hud.animate_single_bar(1, _nerves_before_drink, _pending_nerves_anim, 2.5)
+			_pending_nerves_anim = -1.0
 	else:
 		# AI's turn
 		_start_ai_visit()
@@ -384,6 +463,8 @@ func _on_dart_hit(score_data: Dictionary, hit_pos: Vector2, dart: Dart) -> void:
 
 	if _is_tutorial():
 		_handle_tutorial_hit(score_data, hit_pos)
+	elif _sandbox_mode:
+		_handle_sandbox_hit(score_data, hit_pos)
 	elif _is_vs_ai and not _is_player_turn:
 		# AI dart landed
 		if _is_countdown():
@@ -529,23 +610,32 @@ func _handle_rtc_hit(score_data: Dictionary) -> void:
 	if _rtc_target <= 20:
 		# Targeting a number 1-20
 		if hit_number == _rtc_target and multiplier > 0:
-			# Hit the target number
-			var advance := multiplier  # single=1, double=2, treble=3
+			# Compute new target: doubles/trebles can skip numbers but NEVER past 20.
+			# Player must hit 20 to move to outer bull (21).
+			var old_target := _rtc_target
+			var new_target: int
+			if _rtc_target < 20:
+				new_target = mini(_rtc_target + multiplier, 20)
+			else:
+				# Target is 20: any hit advances to outer bull only
+				new_target = 21
 
-			if multiplier == 1:
-				_rtc_hits_this_visit.append(str(_rtc_target))
-			elif multiplier == 2:
-				# Double: hit this number + skip one
-				var skipped := mini(_rtc_target + 1, 21)
-				_rtc_hits_this_visit.append("D" + str(_rtc_target) + " (skip " + str(skipped) + ")")
+			# Build hit description with actual skipped numbers
+			var prefix := ""
+			if multiplier == 2:
+				prefix = "D"
 			elif multiplier == 3:
-				# Treble: hit this number + skip two
-				var s1 := mini(_rtc_target + 1, 21)
-				var s2 := mini(_rtc_target + 2, 21)
-				_rtc_hits_this_visit.append("T" + str(_rtc_target) + " (skip " + str(s1) + "," + str(s2) + ")")
+				prefix = "T"
 
-			_rtc_target = mini(_rtc_target + advance, 21)
-			# If we've gone past 20, move to bulls
+			var skipped: Array = []
+			for n in range(old_target + 1, new_target):
+				skipped.append(str(n))
+			if skipped.size() > 0:
+				_rtc_hits_this_visit.append(prefix + str(old_target) + " (skip " + ",".join(skipped) + ")")
+			else:
+				_rtc_hits_this_visit.append(prefix + str(old_target))
+
+			_rtc_target = new_target
 			_score_hud.update_remaining_text(_rtc_target_label())
 		else:
 			# Missed the target (hit wrong number or missed board)
@@ -597,6 +687,11 @@ func _handle_rtc_hit(score_data: Dictionary) -> void:
 			tween.tween_callback(_restart_game)
 		return
 
+	# Flag drink offer when player reaches 18 (career RTC only, once per match)
+	if not _drink_offered_at_18 and _rtc_target >= 18 and CareerState.career_mode_active:
+		_drink_offered_at_18 = true
+		_drink_offer_pending = true
+
 	_advance_turn()
 
 # ── Round the Clock mode — AI opponent ──
@@ -607,19 +702,28 @@ func _handle_ai_rtc_hit(score_data: Dictionary) -> void:
 
 	if _opp_rtc_target <= 20:
 		if hit_number == _opp_rtc_target and multiplier > 0:
-			var advance := multiplier
+			var old_target := _opp_rtc_target
+			var new_target: int
+			if _opp_rtc_target < 20:
+				new_target = mini(_opp_rtc_target + multiplier, 20)
+			else:
+				new_target = 21
 
-			if multiplier == 1:
-				_opp_rtc_hits_this_visit.append(str(_opp_rtc_target))
-			elif multiplier == 2:
-				var skipped := mini(_opp_rtc_target + 1, 21)
-				_opp_rtc_hits_this_visit.append("D" + str(_opp_rtc_target) + " (skip " + str(skipped) + ")")
+			var prefix := ""
+			if multiplier == 2:
+				prefix = "D"
 			elif multiplier == 3:
-				var s1 := mini(_opp_rtc_target + 1, 21)
-				var s2 := mini(_opp_rtc_target + 2, 21)
-				_opp_rtc_hits_this_visit.append("T" + str(_opp_rtc_target) + " (skip " + str(s1) + "," + str(s2) + ")")
+				prefix = "T"
 
-			_opp_rtc_target = mini(_opp_rtc_target + advance, 21)
+			var skipped: Array = []
+			for n in range(old_target + 1, new_target):
+				skipped.append(str(n))
+			if skipped.size() > 0:
+				_opp_rtc_hits_this_visit.append(prefix + str(old_target) + " (skip " + ",".join(skipped) + ")")
+			else:
+				_opp_rtc_hits_this_visit.append(prefix + str(old_target))
+
+			_opp_rtc_target = new_target
 			_score_hud.update_opponent_remaining_text(_opp_rtc_target_label())
 		else:
 			_opp_rtc_hits_this_visit.append("-")
@@ -651,6 +755,11 @@ func _handle_ai_rtc_hit(score_data: Dictionary) -> void:
 		tween.tween_interval(3.5)
 		tween.tween_callback(_on_player_loses)
 		return
+
+	# Flag drink offer when AI reaches 18 (career RTC only, once per match)
+	if not _drink_offered_at_18 and _opp_rtc_target >= 18 and CareerState.career_mode_active:
+		_drink_offered_at_18 = true
+		_drink_offer_pending = true
 
 	_ai_advance_turn()
 
@@ -713,7 +822,7 @@ func _handle_tutorial_hit(score_data: Dictionary, hit_pos: Vector2) -> void:
 		_throw_system.set_can_throw(false)
 		var tween := create_tween()
 		tween.tween_interval(3.0)
-		tween.tween_callback(_restart_game)
+		tween.tween_callback(_show_sandbox_intro)
 		return
 
 	# Pause to show feedback, then advance
@@ -734,12 +843,173 @@ func _tutorial_next_throw() -> void:
 	# Tell the overlay to advance — it decides whether to show intro or resume aiming
 	_tutorial_overlay.advance(_tutorial_last_was_hit)
 
+# ── Sandbox mode (free throw with stat controls) ──
+
+func _show_sandbox_intro() -> void:
+	# Full-screen overlay
+	var overlay := Control.new()
+	overlay.size = Vector2(720, 1280)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.z_index = 100
+
+	# Dim background
+	var dimmer := ColorRect.new()
+	dimmer.color = Color(0, 0, 0, 0.5)
+	dimmer.size = Vector2(720, 1280)
+	dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(dimmer)
+
+	# Message panel
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.08, 0.12, 0.92)
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
+	style.corner_radius_bottom_left = 12
+	style.corner_radius_bottom_right = 12
+	style.content_margin_left = 32
+	style.content_margin_right = 32
+	style.content_margin_top = 28
+	style.content_margin_bottom = 24
+	panel.add_theme_stylebox_override("panel", style)
+	panel.position = Vector2(80, 360)
+	panel.size = Vector2(560, 0)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 20)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var msg := Label.new()
+	msg.text = "Nice one! Now have a go at some free throws.\n\nUse the controls to tweak your stats and see how they affect your accuracy. These will matter when you start your career."
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.custom_minimum_size = Vector2(496, 0)
+	UIFont.apply(msg, UIFont.CAPTION)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(msg)
+
+	var btn := Button.new()
+	btn.text = "Let's throw!"
+	UIFont.apply_button(btn, 22)
+	var btn_style := StyleBoxFlat.new()
+	btn_style.bg_color = Color(0.15, 0.45, 0.15)
+	btn_style.corner_radius_top_left = 8
+	btn_style.corner_radius_top_right = 8
+	btn_style.corner_radius_bottom_left = 8
+	btn_style.corner_radius_bottom_right = 8
+	btn_style.content_margin_left = 24
+	btn_style.content_margin_right = 24
+	btn_style.content_margin_top = 12
+	btn_style.content_margin_bottom = 12
+	btn.add_theme_stylebox_override("normal", btn_style)
+	var hover_style := btn_style.duplicate()
+	hover_style.bg_color = btn_style.bg_color.lightened(0.15)
+	btn.add_theme_stylebox_override("hover", hover_style)
+	var pressed_style := btn_style.duplicate()
+	pressed_style.bg_color = btn_style.bg_color.darkened(0.15)
+	btn.add_theme_stylebox_override("pressed", pressed_style)
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.8))
+	btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	btn.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_enter_sandbox()
+	)
+	vbox.add_child(btn)
+
+	panel.add_child(vbox)
+	overlay.add_child(panel)
+
+	# Fade in
+	overlay.modulate = Color(1, 1, 1, 0)
+	_score_hud.add_child(overlay)
+	var tween := create_tween()
+	tween.tween_property(overlay, "modulate", Color(1, 1, 1, 1), 0.3)
+
+func _enter_sandbox() -> void:
+	# Clear tutorial darts
+	for dart in _active_darts:
+		if is_instance_valid(dart):
+			dart.queue_free()
+	_active_darts.clear()
+
+	# Remove tutorial overlay
+	if _tutorial_overlay:
+		_tutorial_overlay.queue_free()
+		_tutorial_overlay = null
+
+	_sandbox_mode = true
+
+	# Create sandbox overlay
+	_sandbox_overlay = SandboxOverlay.new()
+	add_child(_sandbox_overlay)
+	_sandbox_overlay.scatter_changed.connect(_on_sandbox_scatter_changed)
+	_sandbox_overlay.clear_requested.connect(_on_sandbox_clear)
+	_sandbox_overlay.exit_requested.connect(_on_sandbox_exit)
+
+	# Set initial scatter from sandbox defaults
+	_throw_system.career_scatter_mult = _sandbox_overlay.get_scatter_mult()
+
+	# Update HUD
+	_score_hud.update_remaining_text("FREE THROW")
+	_score_hud.hide_summary()
+	_score_hud.reset_dart_icons()
+
+	# Enable throwing
+	_state = MatchState.THROWING
+	_darts_this_visit = 0
+	_throw_system.set_can_throw(true)
+
+func _handle_sandbox_hit(_score_data: Dictionary, _hit_pos: Vector2) -> void:
+	# Re-enable throwing after a brief pause — no scoring or turns
+	_state = MatchState.BETWEEN_DARTS
+	_throw_system.set_can_throw(false)
+
+	# Reset dart icons every 3 darts so they cycle
+	if _darts_this_visit >= 3:
+		_darts_this_visit = 0
+		_score_hud.reset_dart_icons()
+
+	var tween := create_tween()
+	tween.tween_interval(0.3)
+	tween.tween_callback(func() -> void:
+		_state = MatchState.THROWING
+		_throw_system.set_can_throw(true)
+	)
+
+func _on_sandbox_scatter_changed(mult: float) -> void:
+	_throw_system.career_scatter_mult = mult
+
+func _on_sandbox_clear() -> void:
+	for dart in _active_darts:
+		if is_instance_valid(dart):
+			dart.queue_free()
+	_active_darts.clear()
+	_darts_this_visit = 0
+	_score_hud.reset_dart_icons()
+
+func _on_sandbox_exit() -> void:
+	_restart_game()
+
 # ── Turn management ──
 
 func _advance_turn() -> void:
 	if _darts_this_visit >= DARTS_PER_VISIT:
 		_state = MatchState.VISIT_SUMMARY
 		_throw_system.set_can_throw(false)
+
+		# Track if the player finished a visit without zooming
+		if (_is_player_turn or not _is_vs_ai) and not _is_tutorial() and not _sandbox_mode:
+			_player_missed_zoom = not _camera_rig.did_zoom_this_visit()
+
+		# Count down to second drink offer (player turn only)
+		if _second_drink_after_visits > 0 and (_is_player_turn or not _is_vs_ai):
+			_second_drink_after_visits -= 1
+			if _second_drink_after_visits == 0:
+				_second_drink_pending = true
+				_second_drink_after_visits = -1
 
 		# Opponent reacts to player's visit total
 		if _is_countdown() and _is_vs_ai and _is_player_turn:
@@ -818,9 +1088,12 @@ func _clear_and_next_visit() -> void:
 func _update_career_stats(nerves_delta: float, confidence_delta: float) -> void:
 	if not CareerState.career_mode_active:
 		return
-	_player_nerves = clampf(_player_nerves + nerves_delta, 0.0, 100.0)
+	# Level-based nerves cap — early levels feel less punishing
+	var nerves_cap := _get_nerves_cap()
+	_player_nerves = clampf(_player_nerves + nerves_delta, 0.0, nerves_cap)
 	_player_confidence = clampf(_player_confidence + confidence_delta, 0.0, 100.0)
-	_score_hud.update_stats_bars(_player_dart_quality, _player_nerves, _player_confidence, _player_anger)
+	if not _suppress_hud_update:
+		_score_hud.update_stats_bars(_player_dart_quality, _player_nerves, _player_confidence, _player_anger)
 
 func _update_stats_on_player_score(score_data: Dictionary) -> void:
 	if not CareerState.career_mode_active:
@@ -881,16 +1154,21 @@ func _update_stats_on_near_checkout() -> void:
 	# Called when player is near checkout (remaining <= 40)
 	_update_career_stats(3.0, 0.0)
 
-## Apply a drink effect to nerves, anger, and opponent anger
+## Apply a drink effect to nerves, anger, and opponent anger.
+## A drink cuts nerves to a fraction of their current value — big visible effect.
 func apply_drink(is_full_pint: bool) -> void:
 	if is_full_pint:
 		_update_player_anger(4.0)
-		_update_career_stats(-15.0, 0.0)
+		# Full pint: nerves drop to 15% of current, confidence +10
+		var nerve_drop := _player_nerves * 0.85
+		_update_career_stats(-nerve_drop, 10.0)
 		_drinks_this_match += 2
 		CareerState.liver_damage += 2.0 * maxf(0.5, 1.0 - CareerState.heft_tier * 0.15)
 	else:
 		_update_player_anger(2.0)
-		_update_career_stats(-8.0, 0.0)
+		# Half pint: nerves drop to 25% of current, confidence +6
+		var nerve_drop := _player_nerves * 0.75
+		_update_career_stats(-nerve_drop, 6.0)
 		_drinks_this_match += 1
 		CareerState.liver_damage += 1.0 * maxf(0.5, 1.0 - CareerState.heft_tier * 0.15)
 	# Opponent cools off slightly while player drinks
@@ -907,6 +1185,15 @@ func get_career_scatter_mult() -> float:
 	# Dart quality: 0=bad darts (1.3x scatter), 100=precision (0.7x)
 	var dq_mult := 1.3 - (_player_dart_quality / 100.0) * 0.6
 	return nerve_mult * conf_mult * dq_mult
+
+## Nerves cap by career level — keeps early levels forgiving
+func _get_nerves_cap() -> float:
+	var level: int = OpponentData.OPPONENTS.get(_opponent_id, {}).get("level", 1)
+	match level:
+		1: return 50.0   # Big Kev — pub, relaxed, nerves can't spiral
+		2: return 65.0   # Derek — tournament, some pressure
+		3: return 75.0   # Steve — regional, getting serious
+		_: return 100.0  # Level 4+ — full range
 
 ## Map dart tier (0-3) to quality value (0-100)
 func _tier_to_quality(tier: int) -> float:
@@ -934,7 +1221,7 @@ func _update_player_anger(delta: float) -> void:
 		return
 	_player_anger = clampf(_player_anger + delta, 0.0, 100.0)
 	# Refresh HUD if it's the player's turn
-	if _is_player_turn:
+	if _is_player_turn and not _suppress_hud_update:
 		_score_hud.update_stats_bars(_player_dart_quality, _player_nerves, _player_confidence, _player_anger)
 
 ## Update opponent stats (nerves, confidence, anger) and check anger threshold
@@ -1010,3 +1297,45 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("menu"):
 		_cancel_ai_turn()
 		get_tree().change_scene_to_file("res://scenes/menu.tscn")
+
+# ── Companion dialogue handlers ──
+
+func _on_companion_dialogue_finished(trigger: String) -> void:
+	if trigger == CompanionData.DRINK_OFFER:
+		if _re_offer_drink:
+			_re_offer_drink = false
+			# Brief pause before re-showing the offer (let panel slide out first)
+			var tween := create_tween()
+			tween.tween_interval(0.5)
+			tween.tween_callback(func() -> void:
+				CompanionManager.request_dialogue(CompanionData.DRINK_OFFER, {"second_drink_offer": true})
+			)
+			return
+		# Drink offer dismissed — resume the player's visit
+		_start_visit()
+
+func _on_companion_consequence(consequence_id: String) -> void:
+	if consequence_id == "add_half_pint":
+		# Free half pint from barman — set up animated nerves decrease
+		_nerves_before_drink = _player_nerves
+		_suppress_hud_update = true
+		DrinkManager.add_drink(true, 1)  # Free half pint (visual effects)
+		apply_drink(false)               # Career stats: nerves -8, anger +2
+		_suppress_hud_update = false
+		_pending_nerves_anim = _player_nerves
+		# Trigger second drink offer after the player's next visit
+		_second_drink_after_visits = 1
+	elif consequence_id == "buy_half_pint":
+		# Paid half pint — player is paying this time
+		_nerves_before_drink = _player_nerves
+		_suppress_hud_update = true
+		DrinkManager.add_drink(true, 1)  # Visual effects (payment handled below)
+		apply_drink(false)               # Career stats: nerves -8, anger +2
+		_suppress_hud_update = false
+		_pending_nerves_anim = _player_nerves
+		# Deduct cost from career money
+		CareerState.money -= DrinkManager.COST_PER_UNIT
+		_score_hud.update_balance(CareerState.money)
+	elif consequence_id == "reject_full_pint":
+		# Full pint rejected — loop back to the choice screen
+		_re_offer_drink = true

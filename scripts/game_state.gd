@@ -1,6 +1,6 @@
 extends Node
 
-enum GameMode { ROUND_THE_CLOCK, COUNTDOWN, TUTORIAL }
+enum GameMode { ROUND_THE_CLOCK, COUNTDOWN, TUTORIAL, FREE_THROW }
 
 const SETTINGS_PATH := "user://settings.cfg"
 

@@ -75,6 +75,7 @@ const BAR_NAMES: Array[String] = ["DARTS", "NERVES", "CONFIDENCE", "ANGER"]
 var _bar_bgs: Array[ColorRect] = []
 var _bar_fills: Array[ColorRect] = []
 var _bar_labels: Array[Label] = []
+var _bar_tweens: Array = []  # Per-bar tween tracking (so we can kill/replace)
 var _stats_container: Control
 
 func _ready() -> void:
@@ -104,31 +105,47 @@ func _build_remaining_display() -> void:
 # ── Mini dart shape builder ──
 
 func _build_mini_dart(flight_color: Color, barrel_color: Color) -> Control:
-	# Vertical dart (flight at top, tip at bottom — pointing down) — doubled size
+	# Vertical dart (flight at top, tip at bottom) — shield-shaped flight
 	var dart := Control.new()
-	var w := 20
-	var h := 40
+	var w := 24
+	var h := 80
 	dart.size = Vector2(w, h)
 	dart.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Flight (top, widest — gives dart its silhouette)
-	var flight := ColorRect.new()
-	flight.color = flight_color
+	# Flight (shield/heart shape — matches the 3D dart fin profile)
+	var flight := Control.new()
 	flight.position = Vector2(0, 0)
-	flight.size = Vector2(w, 14)
+	flight.size = Vector2(w, 28)
 	flight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var col := flight_color  # capture for draw callback
+	var fw := float(w)
+	flight.draw.connect(func() -> void:
+		var pts := PackedVector2Array([
+			Vector2(fw * 0.5, 28),       # bottom centre (meets barrel)
+			Vector2(fw * 0.15, 22),      # lower-left taper
+			Vector2(0, 12),              # left shoulder (widest)
+			Vector2(fw * 0.08, 3),       # top-left curve
+			Vector2(fw * 0.3, 0),        # left bump peak
+			Vector2(fw * 0.5, 4),        # top centre dip (heart notch)
+			Vector2(fw * 0.7, 0),        # right bump peak
+			Vector2(fw * 0.92, 3),       # top-right curve
+			Vector2(fw, 12),             # right shoulder (widest)
+			Vector2(fw * 0.85, 22),      # lower-right taper
+		])
+		flight.draw_colored_polygon(pts, col)
+	)
 	dart.add_child(flight)
 	# Barrel (middle, narrow)
 	var barrel := ColorRect.new()
 	barrel.color = barrel_color
-	barrel.position = Vector2((w - 8) / 2.0, 14)
-	barrel.size = Vector2(8, 20)
+	barrel.position = Vector2((w - 8) / 2.0, 28)
+	barrel.size = Vector2(8, 38)
 	barrel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dart.add_child(barrel)
-	# Tip (bottom, tiny point)
+	# Tip (bottom, tapered point)
 	var tip := ColorRect.new()
 	tip.color = Color(0.7, 0.7, 0.72)
-	tip.position = Vector2((w - 4) / 2.0, 34)
-	tip.size = Vector2(4, 6)
+	tip.position = Vector2((w - 4) / 2.0, 66)
+	tip.size = Vector2(4, 14)
 	tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dart.add_child(tip)
 	return dart
@@ -138,14 +155,14 @@ func _build_mini_dart(flight_color: Color, barrel_color: Color) -> Control:
 func _build_dart_dots(parent: Control, y_offset: float) -> void:
 	_dart_dot_container = Control.new()
 	_dart_dot_container.position = Vector2(0, y_offset)
-	_dart_dot_container.size = Vector2(CARD_W, 50)
+	_dart_dot_container.size = Vector2(CARD_W, 85)
 	_dart_dot_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(_dart_dot_container)
 
 	var flight_cols := DartData.get_flight_colors(GameState.character)
 	var barrel_col: Color = DartData.get_tier(GameState.dart_tier)["barrel_color"]
 
-	var dart_w := 20
+	var dart_w := 24
 	var gap := 12
 	var total_w := 3 * dart_w + 2 * gap
 	var start_x := (CARD_W - total_w) / 2.0
@@ -158,18 +175,18 @@ func _build_dart_dots(parent: Control, y_offset: float) -> void:
 		_dart_dots.append(mini)
 
 func _build_standalone_dart_dots() -> void:
-	# Mini darts for practise/tutorial mode (no card)
-	var y := 1220.0
+	# Mini darts for practise/tutorial/free throw mode (no card)
+	var y := 1190.0
 	var container := Control.new()
 	container.position = Vector2(0, y)
-	container.size = Vector2(720, 50)
+	container.size = Vector2(720, 85)
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(container)
 
 	var flight_cols := DartData.get_flight_colors(GameState.character)
 	var barrel_col: Color = DartData.get_tier(GameState.dart_tier)["barrel_color"]
 
-	var dart_w := 20
+	var dart_w := 24
 	var gap := 12
 	var total_w := 3 * dart_w + 2 * gap
 	var start_x := (720 - total_w) / 2.0
@@ -181,23 +198,64 @@ func _build_standalone_dart_dots() -> void:
 		container.add_child(mini)
 		_dart_dots.append(mini)
 
-# ── Zoom hint ──
+# ── Zoom reminder ──
+
+var _zoom_hint_tween: Tween
 
 func _build_zoom_hint() -> void:
 	_zoom_hint = Label.new()
-	_zoom_hint.text = "Pinch to zoom in for accuracy"
+	_zoom_hint.text = "Don't forget to zoom in"
 	UIFont.apply(_zoom_hint, UIFont.CAPTION)
-	_zoom_hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55, 0.6))
+	_zoom_hint.add_theme_color_override("font_color", Color.WHITE)
 	_zoom_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_zoom_hint.position = Vector2(60, 210)
 	_zoom_hint.size = Vector2(600, 28)
 	_zoom_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_zoom_hint.visible = false
 	add_child(_zoom_hint)
 
+## Show the zoom reminder. persistent=false: white flash that fades.
+## persistent=true: red text that stays until dismissed.
+func show_zoom_reminder(persistent: bool) -> void:
+	if not _zoom_hint:
+		return
+	# Kill any running animation
+	if _zoom_hint_tween and _zoom_hint_tween.is_valid():
+		_zoom_hint_tween.kill()
+	_zoom_hint.visible = true
+	_zoom_hint.modulate = Color(1, 1, 1, 1)
+
+	if persistent:
+		# Red text, stays visible
+		_zoom_hint.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3))
+	else:
+		# White text, pulse in then fade out after 2.5s
+		_zoom_hint.add_theme_color_override("font_color", Color.WHITE)
+		_zoom_hint_tween = create_tween()
+		# Pulse: fade in, hold, fade out
+		_zoom_hint.modulate.a = 0.0
+		_zoom_hint_tween.tween_property(_zoom_hint, "modulate:a", 1.0, 0.3)
+		_zoom_hint_tween.tween_interval(2.0)
+		_zoom_hint_tween.tween_property(_zoom_hint, "modulate:a", 0.0, 0.8)
+		_zoom_hint_tween.tween_callback(func() -> void:
+			_zoom_hint.visible = false
+		)
+
+func hide_zoom_reminder() -> void:
+	if not _zoom_hint:
+		return
+	if _zoom_hint_tween and _zoom_hint_tween.is_valid():
+		_zoom_hint_tween.kill()
+	if _zoom_hint.visible:
+		# Quick fade out
+		_zoom_hint_tween = create_tween()
+		_zoom_hint_tween.tween_property(_zoom_hint, "modulate:a", 0.0, 0.3)
+		_zoom_hint_tween.tween_callback(func() -> void:
+			_zoom_hint.visible = false
+		)
+
 func hide_zoom_hint_forever() -> void:
-	if _zoom_hint:
-		_zoom_hint.visible = false
-		_zoom_hint = null
+	hide_zoom_reminder()
 
 # ── Balance display (career mode only, top-centre) ──
 
@@ -708,6 +766,8 @@ func _build_stats_bars_in_card(parent: Control, y_start: int) -> void:
 	_bar_bgs.clear()
 	_bar_fills.clear()
 	_bar_labels.clear()
+	_bar_tweens.clear()
+	_bar_tweens.resize(4)
 
 	for i in range(4):
 		var row_y := i * STATS_ROW_STEP
@@ -743,9 +803,9 @@ func _build_stats_bars_in_card(parent: Control, y_start: int) -> void:
 
 	# ── Mini darts — 3 side by side to the right of the bars ──
 	var darts_x := bar_x + STATS_BAR_WIDTH + 16
-	var dart_w := 20
-	var dart_gap := 6
-	var dart_h := 40
+	var dart_w := 24
+	var dart_gap := 4
+	var dart_h := 80
 	# Centre vertically in the stats area
 	var darts_y := (STATS_ROW_STEP * 4 - dart_h) / 2.0
 	_dart_dots.clear()
@@ -774,10 +834,39 @@ func update_stats_bars(dart_quality: float, nerves: float, confidence: float, an
 		var width := STATS_BAR_WIDTH * frac
 		var col := _get_bar_color(i, frac)
 
+		# Kill existing tween on this bar before starting a new one
+		if i < _bar_tweens.size() and _bar_tweens[i] is Tween and _bar_tweens[i].is_valid():
+			_bar_tweens[i].kill()
+
 		var tw := create_tween()
 		tw.set_parallel(true)
 		tw.tween_property(_bar_fills[i], "size", Vector2(width, STATS_BAR_HEIGHT), 0.3)
 		tw.tween_property(_bar_fills[i], "color", col, 0.3)
+		if i < _bar_tweens.size():
+			_bar_tweens[i] = tw
+
+## Animate a single bar from one value to another over a longer duration.
+## Used for the visible nerves decrease when returning from a drink.
+func animate_single_bar(bar_index: int, from_value: float, to_value: float, duration: float) -> void:
+	if not _stats_container or bar_index < 0 or bar_index >= _bar_fills.size():
+		return
+	# Kill any existing tween on this bar
+	if bar_index < _bar_tweens.size() and _bar_tweens[bar_index] is Tween and _bar_tweens[bar_index].is_valid():
+		_bar_tweens[bar_index].kill()
+	# Set starting position immediately
+	var from_frac := clampf(from_value / 100.0, 0.0, 1.0)
+	_bar_fills[bar_index].size = Vector2(STATS_BAR_WIDTH * from_frac, STATS_BAR_HEIGHT)
+	_bar_fills[bar_index].color = _get_bar_color(bar_index, from_frac)
+	# Animate to target
+	var to_frac := clampf(to_value / 100.0, 0.0, 1.0)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_ease(Tween.EASE_IN_OUT)
+	tw.set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_bar_fills[bar_index], "size", Vector2(STATS_BAR_WIDTH * to_frac, STATS_BAR_HEIGHT), duration)
+	tw.tween_property(_bar_fills[bar_index], "color", _get_bar_color(bar_index, to_frac), duration)
+	if bar_index < _bar_tweens.size():
+		_bar_tweens[bar_index] = tw
 
 ## Get the colour for a bar based on its index and fill fraction.
 func _get_bar_color(bar_index: int, frac: float) -> Color:
@@ -849,8 +938,9 @@ func update_turn_indicator(is_player_turn: bool) -> void:
 		if _opponent_label:
 			_opponent_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 0.9))
 	# Hide zoom hint during opponent's turn
-	if _zoom_hint:
-		_zoom_hint.visible = is_player_turn
+	if _zoom_hint and _zoom_hint.visible:
+		if not is_player_turn:
+			_zoom_hint.visible = false
 	# Flip card layout sides
 	if _portrait_left:
 		_set_card_layout(is_player_turn)

@@ -169,4 +169,5 @@ static func _gaussian_offset(radius: float) -> Vector2:
 	var u2 := randf()
 	var mag := radius * sqrt(-2.0 * log(u1))
 	var angle := TAU * u2
-	return Vector2(cos(angle), sin(angle)) * mag
+	# Elliptical scatter: more vertical error (release timing) than horizontal (aim)
+	return Vector2(cos(angle) * 0.8, sin(angle) * 1.2) * mag

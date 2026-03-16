@@ -41,6 +41,7 @@ func _ready() -> void:
 	# and scale that instead. Physics CollisionShape stays on the RigidBody3D.
 	_visual_root = Node3D.new()
 	_visual_root.scale = Vector3(visual_scale, visual_scale, visual_scale)
+	_visual_root.rotation.z = randf() * TAU  # Random fin orientation per dart
 	add_child(_visual_root)
 	_build_visual()
 	_setup_physics()

@@ -171,7 +171,9 @@ static func _gaussian_offset(radius: float) -> Vector2:
 	var u2 := randf()
 	var mag := radius * sqrt(-2.0 * log(u1))
 	var angle := TAU * u2
-	return Vector2(cos(angle), sin(angle)) * mag
+	# Elliptical scatter: release timing causes more vertical error than
+	# horizontal aim drift. 1.5:1 ratio (vertical:horizontal).
+	return Vector2(cos(angle) * 0.8, sin(angle) * 1.2) * mag
 
 func _do_throw(aim: Vector2, swipe_speed: float) -> void:
 	if not _can_throw:

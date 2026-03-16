@@ -287,8 +287,8 @@ func _build_dart_preview(tile: Panel, tier: int) -> void:
 	var tip_offset: float = barrel_len + Dart.TIP_LENGTH
 	var total_length: float = tip_offset + Dart.SHAFT_LENGTH + 0.003 + Dart.FLIGHT_WIDTH
 	var mid := total_length / 2.0
-	# Orbit centre follows the 45-degree tilt so camera frames the dart centrally
-	var orbit_centre := Vector3(0, mid * 0.707, mid * 0.707)
+	# Dart is centred on pivot, so orbit centre is at the origin
+	var orbit_centre := Vector3.ZERO
 
 	var camera := Camera3D.new()
 	camera.fov = 45.0
@@ -310,7 +310,12 @@ func _build_dart_preview(tile: Panel, tier: int) -> void:
 	pivot.rotation.x = deg_to_rad(-45)
 
 	var dart := Dart.create(tier, GameState.character)
-	dart.position.z = tip_offset
+	# Centre the dart's geometric midpoint at the pivot origin.
+	# The dart's geometry ranges from z=-tip_offset (tip end) to
+	# z=SHAFT_LENGTH+0.003+FLIGHT_WIDTH (flight trailing edge).
+	# Offset by the average to centre it.
+	var dart_centre_z := (-tip_offset + Dart.SHAFT_LENGTH + 0.003 + Dart.FLIGHT_WIDTH) / 2.0
+	dart.position.z = -dart_centre_z
 	dart.freeze = true
 	dart.gravity_scale = 0
 	pivot.add_child(dart)

@@ -41,6 +41,7 @@ func _build_menu() -> void:
 		{"text": "101", "mode": "countdown", "score": 101},
 		{"text": "301", "mode": "countdown", "score": 301},
 		{"text": "501", "mode": "countdown", "score": 501},
+		{"text": "Free Throw", "mode": "free_throw", "score": 0},
 	]
 
 	for data in button_data:
@@ -122,7 +123,9 @@ func _on_mode_selected(mode: String, score: int) -> void:
 	GameState.is_vs_ai = false
 	GameState.opponent_id = ""
 	CareerState.career_mode_active = false
-	if mode == "rtc":
+	if mode == "free_throw":
+		GameState.game_mode = GameState.GameMode.FREE_THROW
+	elif mode == "rtc":
 		GameState.game_mode = GameState.GameMode.ROUND_THE_CLOCK
 	else:
 		GameState.game_mode = GameState.GameMode.COUNTDOWN

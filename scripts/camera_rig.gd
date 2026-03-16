@@ -2,11 +2,13 @@ extends Node3D
 class_name CameraRig
 
 signal first_zoomed
+signal visit_zoom_detected  # Fires once per visit when player zooms in
 
 var _camera: Camera3D
 var _target := Vector2.ZERO  # Where the camera is looking (X, Y on the board plane)
 var _zoom := 0.0             # 0 = full board view, 1 = zoomed in tight
 var _has_zoomed := false
+var _visit_zoomed := false   # Per-visit tracking, reset each player turn
 
 const DEFAULT_DISTANCE := 10.0
 const ZOOMED_DISTANCE := 5.0
@@ -42,6 +44,17 @@ func get_zoom() -> float:
 
 func is_gesturing() -> bool:
 	return _is_gesturing
+
+func reset_visit_zoom() -> void:
+	_visit_zoomed = false
+
+func did_zoom_this_visit() -> bool:
+	return _visit_zoomed
+
+func _check_visit_zoom() -> void:
+	if _zoom > 0.05 and not _visit_zoomed:
+		_visit_zoomed = true
+		visit_zoom_detected.emit()
 
 func _process(delta: float) -> void:
 	_handle_keyboard_pan(delta)
@@ -106,6 +119,7 @@ func _handle_pinch_pan() -> void:
 	if _zoom > 0.0 and not _has_zoomed:
 		_has_zoomed = true
 		first_zoomed.emit()
+	_check_visit_zoom()
 
 	# Two-finger pan — drag both fingers to move the view
 	var mid_delta := mid - _prev_pinch_mid
@@ -129,6 +143,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if _zoom > 0.0 and not _has_zoomed:
 				_has_zoomed = true
 				first_zoomed.emit()
+			_check_visit_zoom()
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_zoom = clampf(_zoom - ZOOM_SPEED, 0.0, 1.0)
 		# Right-click to start/stop pan drag
