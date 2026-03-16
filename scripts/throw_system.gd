@@ -6,7 +6,7 @@ signal swipe_update(speed: float)
 signal swipe_ended()
 signal throw_rejected
 
-const THROW_ZONE_TOP := 0.45      # Top 45% is board view, bottom 55% is throw zone
+const THROW_ZONE_TOP := 0.08      # Only reject touches in top 8% (HUD area)
 const MIN_SWIPE_DISTANCE := 30.0  # Minimum pixels to register as a throw
 const DART_SPEED_MIN := 6.0       # Minimum throw speed
 const DART_SPEED_MAX := 14.0      # Maximum throw speed
@@ -14,7 +14,7 @@ const SWIPE_SPEED_FOR_MAX := 1500.0  # Swipe pixels/sec for max power
 const MIN_SWIPE_SPEED := 300.0       # Below this, throw is rejected (too slow to fly)
 const SCATTER_AMOUNT := 0.12      # Random scatter on the board (in board units)
 const MEDIUM_SWIPE_SPEED := 750.0    # Reference speed (px/sec) where speed nudge = 0
-const SPEED_NUDGE_MAX := 0.3         # Max nudge in board units (~half a segment width)
+const SPEED_NUDGE_MAX := 0.1         # Max nudge in board units (subtle — prevents upward bias)
 
 var _touch_start_pos := Vector2.ZERO
 var _touch_start_time := 0.0

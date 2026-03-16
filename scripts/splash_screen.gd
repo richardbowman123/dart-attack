@@ -204,6 +204,7 @@ func _animate_darts() -> void:
 		dart.freeze = true
 		dart.visual_scale = 2.5
 		dart.flight_scale = 1.5
+		dart.skip_random_rotation = true  # Keep aligned for decorative heart pattern
 		dart.custom_flight_color = flight_colours[i]
 		dart.position = start_pos
 		add_child(dart)

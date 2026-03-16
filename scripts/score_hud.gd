@@ -26,6 +26,7 @@ var _remaining_label: Label
 var _impact_label: Label
 var _summary_panel: PanelContainer
 var _summary_content: VBoxContainer
+var _message_tween: Tween  # Track active message to prevent stacking
 var _summary_title: Label
 var _summary_darts_label: Label
 var _summary_total_label: Label
@@ -441,8 +442,8 @@ func _build_summary_panel() -> void:
 	style.content_margin_top = 16
 	style.content_margin_bottom = 16
 	_summary_panel.add_theme_stylebox_override("panel", style)
-	_summary_panel.position = Vector2(110, 450)
-	_summary_panel.size = Vector2(500, 180)
+	_summary_panel.position = Vector2(60, 450)
+	_summary_panel.size = Vector2(600, 0)  # Width 600, height auto-sizes from content
 	_summary_panel.visible = false
 	_summary_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
@@ -461,6 +462,7 @@ func _build_summary_panel() -> void:
 	UIFont.apply(_summary_darts_label, UIFont.SUBHEADING)
 	_summary_darts_label.add_theme_color_override("font_color", Color.WHITE)
 	_summary_darts_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_summary_darts_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_summary_darts_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_summary_content.add_child(_summary_darts_label)
 
@@ -468,6 +470,7 @@ func _build_summary_panel() -> void:
 	UIFont.apply(_summary_total_label, UIFont.HEADING)
 	_summary_total_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
 	_summary_total_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_summary_total_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_summary_total_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_summary_content.add_child(_summary_total_label)
 
@@ -625,6 +628,8 @@ func _build_player_portrait() -> Control:
 	# Load image directly (no ResourceLoader.exists check — it fails on spaced paths)
 	var image_path := DartData.get_profile_image(GameState.character)
 	var tex: Texture2D = load(image_path)
+	if not tex:
+		push_warning("Player portrait failed to load: " + image_path + " — try deleting .godot folder")
 
 	if tex:
 		var portrait := TextureRect.new()
@@ -999,16 +1004,19 @@ func show_bust_summary_named(name: String, dart_labels: Array, reverted_score: i
 	_summary_panel.visible = true
 
 func show_message(text: String, duration: float = 1.5) -> void:
-	# For special callouts like "180!" or "CHECKOUT!"
+	# Kill any existing message to prevent stacking (only one message at a time)
+	if _message_tween and _message_tween.is_valid():
+		_message_tween.kill()
+
 	_summary_title.text = ""
 	_summary_darts_label.text = ""
 	_summary_total_label.text = text
 	_summary_total_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.0))
 	_summary_remaining_label.text = ""
 	_summary_panel.visible = true
-	var tween := create_tween()
-	tween.tween_interval(duration)
-	tween.tween_callback(func() -> void: _summary_panel.visible = false)
+	_message_tween = create_tween()
+	_message_tween.tween_interval(duration)
+	_message_tween.tween_callback(func() -> void: _summary_panel.visible = false)
 
 func show_rtc_summary(dart_labels: Array, hits: Array, next_target: String) -> void:
 	_summary_title.text = "VISIT"

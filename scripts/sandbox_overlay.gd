@@ -14,28 +14,37 @@ var _anger: float = 10.0
 # Bar UI references
 var _bar_fills: Array[ColorRect] = []
 
-# Layout constants (matching ScoreHUD bar style)
-const BAR_WIDTH := 220
+# Layout constants — centred horizontally with breathing room
+const BAR_WIDTH := 200
 const BAR_HEIGHT := 12
-const ROW_STEP := 26
+const ROW_STEP := 34
 const BAR_NAMES: Array[String] = ["DARTS", "NERVES", "CONFIDENCE", "ANGER"]
+
+# Horizontal layout — everything centred with equal left/right margins
+const LABEL_W := 140
+const BTN_W := 48
+const CONTENT_W := 464  # 140 + 10 + 200 + 12 + 48 + 6 + 48
+const MARGIN_X := 128   # (720 - 464) / 2
 
 func _ready() -> void:
 	layer = 15
 	_build_ui()
 
 func get_scatter_mult() -> float:
-	var nerve_mult := 0.7 + (_nerves / 100.0) * 1.3
-	var conf_mult := 1.5 - (_confidence / 100.0) * 0.9
-	var dq_mult := 1.3 - (_dart_quality / 100.0) * 0.6
+	# Must match match_manager.get_career_scatter_mult() exactly
+	var nerve_mult := 0.85 + (_nerves / 100.0) * 0.7
+	var conf_mult := 1.25 - (_confidence / 100.0) * 0.5
+	var dq_mult := 1.15 - (_dart_quality / 100.0) * 0.35
 	return nerve_mult * conf_mult * dq_mult
 
 func _build_ui() -> void:
-	# Panel background at the bottom of the screen
+	# Panel background at the bottom — taller for breathing room
+	var panel_h := 234
+	var panel_y := 1280 - panel_h
 	var bg := ColorRect.new()
 	bg.color = Color(0.04, 0.04, 0.07, 0.92)
-	bg.position = Vector2(0, 1088)
-	bg.size = Vector2(720, 192)
+	bg.position = Vector2(0, panel_y)
+	bg.size = Vector2(720, panel_h)
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(bg)
 
@@ -45,33 +54,33 @@ func _build_ui() -> void:
 	UIFont.apply(title, UIFont.CAPTION)
 	title.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 1090)
-	title.size = Vector2(720, 22)
+	title.position = Vector2(0, panel_y + 6)
+	title.size = Vector2(720, 24)
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(title)
 
-	# Stat rows with bars
-	var row_y_start := 1116
+	# Stat rows — centred layout with equal margins
+	var row_y_start := panel_y + 38
 	var stat_values := [_dart_quality, _nerves, _confidence, _anger]
 
-	var label_w := 130
-	var label_x := 16
-	var bar_x := label_x + label_w + 8
-	var btn_x := bar_x + BAR_WIDTH + 10
+	var label_x := MARGIN_X
+	var bar_x := label_x + LABEL_W + 10
+	var btn_minus_x := bar_x + BAR_WIDTH + 12
+	var btn_plus_x := btn_minus_x + BTN_W + 6
 
 	for i in range(4):
 		var y := row_y_start + i * ROW_STEP
 		var bar_y := y + (ROW_STEP - BAR_HEIGHT) / 2.0
 
-		# Label
+		# Label — right-aligned, smaller font so CONFIDENCE fits
 		var lbl := Label.new()
 		lbl.text = BAR_NAMES[i]
-		UIFont.apply(lbl, UIFont.CAPTION)
-		lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
+		UIFont.apply(lbl, 20)
+		lbl.add_theme_color_override("font_color", Color(0.45, 0.45, 0.5))
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		lbl.position = Vector2(label_x, y)
-		lbl.size = Vector2(label_w, ROW_STEP)
+		lbl.size = Vector2(LABEL_W, ROW_STEP)
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(lbl)
 
@@ -94,31 +103,35 @@ func _build_ui() -> void:
 		_bar_fills.append(fill)
 
 		# Minus button
-		var minus_btn := _make_btn("-", Color(0.35, 0.15, 0.15), 52)
-		minus_btn.position = Vector2(btn_x, y)
-		minus_btn.size = Vector2(52, ROW_STEP - 2)
+		var minus_btn := _make_btn("-", Color(0.35, 0.15, 0.15), BTN_W)
+		minus_btn.position = Vector2(btn_minus_x, y + 2)
+		minus_btn.size = Vector2(BTN_W, ROW_STEP - 4)
 		minus_btn.pressed.connect(_on_stat_change.bind(i, -10))
 		add_child(minus_btn)
 
 		# Plus button
-		var plus_btn := _make_btn("+", Color(0.15, 0.35, 0.15), 52)
-		plus_btn.position = Vector2(btn_x + 56, y)
-		plus_btn.size = Vector2(52, ROW_STEP - 2)
+		var plus_btn := _make_btn("+", Color(0.15, 0.35, 0.15), BTN_W)
+		plus_btn.position = Vector2(btn_plus_x, y + 2)
+		plus_btn.size = Vector2(BTN_W, ROW_STEP - 4)
 		plus_btn.pressed.connect(_on_stat_change.bind(i, 10))
 		add_child(plus_btn)
 
-	# Button row at the bottom
-	var btn_y := row_y_start + 4 * ROW_STEP + 4
+	# Button row at the bottom — centred with equal margins
+	var btn_y := row_y_start + 4 * ROW_STEP + 10
+	var action_btn_w := 300
+	var action_gap := 20
+	var action_total := action_btn_w * 2 + action_gap
+	var action_x := (720 - action_total) / 2
 
-	var clear_btn := _make_btn("CLEAR BOARD", Color(0.3, 0.25, 0.1), 320)
-	clear_btn.position = Vector2(30, btn_y)
-	clear_btn.size = Vector2(320, 46)
+	var clear_btn := _make_btn("CLEAR BOARD", Color(0.3, 0.25, 0.1), action_btn_w)
+	clear_btn.position = Vector2(action_x, btn_y)
+	clear_btn.size = Vector2(action_btn_w, 44)
 	clear_btn.pressed.connect(func() -> void: clear_requested.emit())
 	add_child(clear_btn)
 
-	var done_btn := _make_btn("DONE", Color(0.15, 0.45, 0.15), 320)
-	done_btn.position = Vector2(370, btn_y)
-	done_btn.size = Vector2(320, 46)
+	var done_btn := _make_btn("DONE", Color(0.15, 0.45, 0.15), action_btn_w)
+	done_btn.position = Vector2(action_x + action_btn_w + action_gap, btn_y)
+	done_btn.size = Vector2(action_btn_w, 44)
 	done_btn.pressed.connect(func() -> void: exit_requested.emit())
 	add_child(done_btn)
 

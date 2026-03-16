@@ -19,7 +19,7 @@ const SLIDE_DURATION := 0.35
 const CHAR_DELAY := 0.035      # Seconds per character (~35ms typewriter)
 const PORTRAIT_SIZE := 72       # Fallback initial size
 const PORTRAIT_IMG_W := 580     # Image portrait width (fills panel)
-const PORTRAIT_IMG_H := 200     # Image portrait height (banner crop)
+const PORTRAIT_IMG_H := 280     # Image portrait height — tall enough for full head+shoulders
 
 # ---- Internal state ----
 
@@ -112,7 +112,7 @@ func _build_ui() -> void:
 	_portrait_texture.position = Vector2.ZERO
 	_portrait_texture.size = Vector2(PORTRAIT_IMG_W, PORTRAIT_IMG_H)
 	_portrait_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_portrait_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_portrait_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_portrait_texture.visible = false
 	portrait_wrapper.add_child(_portrait_texture)
 

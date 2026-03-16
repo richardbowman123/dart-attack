@@ -4,11 +4,12 @@ class_name MatchManager
 enum MatchState { THROWING, BETWEEN_DARTS, VISIT_SUMMARY, CLEARING, AI_THROWING, FINISHED }
 
 const DARTS_PER_VISIT := 3
-const BETWEEN_DART_DELAY := 0.2
+const BETWEEN_DART_DELAY := 0.1
 const SUMMARY_DISPLAY_TIME := 2.0
 const AI_SUMMARY_DISPLAY_TIME := 1.5
 const CONFIDENCE_DECAY_RATE := 0.5    # Points lost per second while aiming
 const CONFIDENCE_DECAY_INTERVAL := 1.0 # Seconds between ticks
+const CONFIDENCE_FLOOR := 33.0        # Minimum confidence — resets to this each visit
 
 var _state: MatchState = MatchState.THROWING
 var _darts_this_visit: int = 0
@@ -117,7 +118,7 @@ func _stop_confidence_decay() -> void:
 	_confidence_decay_active = false
 
 func _apply_confidence_decay() -> void:
-	_player_confidence = clampf(_player_confidence - CONFIDENCE_DECAY_RATE, 0.0, 100.0)
+	_player_confidence = clampf(_player_confidence - CONFIDENCE_DECAY_RATE, CONFIDENCE_FLOOR, 100.0)
 	_score_hud.update_stats_bars(_player_dart_quality, _player_nerves, _player_confidence, _player_anger)
 	# Update scatter multiplier in real time so the next dart uses decayed value
 	_throw_system.career_scatter_mult = get_career_scatter_mult()
@@ -338,8 +339,10 @@ func _start_visit() -> void:
 		_score_hud.reset_dart_icons()
 		_score_hud.hide_summary()
 
-		# Set scatter multiplier from career stats before player throws
+		# Ensure confidence is at least the floor at the start of each visit
 		if CareerState.career_mode_active:
+			if _player_confidence < CONFIDENCE_FLOOR:
+				_player_confidence = CONFIDENCE_FLOOR
 			_throw_system.career_scatter_mult = get_career_scatter_mult()
 
 		_throw_system.set_can_throw(true)
@@ -658,17 +661,18 @@ func _handle_rtc_hit(score_data: Dictionary) -> void:
 			_rtc_hits_this_visit.append("-")
 
 	# RTC: treat hitting the target as a good score for stats
+	# Treble gives biggest confidence bump, then double, then single
 	if _rtc_hits_this_visit.size() > 0:
 		var last_hit: String = _rtc_hits_this_visit[-1]
 		if last_hit != "-":
 			if last_hit.begins_with("T"):
-				_update_career_stats(-1.0, 2.0)
+				_update_career_stats(-3.0, 10.0)
 			elif last_hit.begins_with("D"):
-				_update_career_stats(-2.0, 3.0)
+				_update_career_stats(-2.0, 7.0)
 			else:
-				_update_career_stats(-3.0, 4.0)
+				_update_career_stats(-1.0, 4.0)
 		else:
-			_update_career_stats(3.0, -4.0)
+			_update_career_stats(3.0, -3.0)
 
 	# Check for win
 	if _rtc_target > 22:
@@ -822,7 +826,7 @@ func _handle_tutorial_hit(score_data: Dictionary, hit_pos: Vector2) -> void:
 		_throw_system.set_can_throw(false)
 		var tween := create_tween()
 		tween.tween_interval(3.0)
-		tween.tween_callback(_show_sandbox_intro)
+		tween.tween_callback(_show_tutorial_complete)
 		return
 
 	# Pause to show feedback, then advance
@@ -845,21 +849,90 @@ func _tutorial_next_throw() -> void:
 
 # ── Sandbox mode (free throw with stat controls) ──
 
+## Step 1: Tutorial done — offer Back to menu or Free throw
+func _show_tutorial_complete() -> void:
+	# Hide the tutorial overlay to prevent its "Nice one!" text clashing with the popup
+	if _tutorial_overlay:
+		_tutorial_overlay.visible = false
+
+	var overlay := _make_popup_overlay()
+
+	var panel := _make_popup_panel(Vector2(80, 400), 560)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 24)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var msg := Label.new()
+	msg.text = "Nice one!"
+	UIFont.apply(msg, UIFont.BODY)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.custom_minimum_size = Vector2(496, 0)
+	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(msg)
+
+	var menu_btn := _make_popup_button("Back to menu", Color(0.25, 0.25, 0.3))
+	menu_btn.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_restart_game()
+	)
+	vbox.add_child(menu_btn)
+
+	var free_btn := _make_popup_button("Free throw", Color(0.15, 0.45, 0.15))
+	free_btn.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_show_sandbox_intro()
+	)
+	vbox.add_child(free_btn)
+
+	panel.add_child(vbox)
+	overlay.add_child(panel)
+	_fade_in_overlay(overlay)
+
+## Step 2: Explain free throw mode before entering sandbox
 func _show_sandbox_intro() -> void:
-	# Full-screen overlay
+	var overlay := _make_popup_overlay()
+
+	var panel := _make_popup_panel(Vector2(60, 340), 600)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 24)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var msg := Label.new()
+	msg.text = "In free throw mode, you can throw as many darts as you like.\n\nUse the controls to change your stats and see how they affect your accuracy.\n\nThese stats will matter when you start your career."
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.custom_minimum_size = Vector2(536, 0)
+	UIFont.apply(msg, UIFont.BODY)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(msg)
+
+	var btn := _make_popup_button("Let's throw!", Color(0.15, 0.45, 0.15))
+	btn.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_enter_sandbox()
+	)
+	vbox.add_child(btn)
+
+	panel.add_child(vbox)
+	overlay.add_child(panel)
+	_fade_in_overlay(overlay)
+
+## Shared popup helpers — keeps the two popups consistent
+func _make_popup_overlay() -> Control:
 	var overlay := Control.new()
 	overlay.size = Vector2(720, 1280)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.z_index = 100
-
-	# Dim background
 	var dimmer := ColorRect.new()
 	dimmer.color = Color(0, 0, 0, 0.5)
 	dimmer.size = Vector2(720, 1280)
 	dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(dimmer)
+	return overlay
 
-	# Message panel
+func _make_popup_panel(pos: Vector2, w: float) -> PanelContainer:
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.08, 0.08, 0.12, 0.92)
@@ -872,57 +945,39 @@ func _show_sandbox_intro() -> void:
 	style.content_margin_top = 28
 	style.content_margin_bottom = 24
 	panel.add_theme_stylebox_override("panel", style)
-	panel.position = Vector2(80, 360)
-	panel.size = Vector2(560, 0)
+	panel.position = pos
+	panel.size = Vector2(w, 0)
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	return panel
 
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 20)
-	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	var msg := Label.new()
-	msg.text = "Nice one! Now have a go at some free throws.\n\nUse the controls to tweak your stats and see how they affect your accuracy. These will matter when you start your career."
-	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	msg.custom_minimum_size = Vector2(496, 0)
-	UIFont.apply(msg, UIFont.CAPTION)
-	msg.add_theme_color_override("font_color", Color.WHITE)
-	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_child(msg)
-
+func _make_popup_button(text: String, bg_color: Color) -> Button:
 	var btn := Button.new()
-	btn.text = "Let's throw!"
-	UIFont.apply_button(btn, 22)
-	var btn_style := StyleBoxFlat.new()
-	btn_style.bg_color = Color(0.15, 0.45, 0.15)
-	btn_style.corner_radius_top_left = 8
-	btn_style.corner_radius_top_right = 8
-	btn_style.corner_radius_bottom_left = 8
-	btn_style.corner_radius_bottom_right = 8
-	btn_style.content_margin_left = 24
-	btn_style.content_margin_right = 24
-	btn_style.content_margin_top = 12
-	btn_style.content_margin_bottom = 12
-	btn.add_theme_stylebox_override("normal", btn_style)
-	var hover_style := btn_style.duplicate()
-	hover_style.bg_color = btn_style.bg_color.lightened(0.15)
-	btn.add_theme_stylebox_override("hover", hover_style)
-	var pressed_style := btn_style.duplicate()
-	pressed_style.bg_color = btn_style.bg_color.darkened(0.15)
-	btn.add_theme_stylebox_override("pressed", pressed_style)
+	btn.text = text
+	UIFont.apply_button(btn, UIFont.BODY)
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg_color
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	style.content_margin_left = 24
+	style.content_margin_right = 24
+	style.content_margin_top = 14
+	style.content_margin_bottom = 14
+	btn.add_theme_stylebox_override("normal", style)
+	var hover := style.duplicate()
+	hover.bg_color = bg_color.lightened(0.15)
+	btn.add_theme_stylebox_override("hover", hover)
+	var pressed := style.duplicate()
+	pressed.bg_color = bg_color.darkened(0.15)
+	btn.add_theme_stylebox_override("pressed", pressed)
 	btn.add_theme_color_override("font_color", Color.WHITE)
 	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.8))
 	btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	btn.pressed.connect(func() -> void:
-		overlay.queue_free()
-		_enter_sandbox()
-	)
-	vbox.add_child(btn)
+	btn.custom_minimum_size = Vector2(496, 0)
+	return btn
 
-	panel.add_child(vbox)
-	overlay.add_child(panel)
-
-	# Fade in
+func _fade_in_overlay(overlay: Control) -> void:
 	overlay.modulate = Color(1, 1, 1, 0)
 	_score_hud.add_child(overlay)
 	var tween := create_tween()
@@ -973,7 +1028,7 @@ func _handle_sandbox_hit(_score_data: Dictionary, _hit_pos: Vector2) -> void:
 		_score_hud.reset_dart_icons()
 
 	var tween := create_tween()
-	tween.tween_interval(0.3)
+	tween.tween_interval(BETWEEN_DART_DELAY)
 	tween.tween_callback(func() -> void:
 		_state = MatchState.THROWING
 		_throw_system.set_can_throw(true)
@@ -1107,19 +1162,21 @@ func _update_stats_on_player_score(score_data: Dictionary) -> void:
 	if points == 0:
 		# Miss
 		if number == 0:
-			_update_career_stats(4.0, -5.0)  # Missed the board entirely
+			_update_career_stats(4.0, -3.0)  # Missed the board entirely
 		else:
-			_update_career_stats(3.0, -4.0)  # Scored under 20
+			_update_career_stats(3.0, -2.0)  # Hit wrong segment
 	elif points >= 100:
-		_update_career_stats(-5.0, 8.0)
-	elif points >= 60:
-		_update_career_stats(-3.0, 4.0)
-	elif multiplier == 2:
-		_update_career_stats(-2.0, 3.0)  # Hit a double
+		_update_career_stats(-5.0, 10.0)
 	elif multiplier == 3:
-		_update_career_stats(-1.0, 2.0)  # Hit a treble
+		_update_career_stats(-3.0, 8.0)   # Hit a treble — biggest bump
+	elif multiplier == 2:
+		_update_career_stats(-2.0, 6.0)   # Hit a double — big bump
+	elif points >= 60:
+		_update_career_stats(-3.0, 5.0)
 	elif points < 20:
-		_update_career_stats(3.0, -4.0)
+		_update_career_stats(2.0, -2.0)
+	else:
+		_update_career_stats(-1.0, 3.0)   # Decent single
 
 func _update_stats_on_player_bust() -> void:
 	_update_player_anger(3.0)
@@ -1178,12 +1235,14 @@ func apply_drink(is_full_pint: bool) -> void:
 func get_career_scatter_mult() -> float:
 	if not CareerState.career_mode_active:
 		return 1.0
-	# Nerves: 0=calm (0.7x), 50=neutral (1.35x), 100=terrified (2.0x)
-	var nerve_mult := 0.7 + (_player_nerves / 100.0) * 1.3
-	# Confidence: 0=no belief (1.5x), 50=neutral (1.05x), 100=peak (0.6x)
-	var conf_mult := 1.5 - (_player_confidence / 100.0) * 0.9
-	# Dart quality: 0=bad darts (1.3x scatter), 100=precision (0.7x)
-	var dq_mult := 1.3 - (_player_dart_quality / 100.0) * 0.6
+	# Compressed ranges so even at worst stats, darts still cluster near the aim.
+	# Old max product was 3.9 — now capped around 2.2.
+	# Nerves: 0=calm (0.85x), 50=neutral (1.2x), 100=terrified (1.55x)
+	var nerve_mult := 0.85 + (_player_nerves / 100.0) * 0.7
+	# Confidence: 0=no belief (1.25x), 50=neutral (1.0x), 100=peak (0.75x)
+	var conf_mult := 1.25 - (_player_confidence / 100.0) * 0.5
+	# Dart quality: 0=bad darts (1.15x scatter), 100=precision (0.8x)
+	var dq_mult := 1.15 - (_player_dart_quality / 100.0) * 0.35
 	return nerve_mult * conf_mult * dq_mult
 
 ## Nerves cap by career level — keeps early levels forgiving

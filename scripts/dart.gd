@@ -24,6 +24,7 @@ var _flight_time := 0.0
 var visual_scale := 1.0  # Scale visuals without affecting physics
 var custom_flight_color = null  # If set, overrides character flight colours (both front/back)
 var flight_scale := 1.0  # Scale factor for flights only (e.g. 1.5 for splash screen)
+var skip_random_rotation := false  # Set true for decorative darts (splash screen)
 var _visual_root: Node3D  # Scaled container for all visual meshes
 var _flight_root: Node3D  # Scaled container for flight fins only
 
@@ -41,7 +42,8 @@ func _ready() -> void:
 	# and scale that instead. Physics CollisionShape stays on the RigidBody3D.
 	_visual_root = Node3D.new()
 	_visual_root.scale = Vector3(visual_scale, visual_scale, visual_scale)
-	_visual_root.rotation.z = randf() * TAU  # Random fin orientation per dart
+	if not skip_random_rotation:
+		_visual_root.rotation.z = randf() * TAU  # Random fin orientation per dart
 	add_child(_visual_root)
 	_build_visual()
 	_setup_physics()
