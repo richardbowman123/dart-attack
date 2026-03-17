@@ -16,6 +16,9 @@ var _font: Font
 
 func _ready() -> void:
 	_font = load("res://fonts/Bungee-Regular.ttf")
+	# Bungee doesn't include symbol characters (★☆ etc).
+	# Use Godot's built-in font as fallback so stars render on all platforms.
+	_font.fallbacks = [ThemeDB.fallback_font]
 
 ## Apply Bungee font and size to a Label
 func apply(label: Label, size: int) -> void:

@@ -125,8 +125,8 @@ func load_stats() -> void:
 func _stars_visual(value: float) -> String:
 	var filled := clampi(roundi(value), 1, 5)
 	var empty := 5 - filled
-	var star_filled := char(9733)  # ★ BLACK STAR U+2605
-	var star_empty := char(9734)   # ☆ WHITE STAR U+2606
+	var star_filled := "★"
+	var star_empty := "☆"
 	var result := ""
 	for i in range(filled):
 		result += star_filled
