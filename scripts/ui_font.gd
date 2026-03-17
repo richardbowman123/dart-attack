@@ -7,10 +7,10 @@ extends Node
 # Size tiers — designed for 720x1280 mobile viewport, must be bold and readable
 const DISPLAY := 120
 const SCREEN_TITLE := 64
-const HEADING := 48
-const SUBHEADING := 38
-const BODY := 30
-const CAPTION := 24
+const HEADING := 52
+const SUBHEADING := 42
+const BODY := 34
+const CAPTION := 28
 
 var _font: Font
 
@@ -21,6 +21,11 @@ func _ready() -> void:
 func apply(label: Label, size: int) -> void:
 	label.add_theme_font_override("font", _font)
 	label.add_theme_font_size_override("font_size", size)
+
+## Apply Bungee font and size to a RichTextLabel
+func apply_rich(rtl: RichTextLabel, size: int) -> void:
+	rtl.add_theme_font_override("normal_font", _font)
+	rtl.add_theme_font_size_override("normal_font_size", size)
 
 ## Apply Bungee font and size to a Button
 func apply_button(button: Button, size: int) -> void:

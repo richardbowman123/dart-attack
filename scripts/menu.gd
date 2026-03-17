@@ -355,7 +355,8 @@ func _on_vs_selected(opponent_id: String) -> void:
 	else:
 		GameState.game_mode = GameState.GameMode.COUNTDOWN
 		GameState.starting_score = opp["starting_score"]
-	get_tree().change_scene_to_file("res://scenes/career_dart_choice.tscn")
+	GameState.dart_tier = CareerState.dart_tier_owned
+	get_tree().change_scene_to_file("res://scenes/match.tscn")
 
 func _on_drink_test_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/drink_test.tscn")

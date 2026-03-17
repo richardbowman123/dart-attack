@@ -59,6 +59,9 @@ var _zoom_hint: Label
 # ── Throw tip popup ──
 var _throw_tip_overlay: Control
 
+# ── Doubles tip popup (one-time, first countdown game) ──
+var _doubles_tip_overlay: Control
+
 # ── Balance display (career mode only) ──
 const BALANCE_BOX_W := 160
 const BALANCE_BOX_H := 24
@@ -86,6 +89,7 @@ func _ready() -> void:
 	_build_zoom_hint()
 	_build_balance_display()
 	_build_throw_tip()
+	_build_doubles_tip()
 	# In non-VS mode, build standalone dart dots at the bottom
 	if not GameState.is_vs_ai:
 		_build_standalone_dart_dots()
@@ -95,7 +99,7 @@ func _ready() -> void:
 func _build_remaining_display() -> void:
 	_remaining_label = Label.new()
 	_remaining_label.text = "501"
-	UIFont.apply(_remaining_label, UIFont.SUBHEADING)
+	UIFont.apply(_remaining_label, 38)
 	_remaining_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 0.7))
 	_remaining_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_remaining_label.position = Vector2(720 - 360 - REMAINING_MARGIN, REMAINING_MARGIN)
@@ -206,7 +210,7 @@ var _zoom_hint_tween: Tween
 func _build_zoom_hint() -> void:
 	_zoom_hint = Label.new()
 	_zoom_hint.text = "Don't forget to zoom in"
-	UIFont.apply(_zoom_hint, UIFont.CAPTION)
+	UIFont.apply(_zoom_hint, 24)
 	_zoom_hint.add_theme_color_override("font_color", Color.WHITE)
 	_zoom_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_zoom_hint.position = Vector2(60, 210)
@@ -286,7 +290,7 @@ func _build_balance_display() -> void:
 	_balance_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_balance_label = Label.new()
-	UIFont.apply(_balance_label, UIFont.CAPTION)
+	UIFont.apply(_balance_label, 24)
 	_balance_label.add_theme_color_override("font_color", Color.WHITE)
 	_balance_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_balance_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -361,7 +365,7 @@ func _build_throw_tip() -> void:
 
 	var msg := Label.new()
 	msg.text = "Nearly! Try a bigger, steadier\nswipe to throw the dart."
-	UIFont.apply(msg, UIFont.CAPTION)
+	UIFont.apply(msg, 24)
 	msg.add_theme_color_override("font_color", Color.WHITE)
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -413,12 +417,96 @@ func _on_throw_tip_dismiss_forever() -> void:
 	_throw_tip_overlay.visible = false
 	GameState.dismiss_throw_tip()
 
+# ── Doubles tip popup (one-time, first countdown game) ──
+
+func _build_doubles_tip() -> void:
+	_doubles_tip_overlay = Control.new()
+	_doubles_tip_overlay.size = Vector2(720, 1280)
+	_doubles_tip_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_doubles_tip_overlay.visible = false
+	_doubles_tip_overlay.z_index = 100
+
+	var dimmer := ColorRect.new()
+	dimmer.color = Color(0, 0, 0, 0.3)
+	dimmer.size = Vector2(720, 1280)
+	dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_doubles_tip_overlay.add_child(dimmer)
+
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.08, 0.12, 0.92)
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
+	style.corner_radius_bottom_left = 12
+	style.corner_radius_bottom_right = 12
+	style.content_margin_left = 28
+	style.content_margin_right = 28
+	style.content_margin_top = 24
+	style.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", style)
+	panel.position = Vector2(40, 320)
+	panel.size = Vector2(640, 0)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var msg := Label.new()
+	msg.text = "Your mate leans over:\n\"Just remember, you have to\nhit a double to win this one.\""
+	UIFont.apply(msg, UIFont.BODY)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(msg)
+
+	var btn := Button.new()
+	btn.text = "Got it"
+	UIFont.apply_button(btn, UIFont.CAPTION)
+	var btn_style := StyleBoxFlat.new()
+	btn_style.bg_color = Color(0.15, 0.5, 0.2, 0.7)
+	btn_style.corner_radius_top_left = 6
+	btn_style.corner_radius_top_right = 6
+	btn_style.corner_radius_bottom_left = 6
+	btn_style.corner_radius_bottom_right = 6
+	btn_style.content_margin_left = 12
+	btn_style.content_margin_right = 12
+	btn_style.content_margin_top = 8
+	btn_style.content_margin_bottom = 8
+	btn.add_theme_stylebox_override("normal", btn_style)
+	btn.add_theme_stylebox_override("hover", btn_style)
+	btn.add_theme_stylebox_override("pressed", btn_style)
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.add_theme_color_override("font_hover_color", Color(0.9, 0.9, 0.95))
+	btn.add_theme_color_override("font_pressed_color", Color(0.7, 0.7, 0.75))
+	btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	btn.pressed.connect(_on_doubles_tip_dismiss)
+	vbox.add_child(btn)
+
+	panel.add_child(vbox)
+	_doubles_tip_overlay.add_child(panel)
+	add_child(_doubles_tip_overlay)
+
+func show_doubles_tip() -> void:
+	if not _doubles_tip_overlay or _doubles_tip_overlay.visible:
+		return
+	if CareerState.doubles_tip_shown:
+		return
+	_doubles_tip_overlay.visible = true
+	_doubles_tip_overlay.modulate = Color(1, 1, 1, 0)
+	var tween := create_tween()
+	tween.tween_property(_doubles_tip_overlay, "modulate", Color(1, 1, 1, 1), 0.2)
+
+func _on_doubles_tip_dismiss() -> void:
+	_doubles_tip_overlay.visible = false
+	CareerState.doubles_tip_shown = true
+
 # ── Impact flash (brief score text that fades) ──
 
 func _build_impact_flash() -> void:
 	_impact_label = Label.new()
 	_impact_label.text = ""
-	UIFont.apply(_impact_label, UIFont.HEADING)
+	UIFont.apply(_impact_label, 48)
 	_impact_label.add_theme_color_override("font_color", Color.WHITE)
 	_impact_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_impact_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -452,14 +540,14 @@ func _build_summary_panel() -> void:
 	_summary_content.add_theme_constant_override("separation", 6)
 
 	_summary_title = Label.new()
-	UIFont.apply(_summary_title, UIFont.CAPTION)
+	UIFont.apply(_summary_title, 24)
 	_summary_title.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 	_summary_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_summary_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_summary_content.add_child(_summary_title)
 
 	_summary_darts_label = Label.new()
-	UIFont.apply(_summary_darts_label, UIFont.SUBHEADING)
+	UIFont.apply(_summary_darts_label, 38)
 	_summary_darts_label.add_theme_color_override("font_color", Color.WHITE)
 	_summary_darts_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_summary_darts_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -467,7 +555,7 @@ func _build_summary_panel() -> void:
 	_summary_content.add_child(_summary_darts_label)
 
 	_summary_total_label = Label.new()
-	UIFont.apply(_summary_total_label, UIFont.HEADING)
+	UIFont.apply(_summary_total_label, 48)
 	_summary_total_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
 	_summary_total_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_summary_total_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -475,7 +563,7 @@ func _build_summary_panel() -> void:
 	_summary_content.add_child(_summary_total_label)
 
 	_summary_remaining_label = Label.new()
-	UIFont.apply(_summary_remaining_label, UIFont.BODY)
+	UIFont.apply(_summary_remaining_label, 30)
 	_summary_remaining_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	_summary_remaining_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_summary_remaining_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -494,7 +582,7 @@ func setup_vs_mode(opponent_id: String) -> void:
 	_opponent_label = Label.new()
 	var opp_name := OpponentData.get_display_name(opponent_id)
 	_opponent_label.text = opp_name
-	UIFont.apply(_opponent_label, UIFont.BODY)
+	UIFont.apply(_opponent_label, 30)
 	_opponent_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 0.5))
 	_opponent_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_opponent_label.position = Vector2(REMAINING_MARGIN, REMAINING_MARGIN)
@@ -505,7 +593,7 @@ func setup_vs_mode(opponent_id: String) -> void:
 	# Turn indicator — large, over the top of the board
 	_turn_indicator = Label.new()
 	_turn_indicator.text = "YOUR THROW"
-	UIFont.apply(_turn_indicator, UIFont.HEADING)
+	UIFont.apply(_turn_indicator, 48)
 	_turn_indicator.add_theme_color_override("font_color", Color(0.3, 0.9, 0.3, 0.7))
 	_turn_indicator.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_turn_indicator.position = Vector2(60, 155)
@@ -655,7 +743,7 @@ func _build_player_portrait() -> Control:
 	container.add_child(bg)
 	var initial := Label.new()
 	initial.text = DartData.get_character_name(GameState.character).substr(0, 1)
-	UIFont.apply(initial, UIFont.SUBHEADING)
+	UIFont.apply(initial, 38)
 	initial.add_theme_color_override("font_color", flight_col)
 	initial.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	initial.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -695,7 +783,7 @@ func _build_opponent_placeholder(opponent_id: String) -> Control:
 	container.add_child(bg)
 	_opp_initial_label = Label.new()
 	_opp_initial_label.text = OpponentData.get_display_name(opponent_id).substr(0, 1)
-	UIFont.apply(_opp_initial_label, UIFont.SUBHEADING)
+	UIFont.apply(_opp_initial_label, 38)
 	_opp_initial_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3, 0.8))
 	_opp_initial_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_opp_initial_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -721,14 +809,14 @@ func _set_card_layout(is_player_turn: bool) -> void:
 		_player_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		_player_name_label.position = Vector2(0, 5)
 		_player_name_label.size = Vector2(full_text_w, 35)
-		UIFont.apply(_player_name_label, UIFont.BODY)
+		UIFont.apply(_player_name_label, 30)
 		_player_name_label.add_theme_color_override("font_color", Color.WHITE)
 
 		_name_left.add_child(_player_nick_label)
 		_player_nick_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		_player_nick_label.position = Vector2(0, 42)
 		_player_nick_label.size = Vector2(full_text_w, 40)
-		UIFont.apply(_player_nick_label, UIFont.HEADING)
+		UIFont.apply(_player_nick_label, 48)
 		var flight_col: Color = DartData.get_flight_colors(GameState.character)["front"]
 		_player_nick_label.add_theme_color_override("font_color", flight_col)
 
@@ -740,14 +828,14 @@ func _set_card_layout(is_player_turn: bool) -> void:
 		_opp_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		_opp_name_label.position = Vector2(0, 5)
 		_opp_name_label.size = Vector2(full_text_w, 35)
-		UIFont.apply(_opp_name_label, UIFont.BODY)
+		UIFont.apply(_opp_name_label, 30)
 		_opp_name_label.add_theme_color_override("font_color", Color.WHITE)
 
 		_name_left.add_child(_opp_nick_label)
 		_opp_nick_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		_opp_nick_label.position = Vector2(0, 42)
 		_opp_nick_label.size = Vector2(full_text_w, 40)
-		UIFont.apply(_opp_nick_label, UIFont.HEADING)
+		UIFont.apply(_opp_nick_label, 48)
 		_opp_nick_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
 
 		# Red border
@@ -780,7 +868,7 @@ func _build_stats_bars_in_card(parent: Control, y_start: int) -> void:
 
 		var lbl := Label.new()
 		lbl.text = BAR_NAMES[i]
-		UIFont.apply(lbl, UIFont.CAPTION)
+		UIFont.apply(lbl, 24)  # Fixed size — don't scale with menu text
 		lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
 		lbl.position = Vector2(start_x, row_y)
 		lbl.size = Vector2(card_label_w, STATS_ROW_STEP)

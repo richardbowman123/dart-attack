@@ -99,6 +99,8 @@ func _ready() -> void:
 	_connect_signals()
 	_init_game_mode()
 	_start_visit()
+	# Doubles tip is now triggered per-dart when score first reaches a checkout value
+	# (see _check_doubles_tip in _handle_countdown_hit)
 
 func _process(delta: float) -> void:
 	if not _confidence_decay_active:
@@ -523,6 +525,9 @@ func _handle_countdown_hit(score_data: Dictionary) -> void:
 	# Track per-dart stats
 	_update_stats_on_player_score(score_data)
 
+	# One-time doubles tip — fires when score first reaches a single-dart checkout value
+	_check_doubles_tip()
+
 	# Near checkout pressure
 	if _score_remaining > 0 and _score_remaining <= 40:
 		_update_stats_on_near_checkout()
@@ -532,7 +537,7 @@ func _handle_countdown_hit(score_data: Dictionary) -> void:
 		_update_stats_on_player_checkout()
 		_state = MatchState.FINISHED
 		_throw_system.set_can_throw(false)
-		_score_hud.show_message("CHECKOUT!", 3.0)
+		_score_hud.show_message("GAME SHOT!", 3.0)
 		var tween := create_tween()
 		tween.tween_interval(3.5)
 		tween.tween_callback(_on_player_wins)
@@ -1244,6 +1249,14 @@ func get_career_scatter_mult() -> float:
 	# Dart quality: 0=bad darts (1.15x scatter), 100=precision (0.8x)
 	var dq_mult := 1.15 - (_player_dart_quality / 100.0) * 0.35
 	return nerve_mult * conf_mult * dq_mult
+
+## One-time doubles tip — show when the player's remaining score first reaches
+## a value where a single dart could win (even numbers 2-40, or 50 for bullseye).
+func _check_doubles_tip() -> void:
+	if not CareerState.career_mode_active or CareerState.doubles_tip_shown:
+		return
+	if _score_remaining == 50 or (_score_remaining >= 2 and _score_remaining <= 40 and _score_remaining % 2 == 0):
+		_score_hud.show_doubles_tip()
 
 ## Nerves cap by career level — keeps early levels forgiving
 func _get_nerves_cap() -> float:

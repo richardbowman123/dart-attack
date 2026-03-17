@@ -239,4 +239,7 @@ func _update_selection(characters: Array) -> void:
 	_info_origin.text = sel_origin
 
 func _on_next_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/menu.tscn")
+	if CareerState.career_level == 1 and not CareerState.career_intro_seen:
+		get_tree().change_scene_to_file("res://scenes/career_intro.tscn")
+	else:
+		get_tree().change_scene_to_file("res://scenes/menu.tscn")
