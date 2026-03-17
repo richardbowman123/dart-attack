@@ -200,10 +200,44 @@ func _build_skill_star_card() -> void:
 	skill_row.add_child(skill_stars_wrapper)
 	card.add_child(skill_row)
 
-	# Other star rows (static)
+	# Other star rows (static except SWAGGER which also flips)
 	card.add_child(_career_stars_row("HEFT", CareerState.heft_tier, 5))
 	card.add_child(_career_stars_row("HUSTLE", CareerState.hustle_stars, 5))
-	card.add_child(_career_stars_row("SWAGGER", CareerState.swagger_stars, 5))
+
+	# SWAGGER row — flips 0→1 right after SKILL
+	var swagger_row := HBoxContainer.new()
+	swagger_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	swagger_row.add_theme_constant_override("separation", 10)
+	swagger_row.custom_minimum_size = Vector2(640, 50)
+	var swagger_label := Label.new()
+	swagger_label.text = "SWAGGER"
+	swagger_label.custom_minimum_size = Vector2(180, 50)
+	UIFont.apply(swagger_label, UIFont.BODY)
+	swagger_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
+	swagger_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	swagger_row.add_child(swagger_label)
+	var swagger_stars_wrapper := Control.new()
+	swagger_stars_wrapper.custom_minimum_size = Vector2(200, 50)
+	swagger_stars_wrapper.pivot_offset = Vector2(100, 25)
+	var swagger_stars_before := Label.new()
+	swagger_stars_before.text = _stars_string(0, 5)
+	swagger_stars_before.position = Vector2.ZERO
+	swagger_stars_before.size = Vector2(200, 50)
+	UIFont.apply(swagger_stars_before, UIFont.BODY)
+	swagger_stars_before.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
+	swagger_stars_before.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	swagger_stars_wrapper.add_child(swagger_stars_before)
+	var swagger_stars_after := Label.new()
+	swagger_stars_after.text = _stars_string(1, 5)
+	swagger_stars_after.position = Vector2.ZERO
+	swagger_stars_after.size = Vector2(200, 50)
+	UIFont.apply(swagger_stars_after, UIFont.BODY)
+	swagger_stars_after.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	swagger_stars_after.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	swagger_stars_after.visible = false
+	swagger_stars_wrapper.add_child(swagger_stars_after)
+	swagger_row.add_child(swagger_stars_wrapper)
+	card.add_child(swagger_row)
 
 	_add_spacer(card, 25)
 
@@ -227,21 +261,31 @@ func _build_skill_star_card() -> void:
 	cont_wrapper.modulate.a = 0.0
 	card.add_child(cont_wrapper)
 
-	# Set the star
+	# Set the stars
 	CareerState.skill_stars = 1
+	CareerState.swagger_stars = 1
 
 	_add_card(card, "Skill Star")
 
-	# Deferred animation — stars flip when card becomes visible
+	# Deferred animation — skill flips first, then swagger flips immediately after
 	var card_idx := _cards.size() - 1
 	_card_animations[card_idx] = func():
 		var tween := create_tween()
+		# SKILL flip
 		tween.tween_property(skill_stars_wrapper, "scale:y", 0.0, 0.15).set_delay(0.8)
 		tween.tween_callback(func():
 			skill_stars_before.visible = false
 			skill_stars_after.visible = true
 		)
 		tween.tween_property(skill_stars_wrapper, "scale:y", 1.0, 0.15)
+		# SWAGGER flip — starts right after SKILL finishes
+		tween.tween_property(swagger_stars_wrapper, "scale:y", 0.0, 0.15).set_delay(0.3)
+		tween.tween_callback(func():
+			swagger_stars_before.visible = false
+			swagger_stars_after.visible = true
+		)
+		tween.tween_property(swagger_stars_wrapper, "scale:y", 1.0, 0.15)
+		# Quip and button fade in after both flips
 		tween.tween_property(quip, "modulate:a", 1.0, 0.3).set_delay(0.3)
 		tween.tween_property(cont_wrapper, "modulate:a", 1.0, 0.3).set_delay(0.2)
 
@@ -1711,7 +1755,7 @@ func _build_star_flip_card(star_name: String, old_val: int, new_val: int,
 	var _fw := flip_wrapper
 	var _bl := before_label
 	var _al := after_label
-	var _cb := set_callback
+	var _cb = set_callback
 	_card_animations[card_idx] = func():
 		if _cb != null and _cb is Callable:
 			_cb.call()

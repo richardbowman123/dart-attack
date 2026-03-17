@@ -158,9 +158,37 @@ func _build_menu() -> void:
 	back_wrapper.add_child(back_btn)
 	content.add_child(back_wrapper)
 
-	# ── Drink Effects (test mode — suppressed at very bottom) ──
+	# ── Test modes (suppressed at very bottom) ──
 	_add_spacer(content, 60)
 
+	# Game Shot cinematic test
+	var gs_test_btn := _create_menu_button("Game Shot", 400, 60, UIFont.CAPTION)
+	var gs_style := StyleBoxFlat.new()
+	gs_style.bg_color = Color(0.08, 0.08, 0.1)
+	gs_style.corner_radius_top_left = 8
+	gs_style.corner_radius_top_right = 8
+	gs_style.corner_radius_bottom_left = 8
+	gs_style.corner_radius_bottom_right = 8
+	gs_style.border_width_left = 1
+	gs_style.border_width_right = 1
+	gs_style.border_width_top = 1
+	gs_style.border_width_bottom = 1
+	gs_style.border_color = Color(0.15, 0.15, 0.18)
+	gs_test_btn.add_theme_stylebox_override("normal", gs_style)
+	var gs_hover := gs_style.duplicate()
+	gs_hover.bg_color = Color(0.12, 0.12, 0.15)
+	gs_test_btn.add_theme_stylebox_override("hover", gs_hover)
+	gs_test_btn.add_theme_color_override("font_color", Color(0.3, 0.3, 0.35))
+	gs_test_btn.add_theme_color_override("font_hover_color", Color(0.4, 0.4, 0.45))
+	gs_test_btn.pressed.connect(_on_game_shot_test_pressed)
+	var gs_wrapper := CenterContainer.new()
+	gs_wrapper.custom_minimum_size = Vector2(720, 70)
+	gs_wrapper.add_child(gs_test_btn)
+	content.add_child(gs_wrapper)
+
+	_add_spacer(content, 10)
+
+	# Drink Effects test
 	var drink_test_btn := _create_menu_button("Drink Effects", 400, 60, UIFont.CAPTION)
 	var dt_style := StyleBoxFlat.new()
 	dt_style.bg_color = Color(0.08, 0.08, 0.1)
@@ -357,6 +385,9 @@ func _on_vs_selected(opponent_id: String) -> void:
 		GameState.starting_score = opp["starting_score"]
 	GameState.dart_tier = CareerState.dart_tier_owned
 	get_tree().change_scene_to_file("res://scenes/match.tscn")
+
+func _on_game_shot_test_pressed() -> void:
+	get_tree().change_scene_to_file("res://scenes/game_shot_test.tscn")
 
 func _on_drink_test_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/drink_test.tscn")

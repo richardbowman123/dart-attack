@@ -80,6 +80,10 @@ var _darts_container: Node3D
 var _tutorial_overlay: TutorialOverlay
 var _tutorial_last_was_hit := false
 
+# ── Cinematic camera state ──
+var _cinematic: CinematicCamera
+var _cinematic_active := false
+
 # ── Sandbox mode (free throw after tutorial) ──
 var _sandbox_mode := false
 var _sandbox_overlay: SandboxOverlay
@@ -453,7 +457,10 @@ func _on_throw_rejected() -> void:
 func _on_dart_thrown(dart: Dart) -> void:
 	_stop_confidence_decay()
 	_score_hud.on_dart_thrown(_darts_this_visit)
-	dart.dart_hit.connect(_on_dart_hit.bind(dart))
+	if _should_play_cinematic():
+		_start_game_shot_cinematic(dart)
+	else:
+		dart.dart_hit.connect(_on_dart_hit.bind(dart))
 
 func _on_dart_hit(score_data: Dictionary, hit_pos: Vector2, dart: Dart) -> void:
 	_active_darts.append(dart)
@@ -1052,6 +1059,151 @@ func _on_sandbox_clear() -> void:
 
 func _on_sandbox_exit() -> void:
 	_restart_game()
+
+# ── Cinematic "Game Shot" camera ──
+
+## Returns true if a single dart can finish the given score (even 2-40 or 50).
+func _is_valid_single_dart_checkout(score: int) -> bool:
+	if score == 50:
+		return true  # Bullseye
+	return score >= 2 and score <= 40 and score % 2 == 0
+
+## Should we play the cinematic for this dart?
+## Player on checkout: always. Opponent on checkout: 50% chance.
+## Never in tutorial or sandbox.
+func _should_play_cinematic() -> bool:
+	if _is_tutorial() or _sandbox_mode or _is_free_throw():
+		return false
+	# Only trigger on the 3rd dart of a visit — keeps it dramatic without
+	# interrupting the player's throwing rhythm on darts 1 and 2.
+	if _darts_this_visit != 2:
+		return false
+
+	var on_checkout := false
+	if _is_player_turn or not _is_vs_ai:
+		# Player's dart
+		if _is_countdown():
+			on_checkout = _is_valid_single_dart_checkout(_score_remaining)
+		elif _is_rtc():
+			on_checkout = (_rtc_target == 22)  # Bullseye = final target
+		if on_checkout:
+			return true
+	else:
+		# Opponent's dart
+		if _is_countdown():
+			on_checkout = _is_valid_single_dart_checkout(_opp_score_remaining)
+		elif _is_rtc():
+			on_checkout = (_opp_rtc_target == 22)
+		if on_checkout:
+			return randf() < 0.5
+
+	return false
+
+## Start the cinematic sequence — freeze the physics dart, compute the score,
+## and hand off to CinematicCamera.
+func _start_game_shot_cinematic(dart: Dart) -> void:
+	_cinematic_active = true
+
+	# The dart's XY at spawn IS the landing point (dart flies straight along Z).
+	var landing_2d := Vector2(dart.position.x, dart.position.y)
+
+	# Compute what this dart would score
+	var score_data: Dictionary = BoardData.get_score(landing_2d)
+
+	# Check if it's actually a checkout
+	var is_checkout := false
+	if _is_player_turn or not _is_vs_ai:
+		# Player checkout: remaining must reach 0 AND hit a double
+		if _is_countdown():
+			var points: int = score_data.get("total", 0)
+			var mult: int = score_data.get("multiplier", 0)
+			is_checkout = (points == _score_remaining and mult == 2)
+		elif _is_rtc():
+			# RTC bullseye checkout: must hit double 25 (bullseye)
+			var hit_number: int = score_data.get("number", 0)
+			var mult: int = score_data.get("multiplier", 0)
+			is_checkout = (hit_number == 25 and mult == 2)
+	else:
+		# Opponent checkout
+		if _is_countdown():
+			var points: int = score_data.get("total", 0)
+			var mult: int = score_data.get("multiplier", 0)
+			is_checkout = (points == _opp_score_remaining and mult == 2)
+		elif _is_rtc():
+			var hit_number: int = score_data.get("number", 0)
+			var mult: int = score_data.get("multiplier", 0)
+			is_checkout = (hit_number == 25 and mult == 2)
+
+	# Freeze and hide the physics dart — cinematic builds its own visual dart
+	dart.freeze = true
+	dart.gravity_scale = 0.0
+	dart.visible = false
+
+	# Disable CameraRig controls during cinematic
+	_camera_rig.set_process(false)
+	_camera_rig.set_process_input(false)
+	_camera_rig.set_process_unhandled_input(false)
+
+	# Disable throwing
+	_throw_system.set_can_throw(false)
+
+	# Hide HUD during cinematic
+	_score_hud.visible = false
+
+	# Pick the correct dart tier for the cinematic visual
+	var cinematic_tier: int
+	if _is_player_turn or not _is_vs_ai:
+		cinematic_tier = GameState.dart_tier
+	else:
+		cinematic_tier = _throw_system.ai_dart_tier
+
+	# Create and play the cinematic
+	_cinematic = CinematicCamera.new()
+	add_child(_cinematic)
+	_cinematic.setup(
+		_camera_rig.get_camera(),
+		Vector3(landing_2d.x, landing_2d.y, CinematicCamera.FLIGHT_START_Z),
+		landing_2d,
+		is_checkout,
+		cinematic_tier
+	)
+	_cinematic.play()
+
+	# When cinematic finishes, resume normal flow
+	_cinematic.cinematic_finished.connect(
+		_on_game_shot_cinematic_finished.bind(dart, score_data, landing_2d)
+	)
+
+## Called when the cinematic camera sequence finishes.
+## Restores normal camera, places the dart, and runs the standard scoring logic.
+func _on_game_shot_cinematic_finished(dart: Dart, score_data: Dictionary, hit_pos: Vector2) -> void:
+	# Clean up the cinematic (restores camera FOV, removes visual dart and HUD)
+	if _cinematic and is_instance_valid(_cinematic):
+		_cinematic.cleanup()
+		_cinematic.queue_free()
+		_cinematic = null
+
+	# Restore CameraRig controls
+	_camera_rig.set_process(true)
+	_camera_rig.set_process_input(true)
+	_camera_rig.set_process_unhandled_input(true)
+	_camera_rig.reset_view()
+
+	# Show HUD again
+	_score_hud.visible = true
+
+	# Place the original physics dart at its resting position on the board
+	var dart_tier := dart.get_tier()
+	var resting_pos := CinematicCamera.get_resting_position(hit_pos, dart_tier)
+	var resting_dir := CinematicCamera.get_resting_direction()
+	dart.visible = true
+	dart.global_position = resting_pos
+	dart.look_at(dart.global_position + resting_dir, Vector3.UP)
+
+	_cinematic_active = false
+
+	# Feed the score into the normal scoring pipeline
+	_on_dart_hit(score_data, hit_pos, dart)
 
 # ── Turn management ──
 

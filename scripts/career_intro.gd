@@ -113,7 +113,7 @@ func _build_card_1_stars() -> void:
 func _build_card_2_barman() -> void:
 	var card := _create_card()
 
-	_add_spacer(card, 20)
+	_add_spacer(card, 15)
 
 	# Scene setting — location and time
 	var venue_text: String = OpponentData.get_venue("big_kev", GameState.character)
@@ -123,45 +123,51 @@ func _build_card_2_barman() -> void:
 	setting.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 	setting.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	setting.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	setting.custom_minimum_size = Vector2(640, 60)
+	setting.custom_minimum_size = Vector2(640, 0)
 	card.add_child(setting)
 
-	_add_spacer(card, 8)
+	_add_spacer(card, 10)
 
-	# Barman portrait (kept compact to leave room for story text)
+	# Barman portrait — half the original size (was 200px visual, now ~100px)
 	var tex := load("res://Barman.jpg")
 	if tex:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 80)
+		img.custom_minimum_size = Vector2(640, 100)
+		img.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		card.add_child(img)
 
-	_add_spacer(card, 8)
+	_add_spacer(card, 10)
 
+	# Dialogue
 	var story := Label.new()
 	story.text = "The barman leans over.\n\n\"We do a Round the Clock on Tuesday nights.\n\nOnly Big Kev's entered, so you might have a chance of winning.\n\nFancy it?\""
 	UIFont.apply(story, UIFont.BODY)
 	story.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
 	story.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	story.custom_minimum_size = Vector2(640, 200)
+	story.custom_minimum_size = Vector2(640, 0)
 	card.add_child(story)
 
-	_add_spacer(card, 15)
+	_add_spacer(card, 20)
 
-	# I'LL PLAY button (green)
+	# I'LL PLAY button (green, primary action)
 	var play_btn := _create_button("I'LL PLAY", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
+	UIFont.apply_button(play_btn, UIFont.BODY)
+	play_btn.custom_minimum_size = Vector2(500, 65)
 	play_btn.pressed.connect(_advance_card)
 	var play_wrapper := CenterContainer.new()
-	play_wrapper.custom_minimum_size = Vector2(640, 90)
+	play_wrapper.custom_minimum_size = Vector2(640, 70)
 	play_wrapper.add_child(play_btn)
 	card.add_child(play_wrapper)
 
-	# NAH button (grey — smaller font to fit longer text)
-	var nah_btn := _create_button("NAH, I NEED TO LEARN TO PLAY FIRST", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
-	UIFont.apply_button(nah_btn, 24)
-	nah_btn.custom_minimum_size = Vector2(620, 70)
+	_add_spacer(card, 10)
+
+	# NAH button (grey, secondary — same width as PLAY)
+	var nah_btn := _create_button("NAH, I NEED TO LEARN\nTO PLAY FIRST", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
+	UIFont.apply_button(nah_btn, UIFont.CAPTION)
+	nah_btn.custom_minimum_size = Vector2(500, 65)
 	nah_btn.pressed.connect(_on_nah)
 	var nah_wrapper := CenterContainer.new()
 	nah_wrapper.custom_minimum_size = Vector2(640, 70)
