@@ -56,6 +56,10 @@ var _dart_dots: Array[Control] = []
 
 var _zoom_hint: Label
 
+# ── Leg counter (multi-leg matches only) ──
+var _leg_counter: Label
+var _leg_counter_tween: Tween
+
 # ── Throw tip popup ──
 var _throw_tip_overlay: Control
 
@@ -82,6 +86,11 @@ var _bar_labels: Array[Label] = []
 var _bar_tweens: Array = []  # Per-bar tween tracking (so we can kill/replace)
 var _stats_container: Control
 
+# ── Debug skip (hidden 10-tap trigger) ──
+signal debug_menu_requested
+var _debug_tap_count: int = 0
+var _debug_last_tap_ms: int = 0
+
 func _ready() -> void:
 	_build_remaining_display()
 	_build_impact_flash()
@@ -90,6 +99,7 @@ func _ready() -> void:
 	_build_balance_display()
 	_build_throw_tip()
 	_build_doubles_tip()
+	_build_debug_tap_zone()
 	# In non-VS mode, build standalone dart dots at the bottom
 	if not GameState.is_vs_ai:
 		_build_standalone_dart_dots()
@@ -501,6 +511,36 @@ func _on_doubles_tip_dismiss() -> void:
 	_doubles_tip_overlay.visible = false
 	CareerState.doubles_tip_shown = true
 
+# ── Debug tap zone (hidden 10-tap trigger, top-right corner) ──
+
+func _build_debug_tap_zone() -> void:
+	var zone := Control.new()
+	zone.position = Vector2(620, 0)
+	zone.size = Vector2(100, 100)
+	zone.mouse_filter = Control.MOUSE_FILTER_STOP
+	zone.gui_input.connect(_on_debug_tap_input)
+	add_child(zone)
+
+func _on_debug_tap_input(event: InputEvent) -> void:
+	var is_tap := false
+	if event is InputEventScreenTouch and event.pressed:
+		is_tap = true
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		is_tap = true
+	if not is_tap:
+		return
+
+	var now := Time.get_ticks_msec()
+	# Reset counter if more than 2 seconds since last tap
+	if now - _debug_last_tap_ms > 2000:
+		_debug_tap_count = 0
+	_debug_last_tap_ms = now
+	_debug_tap_count += 1
+
+	if _debug_tap_count >= 10:
+		_debug_tap_count = 0
+		debug_menu_requested.emit()
+
 # ── Impact flash (brief score text that fades) ──
 
 func _build_impact_flash() -> void:
@@ -603,6 +643,36 @@ func setup_vs_mode(opponent_id: String) -> void:
 
 	# Build unified bottom card (portraits, names, dart dots, stats)
 	_build_bottom_card(opponent_id)
+
+## Set up the leg counter for multi-leg matches (called from match_manager).
+func setup_leg_counter(legs_to_win: int) -> void:
+	if legs_to_win <= 1:
+		return
+	_leg_counter = Label.new()
+	_leg_counter.text = "LEGS 0 - 0"
+	UIFont.apply(_leg_counter, 24)
+	_leg_counter.add_theme_color_override("font_color", Color(1, 1, 1, 0.5))
+	_leg_counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_leg_counter.position = Vector2(60, 210)
+	_leg_counter.size = Vector2(600, 30)
+	_leg_counter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_leg_counter)
+	# Push zoom hint down so it doesn't overlap the leg counter
+	if _zoom_hint:
+		_zoom_hint.position.y = 245
+
+## Update the leg score display and flash on change.
+func update_leg_score(player_legs: int, opp_legs: int) -> void:
+	if not _leg_counter:
+		return
+	_leg_counter.text = "LEGS " + str(player_legs) + " - " + str(opp_legs)
+	# Flash: full opacity then fade to 50%
+	if _leg_counter_tween and _leg_counter_tween.is_valid():
+		_leg_counter_tween.kill()
+	_leg_counter.add_theme_color_override("font_color", Color(1, 1, 1, 1.0))
+	_leg_counter_tween = create_tween()
+	_leg_counter_tween.tween_interval(1.0)
+	_leg_counter_tween.tween_property(_leg_counter, "theme_override_colors/font_color", Color(1, 1, 1, 0.5), 0.5)
 
 # ── Bottom card (unified HUD — portraits, names, dots, stats) ──
 

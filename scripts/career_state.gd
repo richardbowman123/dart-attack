@@ -24,6 +24,9 @@ var coach_hired: bool = false
 var manager_hired: bool = false
 var team_hired: bool = false
 
+# Pre-match drinking — units stored here, applied when match starts
+var pre_drink_units: int = 0
+
 # Hidden stats (player never sees raw numbers)
 var liver_damage: float = 0.0    # 0-100
 var heart_risk: float = 0.0      # 0-100
@@ -57,6 +60,7 @@ func reset() -> void:
 	coach_hired = false
 	manager_hired = false
 	team_hired = false
+	pre_drink_units = 0
 	liver_damage = 0.0
 	heart_risk = 0.0
 	reputation = 50.0

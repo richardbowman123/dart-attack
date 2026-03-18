@@ -36,6 +36,7 @@ const OPPONENTS := {
 		"base_confidence": 40,
 		"base_anger": 10,
 		"anger_rate": 0.5,
+		"legs_to_win": 1,
 	},
 	"derek": {
 		"name": "Derek",
@@ -55,6 +56,7 @@ const OPPONENTS := {
 		"base_confidence": 50,
 		"base_anger": 15,
 		"anger_rate": 0.8,
+		"legs_to_win": 2,
 	},
 	"steve": {
 		"name": "Steve",
@@ -74,6 +76,7 @@ const OPPONENTS := {
 		"base_confidence": 55,
 		"base_anger": 20,
 		"anger_rate": 1.0,
+		"legs_to_win": 4,
 	},
 	"philip": {
 		"name": "Philip",
@@ -94,6 +97,7 @@ const OPPONENTS := {
 		"base_confidence": 65,
 		"base_anger": 10,
 		"anger_rate": 0.6,
+		"legs_to_win": 3,
 	},
 	"mad_dog": {
 		"name": "Mad Dog",
@@ -114,6 +118,7 @@ const OPPONENTS := {
 		"base_confidence": 60,
 		"base_anger": 40,
 		"anger_rate": 2.0,
+		"legs_to_win": 4,
 	},
 	"lars": {
 		"name": "Lars",
@@ -134,6 +139,7 @@ const OPPONENTS := {
 		"base_confidence": 75,
 		"base_anger": 15,
 		"anger_rate": 0.7,
+		"legs_to_win": 3,
 	},
 	"vinnie": {
 		"name": "Vinnie Gold",
@@ -154,6 +160,7 @@ const OPPONENTS := {
 		"base_confidence": 85,
 		"base_anger": 25,
 		"anger_rate": 1.5,
+		"legs_to_win": 4,
 	},
 }
 
@@ -279,9 +286,16 @@ static func get_buy_in(id: String) -> int:
 static func get_max_losses(id: String) -> int:
 	return OPPONENTS[id].get("max_losses", 3)
 
+static func get_legs_to_win(id: String) -> int:
+	return OPPONENTS[id].get("legs_to_win", 1)
+
 static func get_menu_label(id: String) -> String:
 	var opp: Dictionary = OPPONENTS[id]
 	if opp["game_mode"] == "rtc":
 		return "vs " + opp["name"] + " (RTC)"
 	else:
-		return "vs " + opp["name"] + " (" + str(opp["starting_score"]) + ")"
+		var legs: int = opp.get("legs_to_win", 1)
+		if legs <= 1:
+			return "vs " + opp["name"] + " (" + str(opp["starting_score"]) + ")"
+		var best_of: int = legs * 2 - 1
+		return "vs " + opp["name"] + " (" + str(opp["starting_score"]) + ", Best of " + str(best_of) + ")"

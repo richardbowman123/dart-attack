@@ -184,6 +184,10 @@ func _check_condition(condition: String, context: Dictionary) -> bool:
 			return context.get("reached_18", false)
 		"second_drink_offer":
 			return context.get("second_drink_offer", false)
+		"companion_round":
+			return context.get("companion_round", false)
+		"player_round":
+			return context.get("player_round", false)
 		"periodic":
 			# Always valid when explicitly triggered
 			return true

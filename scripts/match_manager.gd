@@ -50,6 +50,16 @@ var _player_confidence: float = 50.0
 var _player_dart_quality: float = 0.0
 var _player_anger: float = 0.0
 var _drinks_this_match: int = 0
+var _player_visit_count: int = 0
+
+# ── Multi-leg match state ──
+var _legs_to_win: int = 1
+var _player_legs_won: int = 0
+var _opponent_legs_won: int = 0
+
+# ── Round offer (every 3rd player visit, career L2+) ──
+var _round_offer_pending: bool = false
+var _round_is_player_paying: bool = false
 
 # ── Barman drink offer at 18 (career RTC only) ──
 var _drink_offered_at_18 := false
@@ -94,6 +104,10 @@ var _player_missed_zoom := false
 # Confidence decay while aiming
 var _confidence_decay_timer: float = 0.0
 var _confidence_decay_active: bool = false
+
+# Pre-drink advice popup (first visit only)
+var _pre_drink_advice_shown := false
+var _pre_drink_units_at_start: int = 0
 
 func _ready() -> void:
 	_is_vs_ai = GameState.is_vs_ai
@@ -216,6 +230,7 @@ func _connect_signals() -> void:
 	if CareerState.career_mode_active:
 		CompanionManager.dialogue_finished.connect(_on_companion_dialogue_finished)
 		CompanionManager.consequence_triggered.connect(_on_companion_consequence)
+	_score_hud.debug_menu_requested.connect(_show_debug_menu)
 
 func _on_first_zoom() -> void:
 	_score_hud.hide_zoom_reminder()
@@ -247,6 +262,19 @@ func _init_game_mode() -> void:
 		_player_dart_quality = _tier_to_quality(GameState.dart_tier)
 		_player_anger = 0.0
 		_drinks_this_match = 0
+		_player_visit_count = 0
+
+		# Apply pre-match drinking from between-match card
+		DrinkManager.reset()
+		_pre_drink_units_at_start = CareerState.pre_drink_units
+		_pre_drink_advice_shown = false
+		if CareerState.pre_drink_units > 0:
+			DrinkManager.set_level(CareerState.pre_drink_units)
+			CareerState.pre_drink_units = 0
+
+		# Set companion stage for dialogue system
+		var stage_map := {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 5}
+		CompanionManager.companion_stage = stage_map.get(CareerState.career_level, 0)
 
 		# Opponent dart quality matches their actual dart tier (one above player, capped at 3)
 		_opp_dart_quality = _tier_to_quality(_throw_system.ai_dart_tier)
@@ -255,9 +283,17 @@ func _init_game_mode() -> void:
 		_opp_anger = OpponentData.get_base_anger(_opponent_id)
 		_opp_anger_rate = OpponentData.get_anger_rate(_opponent_id)
 
+	# Set up multi-leg match
+	if _is_vs_ai:
+		_legs_to_win = OpponentData.get_legs_to_win(_opponent_id)
+		_player_legs_won = 0
+		_opponent_legs_won = 0
+
 	# Set up dual HUD if VS mode
 	if _is_vs_ai:
 		_score_hud.setup_vs_mode(_opponent_id)
+		if _legs_to_win > 1:
+			_score_hud.setup_leg_counter(_legs_to_win)
 		_score_hud.update_turn_indicator(true)
 		if _is_countdown():
 			_score_hud.update_opponent_score(_opp_score_remaining)
@@ -332,6 +368,41 @@ func _start_visit() -> void:
 			CompanionManager.request_dialogue(CompanionData.DRINK_OFFER, {"second_drink_offer": true})
 			return
 
+		# Check for round offer (every 3rd visit, career L2+)
+		if _round_offer_pending and CareerState.career_mode_active:
+			_round_offer_pending = false
+			_state = MatchState.BETWEEN_DARTS
+			_throw_system.set_can_throw(false)
+			_score_hud.reset_dart_icons()
+			_score_hud.hide_summary()
+			if _is_vs_ai:
+				_score_hud.update_turn_indicator(true)
+				if CareerState.career_mode_active:
+					_show_player_stats()
+			var ctx := {}
+			if _round_is_player_paying:
+				ctx["player_round"] = true
+			else:
+				ctx["companion_round"] = true
+			CompanionManager.request_dialogue(CompanionData.DRINK_OFFER, ctx)
+			return
+
+		# Track visits and apply alcohol decay
+		_player_visit_count += 1
+		if CareerState.career_mode_active:
+			DrinkManager.apply_visit_decay()
+			# Schedule round offer after every 3rd visit (L2+)
+			if CareerState.career_level >= 2 and _player_visit_count > 0 and _player_visit_count % 3 == 0:
+				_round_offer_pending = true
+				_round_is_player_paying = randi() % 2 == 0
+				# If player can't afford their round, companion buys
+				if _round_is_player_paying:
+					var config = DrinkManager.get_level_config(CareerState.career_level)
+					if config != null:
+						var round_cost: int = config["pint_price"] * config["round_size"]
+						if CareerState.money < round_cost:
+							_round_is_player_paying = false
+
 		# Player's turn
 		_state = MatchState.THROWING
 		if _is_countdown():
@@ -351,9 +422,17 @@ func _start_visit() -> void:
 				_player_confidence = CONFIDENCE_FLOOR
 			_throw_system.career_scatter_mult = get_career_scatter_mult()
 
-		_throw_system.set_can_throw(true)
-		_start_confidence_decay()
-		DrinkManager.flash_tier_name()
+		# Pre-drink advice on first visit (career L2+), or normal tier flash
+		if not _pre_drink_advice_shown and CareerState.career_mode_active and _pre_drink_units_at_start > 0 and CareerState.career_level >= 2:
+			_pre_drink_advice_shown = true
+			_throw_system.set_can_throw(false)
+			_stop_confidence_decay()
+			_show_pre_drink_advice()
+		else:
+			_throw_system.set_can_throw(true)
+			_start_confidence_decay()
+			if not CareerState.career_mode_active or _player_visit_count > 1:
+				DrinkManager.flash_tier_name()
 
 		# Zoom reminder — reset per-visit tracking and show hint
 		_camera_rig.reset_visit_zoom()
@@ -547,7 +626,7 @@ func _handle_countdown_hit(score_data: Dictionary) -> void:
 		_score_hud.show_message("GAME SHOT!", 3.0)
 		var tween := create_tween()
 		tween.tween_interval(3.5)
-		tween.tween_callback(_on_player_wins)
+		tween.tween_callback(_on_leg_complete.bind(true))
 		return
 
 	if _visit_score == 180:
@@ -608,7 +687,7 @@ func _handle_ai_countdown_hit(score_data: Dictionary) -> void:
 		_score_hud.show_message(opp_name + " WINS!", 3.0)
 		var tween := create_tween()
 		tween.tween_interval(3.5)
-		tween.tween_callback(_on_player_loses)
+		tween.tween_callback(_on_leg_complete.bind(false))
 		return
 
 	if _opp_visit_score == 180:
@@ -698,7 +777,7 @@ func _handle_rtc_hit(score_data: Dictionary) -> void:
 		var tween := create_tween()
 		tween.tween_interval(3.5)
 		if _is_vs_ai:
-			tween.tween_callback(_on_player_wins)
+			tween.tween_callback(_on_leg_complete.bind(true))
 		else:
 			tween.tween_callback(_restart_game)
 		return
@@ -769,7 +848,7 @@ func _handle_ai_rtc_hit(score_data: Dictionary) -> void:
 		_score_hud.show_message(opp_name + " WINS!", 3.0)
 		var tween := create_tween()
 		tween.tween_interval(3.5)
-		tween.tween_callback(_on_player_loses)
+		tween.tween_callback(_on_leg_complete.bind(false))
 		return
 
 	# Flag drink offer when AI reaches 18 (career RTC only, once per match)
@@ -1474,6 +1553,84 @@ func _trigger_fight_scene() -> void:
 	tween.tween_interval(3.5)
 	tween.tween_callback(_on_player_loses)
 
+# ── Multi-leg match handling ──
+
+func _on_leg_complete(player_won: bool) -> void:
+	# Single-leg match — go straight to win/loss
+	if _legs_to_win <= 1:
+		if player_won:
+			_on_player_wins()
+		else:
+			_on_player_loses()
+		return
+
+	if player_won:
+		_player_legs_won += 1
+	else:
+		_opponent_legs_won += 1
+
+	# Update HUD
+	_score_hud.update_leg_score(_player_legs_won, _opponent_legs_won)
+
+	# Check for match win/loss
+	if _player_legs_won >= _legs_to_win:
+		_on_player_wins()
+		return
+	if _opponent_legs_won >= _legs_to_win:
+		_on_player_loses()
+		return
+
+	# More legs to play — show transition message
+	var msg: String
+	if player_won:
+		msg = "YOUR LEG!"
+	else:
+		msg = OpponentData.get_display_name(_opponent_id) + "\nTAKES THE LEG!"
+	_score_hud.show_message(msg, 2.5)
+
+	var tween := create_tween()
+	tween.tween_interval(3.0)
+	tween.tween_callback(_start_new_leg.bind(not player_won))
+
+func _start_new_leg(player_throws_first: bool) -> void:
+	# Clear darts from the board
+	for dart in _active_darts:
+		if is_instance_valid(dart):
+			dart.queue_free()
+	_active_darts.clear()
+
+	# Reset scores for the new leg
+	if _is_countdown():
+		_score_remaining = GameState.starting_score
+		_visit_score = 0
+		_visit_score_before = _score_remaining
+		_opp_score_remaining = GameState.starting_score
+		_opp_visit_score = 0
+		_opp_visit_score_before = _opp_score_remaining
+		_score_hud.update_remaining(_score_remaining)
+		_score_hud.update_opponent_score(_opp_score_remaining)
+	else:
+		_rtc_target = 1
+		_opp_rtc_target = 1
+		_score_hud.update_remaining_text(_rtc_target_label())
+		_score_hud.update_opponent_remaining_text(_opp_rtc_target_label())
+
+	# Reset dart tracking for the new leg
+	_darts_this_visit = 0
+	_visit_dart_labels.clear()
+	_state = MatchState.THROWING
+
+	# Set who throws first (real darts rule: loser of previous leg throws first)
+	_is_player_turn = player_throws_first
+	_score_hud.update_turn_indicator(_is_player_turn)
+
+	# Career stats (nerves, confidence, anger) carry over between legs.
+	# Drinks reset completely — player sobers up between games.
+	if CareerState.career_mode_active:
+		DrinkManager.reset()
+
+	_start_visit()
+
 func _on_player_wins() -> void:
 	if CareerState.career_mode_active:
 		CareerState.confidence_carry = _player_confidence * 0.5
@@ -1523,6 +1680,64 @@ func _unhandled_input(event: InputEvent) -> void:
 		_cancel_ai_turn()
 		get_tree().change_scene_to_file("res://scenes/menu.tscn")
 
+# ── Debug skip menu (hidden 10-tap trigger) ──
+
+var _debug_overlay: Control
+
+func _show_debug_menu() -> void:
+	# Don't show if already visible
+	if _debug_overlay and is_instance_valid(_debug_overlay):
+		return
+
+	_cancel_ai_turn()
+	_throw_system.set_can_throw(false)
+
+	_debug_overlay = _make_popup_overlay()
+
+	var panel := _make_popup_panel(Vector2(110, 400), 500)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 20)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var title := Label.new()
+	title.text = "DEBUG MENU"
+	UIFont.apply(title, UIFont.BODY)
+	title.add_theme_color_override("font_color", Color(1.0, 0.5, 0.5))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.custom_minimum_size = Vector2(436, 0)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(title)
+
+	var win_btn := _make_popup_button("Auto Win", Color(0.15, 0.45, 0.15))
+	win_btn.pressed.connect(func() -> void:
+		_debug_overlay.queue_free()
+		_debug_overlay = null
+		_state = MatchState.FINISHED
+		_on_player_wins()
+	)
+	vbox.add_child(win_btn)
+
+	var lose_btn := _make_popup_button("Auto Lose", Color(0.55, 0.15, 0.15))
+	lose_btn.pressed.connect(func() -> void:
+		_debug_overlay.queue_free()
+		_debug_overlay = null
+		_state = MatchState.FINISHED
+		_on_player_loses()
+	)
+	vbox.add_child(lose_btn)
+
+	var cancel_btn := _make_popup_button("Cancel", Color(0.25, 0.25, 0.3))
+	cancel_btn.pressed.connect(func() -> void:
+		_debug_overlay.queue_free()
+		_debug_overlay = null
+		_throw_system.set_can_throw(true)
+	)
+	vbox.add_child(cancel_btn)
+
+	panel.add_child(vbox)
+	_debug_overlay.add_child(panel)
+	_fade_in_overlay(_debug_overlay)
+
 # ── Companion dialogue handlers ──
 
 func _on_companion_dialogue_finished(trigger: String) -> void:
@@ -1561,6 +1776,156 @@ func _on_companion_consequence(consequence_id: String) -> void:
 		# Deduct cost from career money
 		CareerState.money -= DrinkManager.COST_PER_UNIT
 		_score_hud.update_balance(CareerState.money)
+	elif consequence_id == "accept_free_pint":
+		# Companion's round — free pint for the player (1 pint = 2 units)
+		_nerves_before_drink = _player_nerves
+		_suppress_hud_update = true
+		DrinkManager.add_drink(true, 2)  # Free pint (visual effects)
+		apply_drink(true)                # Career stats: full pint effects
+		_suppress_hud_update = false
+		_pending_nerves_anim = _player_nerves
+	elif consequence_id == "buy_round":
+		# Player's round — buy pints for everyone, player drinks 1 pint
+		_nerves_before_drink = _player_nerves
+		_suppress_hud_update = true
+		DrinkManager.add_drink(true, 2)  # Pint visual effects (payment below)
+		apply_drink(true)                # Career stats: full pint effects
+		_suppress_hud_update = false
+		_pending_nerves_anim = _player_nerves
+		# Deduct round cost from career money
+		var config = DrinkManager.get_level_config(CareerState.career_level)
+		if config != null:
+			var round_cost: int = config["pint_price"] * config["round_size"]
+			CareerState.money -= round_cost
+			_score_hud.update_balance(CareerState.money)
 	elif consequence_id == "reject_full_pint":
 		# Full pint rejected — loop back to the choice screen
 		_re_offer_drink = true
+
+# ── Pre-drink advice popup (first visit, career L2+) ─────────────────────────
+
+func _show_pre_drink_advice() -> void:
+	# Wait 1.5 seconds so the player sees the board first
+	var delay_tween := create_tween()
+	delay_tween.tween_interval(1.5)
+	delay_tween.tween_callback(_display_pre_drink_popup)
+
+func _display_pre_drink_popup() -> void:
+	var units := _pre_drink_units_at_start
+	# Pick advice text based on how much they drank
+	var advice: String
+	if units <= 4:
+		advice = "Those pre-drinks really settled your nerves. Nice and steady."
+	elif units <= 6:
+		advice = "You've got a good base, but remember to keep drinking or you'll get nervy."
+	elif units <= 8:
+		advice = "Looks like you went a bit heavy on the drinks there. Try and hold it together."
+	else:
+		advice = "Mate... you can barely see straight. Good luck with that."
+
+	# Build popup overlay
+	var overlay := Control.new()
+	overlay.size = Vector2(720, 1280)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.z_index = 100
+
+	var dimmer := ColorRect.new()
+	dimmer.color = Color(0, 0, 0, 0.5)
+	dimmer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(dimmer)
+
+	# Panel
+	var panel := PanelContainer.new()
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.08, 0.07, 0.12, 0.94)
+	panel_style.corner_radius_top_left = 14
+	panel_style.corner_radius_top_right = 14
+	panel_style.corner_radius_bottom_left = 14
+	panel_style.corner_radius_bottom_right = 14
+	panel_style.content_margin_left = 20
+	panel_style.content_margin_right = 20
+	panel_style.content_margin_top = 18
+	panel_style.content_margin_bottom = 18
+	panel_style.border_width_top = 2
+	panel_style.border_width_bottom = 2
+	panel_style.border_width_left = 2
+	panel_style.border_width_right = 2
+	panel_style.border_color = Color(0.85, 0.6, 0.15, 0.6)
+	panel.add_theme_stylebox_override("panel", panel_style)
+	panel.position = Vector2(50, 350)
+	panel.size = Vector2(620, 0)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+
+	# Mate portrait
+	var tex = load("res://Mate for Level 2 - Alan.png")
+	if tex:
+		var portrait := TextureRect.new()
+		portrait.texture = tex
+		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		portrait.custom_minimum_size = Vector2(560, 120)
+		vbox.add_child(portrait)
+
+	# Speaker name
+	var name_label := Label.new()
+	name_label.text = "YOUR MATE"
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.add_theme_color_override("font_color", Color(0.85, 0.6, 0.15))
+	UIFont.apply(name_label, UIFont.BODY)
+	vbox.add_child(name_label)
+
+	# Advice text
+	var advice_label := Label.new()
+	advice_label.text = '"' + advice + '"'
+	advice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	advice_label.custom_minimum_size = Vector2(560, 0)
+	advice_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+	UIFont.apply(advice_label, UIFont.BODY)
+	vbox.add_child(advice_label)
+
+	panel.add_child(vbox)
+	overlay.add_child(panel)
+
+	# Dismiss button
+	var btn := Button.new()
+	btn.text = "LET'S GO"
+	UIFont.apply_button(btn, UIFont.BODY)
+	btn.custom_minimum_size = Vector2(300, 60)
+	var btn_style := StyleBoxFlat.new()
+	btn_style.bg_color = Color(0.15, 0.5, 0.2)
+	btn_style.corner_radius_top_left = 10
+	btn_style.corner_radius_top_right = 10
+	btn_style.corner_radius_bottom_left = 10
+	btn_style.corner_radius_bottom_right = 10
+	btn_style.content_margin_left = 15
+	btn_style.content_margin_right = 15
+	btn_style.content_margin_top = 10
+	btn_style.content_margin_bottom = 10
+	btn.add_theme_stylebox_override("normal", btn_style)
+	var btn_hover := btn_style.duplicate()
+	btn_hover.bg_color = Color(0.2, 0.6, 0.3)
+	btn.add_theme_stylebox_override("hover", btn_hover)
+	btn.add_theme_stylebox_override("pressed", btn_hover)
+	btn.add_theme_color_override("font_color", Color.WHITE)
+
+	var btn_wrapper := CenterContainer.new()
+	btn_wrapper.position = Vector2(0, 850)
+	btn_wrapper.size = Vector2(720, 80)
+	btn_wrapper.add_child(btn)
+	overlay.add_child(btn_wrapper)
+
+	# Fade in
+	overlay.modulate = Color(1, 1, 1, 0)
+	_score_hud.add_child(overlay)
+	var fade := create_tween()
+	fade.tween_property(overlay, "modulate", Color(1, 1, 1, 1), 0.25)
+
+	# Dismiss callback
+	btn.pressed.connect(func():
+		overlay.queue_free()
+		_throw_system.set_can_throw(true)
+		_start_confidence_decay()
+	)

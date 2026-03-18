@@ -62,6 +62,7 @@ func _build_win_cards() -> void:
 		_build_friday_night_card()
 		_build_doubles_explanation_card()
 		_build_mate_intro_card()
+		_build_pre_drink_card()
 		_build_derek_stats_card()
 	elif opp_level == 2:
 		_build_l2_win_cards()
@@ -75,6 +76,7 @@ func _build_win_cards() -> void:
 		_build_l6_win_cards()
 	else:
 		_build_generic_story_card(opp_level)
+		_build_pre_drink_card()
 		_build_generic_next_opponent_card()
 
 # ======================================================
@@ -178,15 +180,15 @@ func _build_skill_star_card() -> void:
 	skill_row.add_child(skill_label)
 	# Stars overlay — only this part flips
 	var skill_stars_wrapper := Control.new()
-	skill_stars_wrapper.custom_minimum_size = Vector2(200, 50)
-	skill_stars_wrapper.pivot_offset = Vector2(100, 25)
-	var skill_stars_before := _build_star_slots(0, 5)
+	skill_stars_wrapper.custom_minimum_size = Vector2(260, 44)
+	skill_stars_wrapper.pivot_offset = Vector2(130, 22)
+	var skill_stars_before := _build_star_image(0)
 	skill_stars_before.position = Vector2.ZERO
-	skill_stars_before.size = Vector2(200, 50)
+	skill_stars_before.size = Vector2(260, 44)
 	skill_stars_wrapper.add_child(skill_stars_before)
-	var skill_stars_after := _build_star_slots(1, 5)
+	var skill_stars_after := _build_star_image(1)
 	skill_stars_after.position = Vector2.ZERO
-	skill_stars_after.size = Vector2(200, 50)
+	skill_stars_after.size = Vector2(260, 44)
 	skill_stars_after.visible = false
 	skill_stars_wrapper.add_child(skill_stars_after)
 	skill_row.add_child(skill_stars_wrapper)
@@ -209,15 +211,15 @@ func _build_skill_star_card() -> void:
 	swagger_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	swagger_row.add_child(swagger_label)
 	var swagger_stars_wrapper := Control.new()
-	swagger_stars_wrapper.custom_minimum_size = Vector2(200, 50)
-	swagger_stars_wrapper.pivot_offset = Vector2(100, 25)
-	var swagger_stars_before := _build_star_slots(0, 5)
+	swagger_stars_wrapper.custom_minimum_size = Vector2(260, 44)
+	swagger_stars_wrapper.pivot_offset = Vector2(130, 22)
+	var swagger_stars_before := _build_star_image(0)
 	swagger_stars_before.position = Vector2.ZERO
-	swagger_stars_before.size = Vector2(200, 50)
+	swagger_stars_before.size = Vector2(260, 44)
 	swagger_stars_wrapper.add_child(swagger_stars_before)
-	var swagger_stars_after := _build_star_slots(1, 5)
+	var swagger_stars_after := _build_star_image(1)
 	swagger_stars_after.position = Vector2.ZERO
-	swagger_stars_after.size = Vector2(200, 50)
+	swagger_stars_after.size = Vector2(260, 44)
 	swagger_stars_after.visible = false
 	swagger_stars_wrapper.add_child(swagger_stars_after)
 	swagger_row.add_child(swagger_stars_wrapper)
@@ -404,15 +406,15 @@ func _build_heft_star_card() -> void:
 	heft_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	heft_row.add_child(heft_label)
 	var heft_stars_wrapper := Control.new()
-	heft_stars_wrapper.custom_minimum_size = Vector2(200, 50)
-	heft_stars_wrapper.pivot_offset = Vector2(100, 25)
-	var heft_stars_before := _build_star_slots(0, 5)
+	heft_stars_wrapper.custom_minimum_size = Vector2(260, 44)
+	heft_stars_wrapper.pivot_offset = Vector2(130, 22)
+	var heft_stars_before := _build_star_image(0)
 	heft_stars_before.position = Vector2.ZERO
-	heft_stars_before.size = Vector2(200, 50)
+	heft_stars_before.size = Vector2(260, 44)
 	heft_stars_wrapper.add_child(heft_stars_before)
-	var heft_stars_after := _build_star_slots(1, 5)
+	var heft_stars_after := _build_star_image(1)
 	heft_stars_after.position = Vector2.ZERO
-	heft_stars_after.size = Vector2(200, 50)
+	heft_stars_after.size = Vector2(260, 44)
 	heft_stars_after.visible = false
 	heft_stars_wrapper.add_child(heft_stars_after)
 	heft_row.add_child(heft_stars_wrapper)
@@ -560,7 +562,7 @@ func _build_doubles_explanation_card() -> void:
 	var panel := _build_companion_panel(
 		"YOUR MATE",
 		"This one's 101. You know you have to check out on a double, yeah?",
-		Color(0.2, 0.35, 0.5), "M"
+		Color.BLACK, "", "res://Mate for Level 2 - Alan.png"
 	)
 	card.add_child(panel)
 
@@ -633,7 +635,7 @@ func _build_mate_intro_card() -> void:
 	var panel := _build_companion_panel(
 		"YOUR MATE",
 		"Derek \"The Postman\" they call him.\n\nI can't see him being too much of a problem.",
-		Color(0.2, 0.35, 0.5), "M"
+		Color.BLACK, "", "res://Mate for Level 2 - Alan.png"
 	)
 	card.add_child(panel)
 
@@ -663,7 +665,7 @@ func _build_l2_win_cards() -> void:
 	var mate_panel := _build_companion_panel(
 		"YOUR MATE",
 		"Told you he wouldn't deliver. Come on - let's get you looking the part. Tattoos and a bit of bling.",
-		Color(0.2, 0.35, 0.5), "M"
+		Color.BLACK, "", "res://Mate for Level 2 - Alan.png"
 	)
 	mate_card.add_child(mate_panel)
 	_add_spacer(mate_card, 30)
@@ -733,7 +735,7 @@ func _build_l2_win_cards() -> void:
 	var steve_panel := _build_companion_panel(
 		"YOUR MATE",
 		"There's a regional comp next month. Steve \"The Sparky\" - three years running. Bit of a wind-up merchant. Talks through your throw.\n\nBest of seven this time. First to four legs.",
-		Color(0.2, 0.35, 0.5), "M"
+		Color.BLACK, "", "res://Mate for Level 2 - Alan.png"
 	)
 	steve_intro.add_child(steve_panel)
 	_add_spacer(steve_intro, 30)
@@ -748,6 +750,9 @@ func _build_l2_win_cards() -> void:
 		"Proper oche. Small stage. Folding chairs for fifty. A commentator with a microphone.",
 		2000
 	)
+
+	# Pre-match drinking
+	_build_pre_drink_card()
 
 	# Card 8: Steve stats
 	_build_opponent_stats_card(
@@ -920,6 +925,9 @@ func _build_l3_win_cards() -> void:
 		7500
 	)
 
+	# Pre-match drinking
+	_build_pre_drink_card()
+
 	# Card 10: Philip stats
 	_build_opponent_stats_card(
 		"philip", "Philip", "The Accountant",
@@ -1027,6 +1035,9 @@ func _build_l4_win_cards() -> void:
 		20000
 	)
 
+	# Pre-match drinking
+	_build_pre_drink_card()
+
 	# Card 8: Mad Dog stats
 	_build_opponent_stats_card(
 		"mad_dog", "Mad Dog", "Mad Dog",
@@ -1123,6 +1134,9 @@ func _build_l5_win_cards() -> void:
 		"The cathedral of darts. Walk-on music. Pyrotechnics. Two thousand in fancy dress.",
 		50000
 	)
+
+	# Pre-match drinking
+	_build_pre_drink_card()
 
 	# Card 8: Lars stats
 	_build_opponent_stats_card(
@@ -1238,6 +1252,9 @@ func _build_l6_win_cards() -> void:
 		"Gold confetti loaded. Fireworks ready.\nTwo thousand on their feet.\n\nThis is it.",
 		100000
 	)
+
+	# Pre-match drinking
+	_build_pre_drink_card()
 
 	# Card 7: Vinnie Gold stats
 	_build_opponent_stats_card(
@@ -1653,8 +1670,8 @@ func _build_star_flip_card(star_name: String, old_val: int, new_val: int,
 	}
 
 	var flip_wrapper: Control = null
-	var before_slots: HBoxContainer = null
-	var after_slots: HBoxContainer = null
+	var before_slots: TextureRect = null
+	var after_slots: TextureRect = null
 
 	for cat in star_categories:
 		if cat == star_name:
@@ -1672,17 +1689,17 @@ func _build_star_flip_card(star_name: String, old_val: int, new_val: int,
 			row.add_child(lbl)
 
 			flip_wrapper = Control.new()
-			flip_wrapper.custom_minimum_size = Vector2(200, 50)
-			flip_wrapper.pivot_offset = Vector2(100, 25)
+			flip_wrapper.custom_minimum_size = Vector2(260, 44)
+			flip_wrapper.pivot_offset = Vector2(130, 22)
 
-			before_slots = _build_star_slots(old_val, 5)
+			before_slots = _build_star_image(old_val)
 			before_slots.position = Vector2.ZERO
-			before_slots.size = Vector2(200, 50)
+			before_slots.size = Vector2(260, 44)
 			flip_wrapper.add_child(before_slots)
 
-			after_slots = _build_star_slots(new_val, 5)
+			after_slots = _build_star_image(new_val)
 			after_slots.position = Vector2.ZERO
-			after_slots.size = Vector2(200, 50)
+			after_slots.size = Vector2(260, 44)
 			after_slots.visible = false
 			flip_wrapper.add_child(after_slots)
 
@@ -1895,6 +1912,156 @@ func _build_opponent_stats_card(opp_id: String, display_name: String,
 	_add_card(card, display_name + " Stats")
 
 # ======================================================
+# REUSABLE HELPERS — Pre-Match Drinking Card
+# ======================================================
+
+func _build_pre_drink_card() -> void:
+	var level := CareerState.career_level
+	var config = DrinkManager.get_level_config(level)
+	if config == null:
+		return
+	# Skip if player can't afford the session
+	if config["pre_drink_price"] > 0 and CareerState.money < config["pre_drink_price"]:
+		return
+
+	# Companion image mapping
+	var companion_images := {
+		"mate": "res://Mate for Level 2 - Alan.png",
+	}
+
+	var comp_type: String = config["companion"]
+	var card := _create_card()
+	_add_spacer(card, 15)
+
+	# Companion portrait at top
+	var portrait_path: String = companion_images.get(comp_type, "")
+	if portrait_path != "":
+		var tex = load(portrait_path)
+		if tex:
+			var img := TextureRect.new()
+			img.texture = tex
+			img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			img.custom_minimum_size = Vector2(640, 140)
+			card.add_child(img)
+			_add_spacer(card, 10)
+
+	# Intro line
+	var intro := Label.new()
+	intro.text = "A couple of cheeky sharpeners\nwill help settle your nerves"
+	UIFont.apply(intro, UIFont.BODY)
+	intro.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+	intro.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	intro.custom_minimum_size = Vector2(640, 0)
+	card.add_child(intro)
+
+	_add_spacer(card, 8)
+
+	# Price if not free
+	if config["pre_drink_price"] > 0:
+		var price_label := Label.new()
+		price_label.text = "Cost: " + _format_money(config["pre_drink_price"])
+		UIFont.apply(price_label, UIFont.CAPTION)
+		price_label.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
+		price_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		price_label.custom_minimum_size = Vector2(640, 30)
+		card.add_child(price_label)
+
+	_add_spacer(card, 12)
+
+	# Drink box colours — each drink gets a distinct colour
+	var box_colours := [
+		Color(0.45, 0.25, 0.1),   # warm amber / whisky
+		Color(0.2, 0.35, 0.15),   # mossy green / cider
+		Color(0.35, 0.15, 0.3),   # plum / berry
+	]
+
+	# 3 random drink options — each as a coloured box
+	var drinks := DrinkManager.get_random_drinks(3)
+	var session_price: int = config["pre_drink_price"]
+	for i in drinks.size():
+		var drink = drinks[i]
+		var box_col: Color = box_colours[i % box_colours.size()]
+
+		# Coloured drink box as a button
+		var drink_btn := Button.new()
+		drink_btn.flat = true
+		drink_btn.custom_minimum_size = Vector2(600, 0)
+		drink_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+
+		var btn_style := StyleBoxFlat.new()
+		btn_style.bg_color = box_col
+		btn_style.corner_radius_top_left = 12
+		btn_style.corner_radius_top_right = 12
+		btn_style.corner_radius_bottom_left = 12
+		btn_style.corner_radius_bottom_right = 12
+		btn_style.content_margin_left = 18
+		btn_style.content_margin_right = 18
+		btn_style.content_margin_top = 14
+		btn_style.content_margin_bottom = 14
+		drink_btn.add_theme_stylebox_override("normal", btn_style)
+
+		var hover_style := btn_style.duplicate()
+		hover_style.bg_color = box_col.lightened(0.15)
+		drink_btn.add_theme_stylebox_override("hover", hover_style)
+		drink_btn.add_theme_stylebox_override("pressed", hover_style)
+
+		# Content inside the button — name + description
+		var content := VBoxContainer.new()
+		content.add_theme_constant_override("separation", 4)
+		content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+		var name_label := Label.new()
+		name_label.text = drink["name"].to_upper()
+		UIFont.apply(name_label, UIFont.BODY)
+		name_label.add_theme_color_override("font_color", Color.WHITE)
+		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		name_label.custom_minimum_size = Vector2(560, 0)
+		content.add_child(name_label)
+
+		var desc_label := Label.new()
+		desc_label.text = drink["desc"]
+		UIFont.apply(desc_label, UIFont.CAPTION)
+		desc_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.75))
+		desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		desc_label.custom_minimum_size = Vector2(560, 0)
+		content.add_child(desc_label)
+
+		drink_btn.add_child(content)
+
+		var btn_wrapper := CenterContainer.new()
+		btn_wrapper.custom_minimum_size = Vector2(640, 0)
+		btn_wrapper.add_child(drink_btn)
+		card.add_child(btn_wrapper)
+
+		var cb := func(u: int, p: int):
+			if p > 0:
+				CareerState.money -= p
+			CareerState.pre_drink_units = u
+			_advance_card()
+		drink_btn.pressed.connect(cb.bind(drink["units"], session_price))
+		_add_spacer(card, 10)
+
+	# Skip option
+	var skip_btn := _create_button("NO THANKS", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
+	UIFont.apply_button(skip_btn, UIFont.CAPTION)
+	skip_btn.custom_minimum_size = Vector2(400, 55)
+	var skip_wrapper := CenterContainer.new()
+	skip_wrapper.custom_minimum_size = Vector2(640, 60)
+	skip_wrapper.add_child(skip_btn)
+	card.add_child(skip_wrapper)
+
+	skip_btn.pressed.connect(func():
+		CareerState.pre_drink_units = 0
+		_advance_card()
+	)
+
+	_add_card(card, "Pre-Drinks L" + str(level))
+
+# ======================================================
 # GENERIC FALLBACK (for any unhandled levels)
 # ======================================================
 
@@ -2016,26 +2183,22 @@ func _format_money(pence: int) -> String:
 			result += s[i]
 		return "£" + result
 
-func _build_star_slots(filled: int, total: int) -> HBoxContainer:
-	var container := HBoxContainer.new()
-	container.add_theme_constant_override("separation", 0)
-	container.alignment = BoxContainer.ALIGNMENT_CENTER
-	for i in total:
-		var slot := Label.new()
-		slot.custom_minimum_size = Vector2(36, 50)
-		slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		slot.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		if i < filled:
-			slot.text = "⭐"
-			UIFont.apply(slot, UIFont.BODY)
-		else:
-			slot.text = "—"
-			UIFont.apply(slot, 20)
-			slot.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
-		container.add_child(slot)
-	return container
+func _build_star_image(filled: int) -> TextureRect:
+	var img := TextureRect.new()
+	var path_png := "res://Star ratings/Stars " + str(filled) + ".png"
+	var path_jpg := "res://Star ratings/" + str(filled) + " stars.jpg"
+	var tex = load(path_png)
+	if tex == null:
+		tex = load(path_jpg)
+	if tex:
+		img.texture = tex
+	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	img.custom_minimum_size = Vector2(260, 44)
+	img.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	return img
 
-func _career_stars_row(cat_name: String, filled: int, total: int) -> HBoxContainer:
+func _career_stars_row(cat_name: String, filled: int, _total: int) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 10)
@@ -2049,7 +2212,7 @@ func _career_stars_row(cat_name: String, filled: int, total: int) -> HBoxContain
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(label)
 
-	row.add_child(_build_star_slots(filled, total))
+	row.add_child(_build_star_image(filled))
 
 	return row
 

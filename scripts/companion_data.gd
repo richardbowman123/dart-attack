@@ -228,6 +228,11 @@ static var BROADCAST := {
 		"You should know this. {score}: {route}.",
 		"{score} remaining. {route}. We practised this.",
 	],
+	"3_DRINK_OFFER": [
+		"One. Steady the nerves. No more.",
+		"Have one. Then focus.",
+		"You look tense. Have a quick one.",
+	],
 
 	# --- STAGE 4: MANAGER ---
 	# Tone: money, sponsorship, his own reputation
@@ -278,6 +283,11 @@ static var BROADCAST := {
 		"Stats are looking good. Keep your rhythm.",
 		"The data says you're in range. Trust the process.",
 		"Everything's tracking. Stay the course.",
+	],
+	"5_DRINK_OFFER": [
+		"The rider's got refreshments. Help yourself.",
+		"Green room's stocked. Take a quick one.",
+		"The team says hydrate. They mean beer.",
 	],
 }
 
@@ -504,6 +514,137 @@ static var INTERACTIVE_EXCHANGES: Array = [
 				"reply": "Don't think £3.40 is going to cover that, mate.",
 				"consequence": "reject_full_pint",
 			},
+		],
+	},
+
+	# --- MATE: Companion's round (L2) ---
+	{
+		"id": "mate_companion_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 1,
+		"speaker": "Mate",
+		"condition": "companion_round",
+		"prompt": "My round. Pint?",
+		"responses": [
+			{"label": "Go on then", "reply": "That's the spirit.", "consequence": "accept_free_pint"},
+			{"label": "I'm alright", "reply": "More for me then.", "consequence": ""},
+		],
+	},
+	# --- MATE: Player's round (L2) ---
+	{
+		"id": "mate_player_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 1,
+		"speaker": "Mate",
+		"condition": "player_round",
+		"prompt": "Your round, I think.",
+		"responses": [
+			{"label": "Fair enough", "reply": "Legend.", "consequence": "buy_round"},
+			{"label": "I'm skint", "reply": "Tight. Fine.", "consequence": ""},
+		],
+	},
+	# --- LADS: Companion's round (L3) ---
+	{
+		"id": "lads_companion_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 2,
+		"speaker": "The Lads",
+		"condition": "companion_round",
+		"prompt": "Dave's getting them in. Want one?",
+		"responses": [
+			{"label": "Yeah go on", "reply": "PINT FOR THE PLAYER!", "consequence": "accept_free_pint"},
+			{"label": "Nah I'm good", "reply": "More for Dave.", "consequence": ""},
+		],
+	},
+	# --- LADS: Player's round (L3) ---
+	{
+		"id": "lads_player_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 2,
+		"speaker": "The Lads",
+		"condition": "player_round",
+		"prompt": "Your round, mate. Four pints.",
+		"responses": [
+			{"label": "Get them in", "reply": "That's the spirit! FOUR PINTS!", "consequence": "buy_round"},
+			{"label": "Not this time", "reply": "Booooo!", "consequence": ""},
+		],
+	},
+	# --- COACH: Companion's round (L4) ---
+	{
+		"id": "coach_companion_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 3,
+		"speaker": "Coach",
+		"condition": "companion_round",
+		"prompt": "Have one. Steady the nerves. On me.",
+		"responses": [
+			{"label": "Cheers", "reply": "Don't make me regret it.", "consequence": "accept_free_pint"},
+			{"label": "No thanks", "reply": "Suit yourself.", "consequence": ""},
+		],
+	},
+	# --- COACH: Player's round (L4) ---
+	{
+		"id": "coach_player_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 3,
+		"speaker": "Coach",
+		"condition": "player_round",
+		"prompt": "Get me one while you're up.",
+		"responses": [
+			{"label": "On it", "reply": "Just the one. Focus.", "consequence": "buy_round"},
+			{"label": "Later", "reply": "Fine. Concentrate.", "consequence": ""},
+		],
+	},
+	# --- MANAGER: Companion's round (L5) ---
+	{
+		"id": "manager_companion_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 4,
+		"speaker": "Manager",
+		"condition": "companion_round",
+		"prompt": "I'm buying. The sponsors like you relaxed.",
+		"responses": [
+			{"label": "Don't mind if I do", "reply": "That's my player.", "consequence": "accept_free_pint"},
+			{"label": "Not now", "reply": "Your call.", "consequence": ""},
+		],
+	},
+	# --- MANAGER: Player's round (L5) ---
+	{
+		"id": "manager_player_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 4,
+		"speaker": "Manager",
+		"condition": "player_round",
+		"prompt": "Your shout. And get one for me.",
+		"responses": [
+			{"label": "Sure", "reply": "On expenses. Naturally.", "consequence": "buy_round"},
+			{"label": "Maybe later", "reply": "Probably wise.", "consequence": ""},
+		],
+	},
+	# --- FULL TEAM: Companion's round (L6-7) ---
+	{
+		"id": "team_companion_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 5,
+		"speaker": "The Team",
+		"condition": "companion_round",
+		"prompt": "The rider's got you covered. What'll it be?",
+		"responses": [
+			{"label": "Pint please", "reply": "Coming right up.", "consequence": "accept_free_pint"},
+			{"label": "I'll pass", "reply": "Noted.", "consequence": ""},
+		],
+	},
+	# --- FULL TEAM: Player's round (L6-7) ---
+	{
+		"id": "team_player_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 5,
+		"speaker": "The Team",
+		"condition": "player_round",
+		"prompt": "Your round. The team's waiting.",
+		"responses": [
+			{"label": "Round coming up", "reply": "The team appreciates it.", "consequence": "buy_round"},
+			{"label": "Not right now", "reply": "Fair enough.", "consequence": ""},
 		],
 	},
 

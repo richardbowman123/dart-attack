@@ -36,7 +36,90 @@ signal passed_out
 const MAX_DRINKS := 13
 const COST_PER_UNIT := 340  # Pence — £3.40 per half-pint unit
 
+# ── Pre-match drink sessions (20 options, player picks 1 of 3 random) ────────
+const PRE_DRINKS := [
+	{"name": "German Lager", "desc": "4 cans of German discount lager. Best before: optimistic.", "units": 5},
+	{"name": "Turkish Vodka", "desc": "A litre of Turkish vodka. Duty free. Mistaken for something fancy.", "units": 9},
+	{"name": "Advocaat", "desc": "Half a bottle of Advocaat. Nan's cupboard. Expiry date: March 2011.", "units": 4},
+	{"name": "Strong Cider", "desc": "3 warm cans of strong cider. Pulled from a rucksack. Owner unknown.", "units": 5},
+	{"name": "Plum Brandy", "desc": "A litre of Eastern European plum brandy. Foreign exchange student, long since fled.", "units": 8},
+	{"name": "Vodka Energy", "desc": "Vodka and energy drink. Pre-mixed in a 2-litre bottle. Ratio: unclear.", "units": 6},
+	{"name": "Own-Brand Gin", "desc": "Supermarket own-brand gin. Decanted into a Hendrick's bottle. Nobody fooled.", "units": 9},
+	{"name": "Alcopops", "desc": "6 alcopops of uncertain vintage. Provenance unclear.", "units": 5},
+	{"name": "Box Rose", "desc": "3-litre bag-in-box rose. Been open since Tuesday.", "units": 8},
+	{"name": "Green Liqueur", "desc": "Unidentifiable green liqueur. Label entirely in Catalan.", "units": 7},
+	{"name": "Mid-Tier Lager", "desc": "4 warm cans of mid-tier lager. Brand nobody recognises.", "units": 5},
+	{"name": "Cheap Champagne", "desc": "Warm cheap champagne. One ceremonial sip, then on to the real stuff.", "units": 7},
+	{"name": "Bowl Punch", "desc": "Washing-up bowl punch. Discount cider, tropical juice, one tinned peach, the blue stuff.", "units": 10},
+	{"name": "Coconut Rum", "desc": "Coconut rum. Suspiciously easy to drink. Last implicated in a garden fence incident.", "units": 6},
+	{"name": "Neon Alcopops", "desc": "Three neon-coloured alcopops. Origin unknown. Still fizzy, somehow.", "units": 4},
+	{"name": "Amaretto", "desc": "Full litre of amaretto. It was on offer.", "units": 9},
+	{"name": "German Digestif", "desc": "Herbal German digestif. Suspicious sediment. Label promises health benefits.", "units": 7},
+	{"name": "Mexican Lager", "desc": "10-pack of Mexican lager. No limes, no opener, no regrets.", "units": 10},
+	{"name": "Irish Stout", "desc": "Eight cans of Irish stout. Treated like vintage Burgundy.", "units": 8},
+	{"name": "Irish Cream", "desc": "A bottle of Irish cream liqueur. Warm. Ownership disputed.", "units": 6},
+]
+
+# ── Per-level drinking config ────────────────────────────────────────────────
+# companion: who leads the session
+# setting: flavour text for where the drinking happens
+# intro: companion's opening line
+# pre_drink_price: cost in pence (0 = free)
+# pint_price: cost per pint in pence (for in-match rounds)
+# round_size: total pints when player buys a round (includes player)
+const LEVEL_DRINKING := {
+	2: {
+		"companion": "mate",
+		"setting": "Car park. Back of his car.",
+		"intro": "Boot's open. Pick your poison. Just buy me a drink when it's your round.",
+		"pre_drink_price": 0,
+		"pint_price": 680,
+		"round_size": 2,
+	},
+	3: {
+		"companion": "mates",
+		"setting": "Train to the venue.",
+		"intro": "Tenner in. I'll nip to the off-licence and get us some nerve settlers for the train.",
+		"pre_drink_price": 1000,
+		"pint_price": 750,
+		"round_size": 4,
+	},
+	4: {
+		"companion": "coach",
+		"setting": "Dodgy pub round the corner. Basically a glorified off-licence.",
+		"intro": "Right. Settle the nerves before we go in.",
+		"pre_drink_price": 1500,
+		"pint_price": 850,
+		"round_size": 2,
+	},
+	5: {
+		"companion": "manager",
+		"setting": "Hotel bar. The manager's idea of preparation.",
+		"intro": "The manager orders a round. Professional pre-match routine.",
+		"pre_drink_price": 3000,
+		"pint_price": 1000,
+		"round_size": 2,
+	},
+	6: {
+		"companion": "entourage",
+		"setting": "Green room. The rider has arrived.",
+		"intro": "The green room rider's in. Take your pick.",
+		"pre_drink_price": 25000,
+		"pint_price": 1250,
+		"round_size": 6,
+	},
+	7: {
+		"companion": "entourage",
+		"setting": "Green room. World Championship VIP area.",
+		"intro": "The green room rider's in. Last one before the final.",
+		"pre_drink_price": 25000,
+		"pint_price": 1250,
+		"round_size": 6,
+	},
+}
+
 var drinks_level: int = 0
+var _decay_accumulator: float = 0.0
 
 ## Placeholder budget in pence — will be wired to CareerState.money later
 var _budget: int = 5000
@@ -199,7 +282,44 @@ func set_level(level: int) -> void:
 ## Reset to sober — call at match start
 func reset() -> void:
 	drinks_level = 0
+	_decay_accumulator = 0.0
 	_budget = 5000
+	_update_targets()
+	drinks_changed.emit(drinks_level)
+
+
+# ── Pre-match drinking helpers ───────────────────────────────────────────────
+
+## Returns 3 random drinks from the pool (no duplicates).
+func get_random_drinks(count: int = 3) -> Array:
+	var shuffled := PRE_DRINKS.duplicate()
+	shuffled.shuffle()
+	return shuffled.slice(0, count)
+
+## Returns the drinking config for a given career level, or null if none.
+func get_level_config(level: int) -> Variant:
+	return LEVEL_DRINKING.get(level, null)
+
+## Format pence as a price string (e.g. 680 -> "£6.80", 25000 -> "£250.00").
+func format_price(pence: int) -> String:
+	var pounds := pence / 100
+	var remainder := pence % 100
+	if remainder == 0:
+		return "£" + str(pounds)
+	return "£" + str(pounds) + "." + str(remainder).pad_zeros(2)
+
+
+# ── Alcohol decay (called each player visit to the oche) ─────────────────────
+
+## Reduce drunkenness by 0.5 per visit. Uses an accumulator since
+## drinks_level is an integer — every 2nd visit, level drops by 1.
+func apply_visit_decay() -> void:
+	if drinks_level <= 0:
+		return
+	_decay_accumulator += 0.5
+	while _decay_accumulator >= 1.0 and drinks_level > 0:
+		_decay_accumulator -= 1.0
+		drinks_level = maxi(drinks_level - 1, 0)
 	_update_targets()
 	drinks_changed.emit(drinks_level)
 

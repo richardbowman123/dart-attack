@@ -133,9 +133,9 @@ func _build_card_2_barman() -> void:
 	if tex:
 		var img := TextureRect.new()
 		img.texture = tex
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 80)
-		img.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		img.custom_minimum_size = Vector2(640, 160)
 		card.add_child(img)
 
 	_add_spacer(card, 10)
@@ -190,8 +190,9 @@ func _build_card_3_rules() -> void:
 	if tex:
 		var img := TextureRect.new()
 		img.texture = tex
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 80)
+		img.custom_minimum_size = Vector2(640, 160)
 		card.add_child(img)
 
 	_add_spacer(card, 15)
@@ -473,26 +474,22 @@ func _create_button(text: String, bg_color: Color, border_color: Color) -> Butto
 # Star row helper
 # ══════════════════════════════════════════
 
-func _build_star_slots(filled: int, total: int) -> HBoxContainer:
-	var container := HBoxContainer.new()
-	container.add_theme_constant_override("separation", 0)
-	container.alignment = BoxContainer.ALIGNMENT_CENTER
-	for i in total:
-		var slot := Label.new()
-		slot.custom_minimum_size = Vector2(36, 50)
-		slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		slot.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		if i < filled:
-			slot.text = "⭐"
-			UIFont.apply(slot, UIFont.BODY)
-		else:
-			slot.text = "—"
-			UIFont.apply(slot, 20)
-			slot.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
-		container.add_child(slot)
-	return container
+func _build_star_image(filled: int) -> TextureRect:
+	var img := TextureRect.new()
+	var path_png := "res://Star ratings/Stars " + str(filled) + ".png"
+	var path_jpg := "res://Star ratings/" + str(filled) + " stars.jpg"
+	var tex = load(path_png)
+	if tex == null:
+		tex = load(path_jpg)
+	if tex:
+		img.texture = tex
+	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	img.custom_minimum_size = Vector2(260, 44)
+	img.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	return img
 
-func _career_stars_row(cat_name: String, filled: int, total: int) -> HBoxContainer:
+func _career_stars_row(cat_name: String, filled: int, _total: int) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 10)
@@ -506,7 +503,7 @@ func _career_stars_row(cat_name: String, filled: int, total: int) -> HBoxContain
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(label)
 
-	row.add_child(_build_star_slots(filled, total))
+	row.add_child(_build_star_image(filled))
 
 	return row
 
