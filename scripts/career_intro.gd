@@ -43,7 +43,7 @@ func _build_card_1_stars() -> void:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 160)
+		img.custom_minimum_size = Vector2(640, UIFont.PORTRAIT_M)
 		card.add_child(img)
 
 	_add_spacer(card, 10)
@@ -135,7 +135,7 @@ func _build_card_2_barman() -> void:
 		img.texture = tex
 		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 160)
+		img.custom_minimum_size = Vector2(640, UIFont.PORTRAIT_XL)
 		card.add_child(img)
 
 	_add_spacer(card, 10)
@@ -192,7 +192,7 @@ func _build_card_3_rules() -> void:
 		img.texture = tex
 		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 160)
+		img.custom_minimum_size = Vector2(640, UIFont.PORTRAIT_XL)
 		card.add_child(img)
 
 	_add_spacer(card, 15)
@@ -284,7 +284,7 @@ func _build_card_4_opponent() -> void:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 160)
+		img.custom_minimum_size = Vector2(640, UIFont.PORTRAIT_M)
 		card.add_child(img)
 
 	_add_spacer(card, 10)

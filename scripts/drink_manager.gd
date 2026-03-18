@@ -288,6 +288,26 @@ func reset() -> void:
 	drinks_changed.emit(drinks_level)
 
 
+## Instantly clear all visual effects (no smooth fade). Call when leaving match.
+func clear_effects() -> void:
+	drinks_level = 0
+	_decay_accumulator = 0.0
+	_target_blur = 0.0
+	_target_double_vision = 0.0
+	_target_sway_amount = 0.0
+	_target_sway_speed = 0.0
+	_target_vignette = 0.0
+	_target_warmth = 0.0
+	_current_blur = 0.0
+	_current_double_vision = 0.0
+	_current_sway_amount = 0.0
+	_current_sway_speed = 0.0
+	_current_vignette = 0.0
+	_current_warmth = 0.0
+	_rect.visible = false
+	drinks_changed.emit(drinks_level)
+
+
 # ── Pre-match drinking helpers ───────────────────────────────────────────────
 
 ## Returns 3 random drinks from the pool (no duplicates).

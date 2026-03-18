@@ -19,7 +19,7 @@ const SLIDE_DURATION := 0.35
 const CHAR_DELAY := 0.035      # Seconds per character (~35ms typewriter)
 const PORTRAIT_SIZE := 72       # Fallback initial size
 const PORTRAIT_IMG_W := 580     # Image portrait width (fills panel)
-const PORTRAIT_IMG_H := 280     # Image portrait height — tall enough for full head+shoulders
+const PORTRAIT_IMG_H := 260     # Image portrait height — matches UIFont.PORTRAIT_L tier
 
 # ---- Internal state ----
 

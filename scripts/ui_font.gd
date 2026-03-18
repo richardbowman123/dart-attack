@@ -12,6 +12,14 @@ const SUBHEADING := 42
 const BODY := 34
 const CAPTION := 28
 
+# Portrait image height tiers — use these for all character/opponent images
+const PORTRAIT_XS := 80    # Thumbnail — text-heavy cards where image is secondary
+const PORTRAIT_S := 120    # Small — companion panels, text & buttons dominate
+const PORTRAIT_M := 180    # Medium — first introduction of a character
+const PORTRAIT_ML := 220   # Fairly large — prominent character, busy card
+const PORTRAIT_L := 260    # Large — full focus, player star snapshots, big wins
+const PORTRAIT_XL := 320   # Very large — hero moment, max impact
+
 var _font: Font
 
 func _ready() -> void:

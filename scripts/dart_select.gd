@@ -21,7 +21,7 @@ const ACCURACY_LABELS := [
 	"Precision grouping — match ready",
 ]
 
-const TIER_COSTS := [0, 500, 2000, 5000]
+const TIER_COSTS := [500, 2000, 8000, 32000]  # £5, £20, £80, £320 (4x exponential)
 
 # ─── Active tile border colours ───
 const BORDER_ACTIVE := Color(0.2, 0.75, 0.3)
@@ -37,15 +37,29 @@ var _dragging := false
 var _drag_start_screen_x := 0.0
 var _drag_start_scroll := 0.0
 
+# ─── Shop mode ───
+var _shop_mode := false
+var _balance_label: Label
+var _leave_btn: Button
+
 # ─── Node references ───
 var _carousel: Control
 var _dots: Array[ColorRect] = []
 var _tile_styles: Array[StyleBoxFlat] = []
 var _dart_pivots: Array[Node3D] = []
 
+# ─── View mode (shop) ───
+var _viewing_tier: int = -1
+var _overlay_refs: Array = []
+var _action_refs: Array = []
+
 
 func _ready() -> void:
-	_current_index = GameState.dart_tier
+	_shop_mode = CareerState.dart_shop_return != ""
+	if _shop_mode:
+		_current_index = 0
+	else:
+		_current_index = GameState.dart_tier
 	_scroll_x = float(_current_index * TILE_STEP)
 	_target_x = _scroll_x
 	_build_ui()
@@ -62,41 +76,49 @@ func _build_ui() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
-	# Title — use HEADING (32pt) so it fits within 720px
+	# Title
 	var title := Label.new()
-	title.text = "CHOOSE YOUR DARTS"
+	title.text = "DART SHOP" if _shop_mode else "CHOOSE YOUR DARTS"
 	UIFont.apply(title, UIFont.HEADING)
 	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 50)
+	title.position = Vector2(0, 36)
 	title.size = Vector2(720, 40)
 	add_child(title)
 
-	# Mode label
+	# Mode label / Balance display
 	var mode_label := Label.new()
-	var mode_text := ""
-	match GameState.game_mode:
-		GameState.GameMode.TUTORIAL:
-			mode_text = "Tutorial"
-		GameState.GameMode.ROUND_THE_CLOCK:
-			mode_text = "Round the Clock"
-		GameState.GameMode.COUNTDOWN:
-			mode_text = str(GameState.starting_score)
-	mode_label.text = mode_text
+	if _shop_mode:
+		mode_label.text = "Balance: " + _format_price(CareerState.money)
+		mode_label.add_theme_color_override("font_color", Color(0.2, 0.85, 0.3))
+		_balance_label = mode_label
+	else:
+		var mode_text := ""
+		match GameState.game_mode:
+			GameState.GameMode.TUTORIAL:
+				mode_text = "Tutorial"
+			GameState.GameMode.ROUND_THE_CLOCK:
+				mode_text = "Round the Clock"
+			GameState.GameMode.COUNTDOWN:
+				mode_text = str(GameState.starting_score)
+		mode_label.text = mode_text
+		mode_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 	UIFont.apply(mode_label, UIFont.CAPTION)
-	mode_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 	mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mode_label.position = Vector2(0, 100)
+	mode_label.position = Vector2(0, 106)
 	mode_label.size = Vector2(720, 24)
 	add_child(mode_label)
 
 	# Hint
 	var hint := Label.new()
-	hint.text = "Swipe to browse  ·  Tap to play"
+	if _shop_mode:
+		hint.text = "Swipe to browse  ·  Tap to view"
+	else:
+		hint.text = "Swipe to browse  ·  Tap to play"
 	UIFont.apply(hint, UIFont.CAPTION)
 	hint.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.position = Vector2(0, 132)
+	hint.position = Vector2(0, 145)
 	hint.size = Vector2(720, 22)
 	add_child(hint)
 
@@ -204,34 +226,61 @@ func _build_tile(tier: int) -> void:
 	bar_label.size = Vector2(TILE_W, 18)
 	tile.add_child(bar_label)
 
-	# ── Lock overlay (career mode only) ──
+	# ── Lock overlay / Shop overlay ──
 	if is_locked:
+		var can_afford: bool = _shop_mode and CareerState.money >= TIER_COSTS[tier]
+
 		var overlay := Panel.new()
 		overlay.position = Vector2(0, 0)
 		overlay.size = Vector2(TILE_W, TILE_H)
 		var ov_style := StyleBoxFlat.new()
-		ov_style.bg_color = Color(0.0, 0.0, 0.0, 0.55)
+		ov_style.bg_color = Color(0.0, 0.0, 0.0, 0.5 if can_afford else 0.6)
 		_set_corners(ov_style, 16)
 		overlay.add_theme_stylebox_override("panel", ov_style)
 		tile.add_child(overlay)
+		_overlay_refs.append(overlay)
 
+		# Price and action labels as tile children (stay visible when overlay fades)
 		var price_lbl := Label.new()
-		price_lbl.text = str(TIER_COSTS[tier])
+		price_lbl.text = _format_price(TIER_COSTS[tier])
 		UIFont.apply(price_lbl, UIFont.SCREEN_TITLE)
-		price_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2, 0.85))
+		if can_afford:
+			price_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2, 0.95))
+		else:
+			price_lbl.add_theme_color_override("font_color", Color(0.7, 0.6, 0.3, 0.7))
 		price_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		price_lbl.position = Vector2(0, TILE_H * 0.5 - 50)
 		price_lbl.size = Vector2(TILE_W, 60)
-		overlay.add_child(price_lbl)
+		tile.add_child(price_lbl)
 
-		var locked_lbl := Label.new()
-		locked_lbl.text = "LOCKED"
-		UIFont.apply(locked_lbl, UIFont.BODY)
-		locked_lbl.add_theme_color_override("font_color", Color(0.7, 0.3, 0.3, 0.85))
-		locked_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		locked_lbl.position = Vector2(0, TILE_H * 0.5 + 15)
-		locked_lbl.size = Vector2(TILE_W, 30)
-		overlay.add_child(locked_lbl)
+		var action_lbl := Label.new()
+		if _shop_mode:
+			action_lbl.text = "TAP TO VIEW"
+			action_lbl.add_theme_color_override("font_color", Color(0.2, 0.85, 0.3, 0.95) if can_afford else Color(0.5, 0.35, 0.3, 0.7))
+		else:
+			action_lbl.text = "LOCKED"
+			action_lbl.add_theme_color_override("font_color", Color(0.7, 0.3, 0.3, 0.85))
+		UIFont.apply(action_lbl, UIFont.BODY)
+		action_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		action_lbl.position = Vector2(0, TILE_H * 0.5 + 15)
+		action_lbl.size = Vector2(TILE_W, 30)
+		tile.add_child(action_lbl)
+		_action_refs.append(action_lbl)
+	elif _shop_mode:
+		# Owned tier in shop mode — subtle green "OWNED" badge
+		_overlay_refs.append(null)
+		_action_refs.append(null)
+		var owned_lbl := Label.new()
+		owned_lbl.text = "OWNED"
+		UIFont.apply(owned_lbl, UIFont.CAPTION)
+		owned_lbl.add_theme_color_override("font_color", Color(0.2, 0.75, 0.3, 0.8))
+		owned_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		owned_lbl.position = Vector2(0, 592)
+		owned_lbl.size = Vector2(TILE_W, 24)
+		tile.add_child(owned_lbl)
+	else:
+		_overlay_refs.append(null)
+		_action_refs.append(null)
 
 
 func _build_dart_preview(tile: Panel, tier: int) -> void:
@@ -294,8 +343,8 @@ func _build_dart_preview(tile: Panel, tier: int) -> void:
 	camera.fov = 45.0
 	camera.current = true
 	var cam_dist := 0.75
-	var cam_pitch := 0.25
-	var cam_yaw := 0.3
+	var cam_pitch := 0.15
+	var cam_yaw := 0.05
 	camera.position = orbit_centre + Vector3(
 		cam_dist * cos(cam_pitch) * sin(cam_yaw),
 		cam_dist * sin(cam_pitch),
@@ -342,29 +391,56 @@ func _build_dots() -> void:
 
 func _build_back_button() -> void:
 	var back_btn := Button.new()
-	back_btn.text = "BACK"
-	back_btn.position = Vector2(240, 940)
-	back_btn.size = Vector2(240, 56)
+	var needs_darts := _shop_mode and CareerState.dart_tier_owned < 0
+
+	if _shop_mode:
+		if needs_darts:
+			back_btn.text = "BUY SOME DARTS!"
+			back_btn.disabled = true
+		else:
+			back_btn.text = "LEAVE SHOP"
+	else:
+		back_btn.text = "BACK"
+
+	back_btn.position = Vector2(200, 940)
+	back_btn.size = Vector2(320, 56)
 	UIFont.apply_button(back_btn, UIFont.BODY)
 	back_btn.add_theme_color_override("font_color", Color.WHITE)
 
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.15, 0.15, 0.2)
-	_set_corners(style, 8)
-	style.border_width_left = 2
-	style.border_width_right = 2
-	style.border_width_top = 2
-	style.border_width_bottom = 2
-	style.border_color = Color(0.3, 0.3, 0.35)
+	if _shop_mode and not needs_darts:
+		style.bg_color = Color(0.12, 0.35, 0.15)
+		_set_corners(style, 8)
+		style.border_width_left = 2
+		style.border_width_right = 2
+		style.border_width_top = 2
+		style.border_width_bottom = 2
+		style.border_color = Color(0.2, 0.65, 0.3)
+	else:
+		style.bg_color = Color(0.15, 0.15, 0.2)
+		_set_corners(style, 8)
+		style.border_width_left = 2
+		style.border_width_right = 2
+		style.border_width_top = 2
+		style.border_width_bottom = 2
+		style.border_color = Color(0.3, 0.3, 0.35)
 	back_btn.add_theme_stylebox_override("normal", style)
 
+	if needs_darts:
+		var disabled_style := style.duplicate()
+		disabled_style.bg_color = Color(0.1, 0.1, 0.13)
+		disabled_style.border_color = Color(0.2, 0.2, 0.25)
+		back_btn.add_theme_stylebox_override("disabled", disabled_style)
+		back_btn.add_theme_color_override("font_color_disabled", Color(0.35, 0.35, 0.4))
+
 	var hover := style.duplicate()
-	hover.bg_color = Color(0.2, 0.2, 0.28)
-	hover.border_color = Color(0.5, 0.5, 0.6)
+	hover.bg_color = style.bg_color * 1.3
+	hover.border_color = style.border_color * 1.2
 	back_btn.add_theme_stylebox_override("hover", hover)
 
 	back_btn.pressed.connect(_on_back)
 	add_child(back_btn)
+	_leave_btn = back_btn
 
 
 # ═══════════════════════════════════════════════════════════
@@ -409,11 +485,20 @@ func _input(event: InputEvent) -> void:
 		var drag_dist := absf(pos.x - _drag_start_screen_x)
 		_consume_input()
 		if drag_dist < 12.0:
-			# Tap — play with the current dart
 			_snap_to_nearest()
-			if not _is_tier_locked(_current_index):
-				GameState.dart_tier = _current_index
-				get_tree().change_scene_to_file("res://scenes/match.tscn")
+			if _shop_mode:
+				# Shop mode — tap to view, then tap again to buy
+				if _is_tier_locked(_current_index):
+					if _viewing_tier == _current_index:
+						if CareerState.money >= TIER_COSTS[_current_index]:
+							_buy_tier(_current_index)
+					else:
+						_enter_view_mode(_current_index)
+			else:
+				# Normal mode — tap to play
+				if not _is_tier_locked(_current_index):
+					GameState.dart_tier = _current_index
+					get_tree().change_scene_to_file("res://scenes/match.tscn")
 		else:
 			_snap_to_nearest()
 
@@ -453,6 +538,8 @@ func _snap_to_nearest() -> void:
 	var raw := _scroll_x / float(TILE_STEP)
 	_current_index = clampi(roundi(raw), 0, DartData.TIERS.size() - 1)
 	_target_x = float(_current_index * TILE_STEP)
+	if _viewing_tier >= 0 and _viewing_tier != _current_index:
+		_exit_view_mode()
 	_update_indicators()
 
 
@@ -508,4 +595,69 @@ func _set_corners(sb: StyleBoxFlat, radius: int) -> void:
 # ═══════════════════════════════════════════════════════════
 
 func _on_back() -> void:
-	get_tree().change_scene_to_file("res://scenes/menu.tscn")
+	if _shop_mode:
+		var return_scene := CareerState.dart_shop_return
+		CareerState.dart_shop_return = ""
+		GameState.dart_tier = max(0, CareerState.dart_tier_owned)
+		get_tree().change_scene_to_file(return_scene)
+	else:
+		get_tree().change_scene_to_file("res://scenes/menu.tscn")
+
+
+func _buy_tier(tier: int) -> void:
+	CareerState.money -= TIER_COSTS[tier]
+	if tier > CareerState.dart_tier_owned:
+		CareerState.dart_tier_owned = tier
+	_rebuild()
+
+
+func _rebuild() -> void:
+	for child in get_children():
+		child.queue_free()
+	_dots.clear()
+	_tile_styles.clear()
+	_dart_pivots.clear()
+	_overlay_refs.clear()
+	_action_refs.clear()
+	_carousel = null
+	_balance_label = null
+	_leave_btn = null
+	_viewing_tier = -1
+	# Keep scroll position on the same tile
+	_scroll_x = float(_current_index * TILE_STEP)
+	_target_x = _scroll_x
+	_build_ui()
+
+
+func _enter_view_mode(tier: int) -> void:
+	if _viewing_tier >= 0:
+		_exit_view_mode()
+	_viewing_tier = tier
+	if tier < _overlay_refs.size() and _overlay_refs[tier]:
+		var tw := create_tween()
+		tw.tween_property(_overlay_refs[tier], "modulate:a", 0.08, 0.25)
+	if tier < _action_refs.size() and _action_refs[tier]:
+		var can_afford: bool = CareerState.money >= TIER_COSTS[tier]
+		_action_refs[tier].text = "TAP TO BUY" if can_afford else "CAN'T AFFORD YET"
+
+
+func _exit_view_mode() -> void:
+	if _viewing_tier < 0:
+		return
+	var tier := _viewing_tier
+	if tier < _overlay_refs.size() and _overlay_refs[tier]:
+		var tw := create_tween()
+		tw.tween_property(_overlay_refs[tier], "modulate:a", 1.0, 0.25)
+	if tier < _action_refs.size() and _action_refs[tier]:
+		var can_afford: bool = CareerState.money >= TIER_COSTS[tier]
+		if _shop_mode:
+			_action_refs[tier].text = "TAP TO VIEW"
+			_action_refs[tier].add_theme_color_override("font_color", Color(0.2, 0.85, 0.3, 0.95) if can_afford else Color(0.5, 0.35, 0.3, 0.7))
+	_viewing_tier = -1
+
+
+func _format_price(pence: int) -> String:
+	var pounds := int(pence / 100)
+	var p := pence % 100
+	var p_str: String = str(p) if p >= 10 else "0" + str(p)
+	return "£" + str(pounds) + "." + p_str

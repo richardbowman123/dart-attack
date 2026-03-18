@@ -125,6 +125,23 @@ func _build_scene() -> void:
 	_play_button.pressed.connect(_on_play_pressed)
 	title_container.add_child(_play_button)
 
+	# Scrolling ticker: "ROAD TO THE ARROW PALACE"
+	var ticker := Label.new()
+	ticker.text = "ROAD TO THE ARROW PALACE"
+	var ticker_settings := UIFont.make_label_settings(34, Color(0.85, 0.85, 0.9))
+	ticker_settings.outline_size = 3
+	ticker_settings.outline_color = Color.WHITE
+	ticker.label_settings = ticker_settings
+	ticker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ticker.position = Vector2(720, 1190)
+	ticker.size = Vector2(720, 50)
+	title_container.add_child(ticker)
+
+	# Scroll in from right, stop centred
+	var ticker_tween := create_tween()
+	ticker_tween.tween_interval(0.3)
+	ticker_tween.tween_property(ticker, "position:x", 0.0, 3.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+
 # ─────────────────────────────────────────────────────────
 #  LOGO — per-letter dartboard-coloured outlines
 # ─────────────────────────────────────────────────────────

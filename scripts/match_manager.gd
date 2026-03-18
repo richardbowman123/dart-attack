@@ -270,6 +270,9 @@ func _init_game_mode() -> void:
 		_pre_drink_advice_shown = false
 		if CareerState.pre_drink_units > 0:
 			DrinkManager.set_level(CareerState.pre_drink_units)
+			# Heavier drinking = lower nerves going in (3% reduction per unit)
+			var nerves_reduction := CareerState.pre_drink_units * 3.0
+			_player_nerves = clampf(_player_nerves - nerves_reduction, 10.0, 100.0)
 			CareerState.pre_drink_units = 0
 
 		# Set companion stage for dialogue system
@@ -1660,6 +1663,7 @@ func _on_player_loses() -> void:
 
 func _goto_results() -> void:
 	_cancel_ai_turn()
+	DrinkManager.clear_effects()
 	for dart in _active_darts:
 		if is_instance_valid(dart):
 			dart.queue_free()

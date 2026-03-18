@@ -14,7 +14,11 @@ var hustle_stars: int = 1
 var swagger_stars: int = 0
 var career_intro_seen: bool = false
 var doubles_tip_shown: bool = false
-var dart_tier_owned: int = 0
+var dart_tier_owned: int = -1  # -1 = no owned darts (pub darts only)
+
+# Dart shop navigation
+var dart_shop_return: String = ""   # Scene to go back to after leaving shop
+var post_shop_resume: bool = false  # If true, match_results resumes post-shop cards
 var jewellery_items: Array = []
 var manager: String = ""         # "big_phil" / "sue" / "dave"
 var losses_at_current_level: int = 0
@@ -51,7 +55,9 @@ func reset() -> void:
 	swagger_stars = 0
 	career_intro_seen = false
 	doubles_tip_shown = false
-	dart_tier_owned = 0
+	dart_tier_owned = -1
+	dart_shop_return = ""
+	post_shop_resume = false
 	jewellery_items.clear()
 	manager = ""
 	losses_at_current_level = 0
