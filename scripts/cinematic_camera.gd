@@ -60,6 +60,7 @@ const ORBIT_END_DIST := 3.0     # Distance from board when facing it
 
 # Result
 var _is_hit := false
+var _is_player := true
 var _result_label: Label
 var _hud_layer: CanvasLayer
 var _original_fov := 50.0
@@ -70,9 +71,10 @@ var _orbit_start_pos := Vector3.ZERO
 var _board_contact_2d := Vector2.ZERO  # Scoring point on board surface (Z=0)
 
 
-func setup(camera: Camera3D, start: Vector3, end_board_2d: Vector2, is_hit: bool, dart_tier: int) -> void:
+func setup(camera: Camera3D, start: Vector3, end_board_2d: Vector2, is_hit: bool, dart_tier: int, is_player: bool = true) -> void:
 	_camera = camera
 	_is_hit = is_hit
+	_is_player = is_player
 	_dart_tier = dart_tier
 	_original_fov = camera.fov
 
@@ -334,7 +336,7 @@ func _show_result() -> void:
 		_result_label.text = "GAME SHOT!"
 		_result_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.1))
 	else:
-		_result_label.text = "UNLUCKY!"
+		_result_label.text = "UNLUCKY!" if _is_player else "MISS!"
 		_result_label.add_theme_color_override("font_color", Color(0.9, 0.25, 0.2))
 
 	UIFont.apply(_result_label, UIFont.SCREEN_TITLE)

@@ -120,18 +120,16 @@ func load_stats() -> void:
 # Star display helper
 # ──────────────────────────────────────────────────────────────────────────────
 
-## Returns a string like "★★★☆☆" for a star value.
+## Returns a string like "⭐⭐⭐——" for a star value.
 ## Rounds to the nearest whole star for the visual; exact value shown separately.
 func _stars_visual(value: float) -> String:
 	var filled := clampi(roundi(value), 1, 5)
 	var empty := 5 - filled
-	var star_filled := "★"
-	var star_empty := "☆"
 	var result := ""
 	for i in range(filled):
-		result += star_filled
+		result += "⭐"
 	for i in range(empty):
-		result += star_empty
+		result += "—"
 	return result
 
 # ──────────────────────────────────────────────────────────────────────────────

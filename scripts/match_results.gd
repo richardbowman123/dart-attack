@@ -146,7 +146,7 @@ func _build_skill_star_card() -> void:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 220)
+		img.custom_minimum_size = Vector2(640, 160)
 		card.add_child(img)
 
 	_add_spacer(card, 10)
@@ -180,21 +180,13 @@ func _build_skill_star_card() -> void:
 	var skill_stars_wrapper := Control.new()
 	skill_stars_wrapper.custom_minimum_size = Vector2(200, 50)
 	skill_stars_wrapper.pivot_offset = Vector2(100, 25)
-	var skill_stars_before := Label.new()
-	skill_stars_before.text = _stars_string(0, 5)
+	var skill_stars_before := _build_star_slots(0, 5)
 	skill_stars_before.position = Vector2.ZERO
 	skill_stars_before.size = Vector2(200, 50)
-	UIFont.apply(skill_stars_before, UIFont.BODY)
-	skill_stars_before.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
-	skill_stars_before.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	skill_stars_wrapper.add_child(skill_stars_before)
-	var skill_stars_after := Label.new()
-	skill_stars_after.text = _stars_string(1, 5)
+	var skill_stars_after := _build_star_slots(1, 5)
 	skill_stars_after.position = Vector2.ZERO
 	skill_stars_after.size = Vector2(200, 50)
-	UIFont.apply(skill_stars_after, UIFont.BODY)
-	skill_stars_after.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	skill_stars_after.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	skill_stars_after.visible = false
 	skill_stars_wrapper.add_child(skill_stars_after)
 	skill_row.add_child(skill_stars_wrapper)
@@ -219,21 +211,13 @@ func _build_skill_star_card() -> void:
 	var swagger_stars_wrapper := Control.new()
 	swagger_stars_wrapper.custom_minimum_size = Vector2(200, 50)
 	swagger_stars_wrapper.pivot_offset = Vector2(100, 25)
-	var swagger_stars_before := Label.new()
-	swagger_stars_before.text = _stars_string(0, 5)
+	var swagger_stars_before := _build_star_slots(0, 5)
 	swagger_stars_before.position = Vector2.ZERO
 	swagger_stars_before.size = Vector2(200, 50)
-	UIFont.apply(swagger_stars_before, UIFont.BODY)
-	swagger_stars_before.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
-	swagger_stars_before.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	swagger_stars_wrapper.add_child(swagger_stars_before)
-	var swagger_stars_after := Label.new()
-	swagger_stars_after.text = _stars_string(1, 5)
+	var swagger_stars_after := _build_star_slots(1, 5)
 	swagger_stars_after.position = Vector2.ZERO
 	swagger_stars_after.size = Vector2(200, 50)
-	UIFont.apply(swagger_stars_after, UIFont.BODY)
-	swagger_stars_after.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	swagger_stars_after.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	swagger_stars_after.visible = false
 	swagger_stars_wrapper.add_child(swagger_stars_after)
 	swagger_row.add_child(swagger_stars_wrapper)
@@ -387,7 +371,7 @@ func _build_heft_star_card() -> void:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 220)
+		img.custom_minimum_size = Vector2(640, 160)
 		card.add_child(img)
 
 	_add_spacer(card, 10)
@@ -422,21 +406,13 @@ func _build_heft_star_card() -> void:
 	var heft_stars_wrapper := Control.new()
 	heft_stars_wrapper.custom_minimum_size = Vector2(200, 50)
 	heft_stars_wrapper.pivot_offset = Vector2(100, 25)
-	var heft_stars_before := Label.new()
-	heft_stars_before.text = _stars_string(0, 5)
+	var heft_stars_before := _build_star_slots(0, 5)
 	heft_stars_before.position = Vector2.ZERO
 	heft_stars_before.size = Vector2(200, 50)
-	UIFont.apply(heft_stars_before, UIFont.BODY)
-	heft_stars_before.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
-	heft_stars_before.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	heft_stars_wrapper.add_child(heft_stars_before)
-	var heft_stars_after := Label.new()
-	heft_stars_after.text = _stars_string(1, 5)
+	var heft_stars_after := _build_star_slots(1, 5)
 	heft_stars_after.position = Vector2.ZERO
 	heft_stars_after.size = Vector2(200, 50)
-	UIFont.apply(heft_stars_after, UIFont.BODY)
-	heft_stars_after.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	heft_stars_after.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	heft_stars_after.visible = false
 	heft_stars_wrapper.add_child(heft_stars_after)
 	heft_row.add_child(heft_stars_wrapper)
@@ -490,7 +466,7 @@ func _build_barman_level2_card() -> void:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 100)
+		img.custom_minimum_size = Vector2(640, 80)
 		card.add_child(img)
 
 	_add_spacer(card, 10)
@@ -650,7 +626,7 @@ func _build_mate_intro_card() -> void:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 220)
+		img.custom_minimum_size = Vector2(640, 160)
 		card.add_child(img)
 		_add_spacer(card, 15)
 
@@ -1170,7 +1146,7 @@ func _build_l6_win_cards() -> void:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 220)
+		img.custom_minimum_size = Vector2(640, 160)
 		snap_card.add_child(img)
 
 	_add_spacer(snap_card, 10)
@@ -1287,7 +1263,7 @@ func _build_world_champion_cards() -> void:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 220)
+		img.custom_minimum_size = Vector2(640, 160)
 		snap_card.add_child(img)
 
 	_add_spacer(snap_card, 10)
@@ -1650,7 +1626,7 @@ func _build_star_flip_card(star_name: String, old_val: int, new_val: int,
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, 220)
+		img.custom_minimum_size = Vector2(640, 160)
 		card.add_child(img)
 
 	_add_spacer(card, 10)
@@ -1677,8 +1653,8 @@ func _build_star_flip_card(star_name: String, old_val: int, new_val: int,
 	}
 
 	var flip_wrapper: Control = null
-	var before_label: Label = null
-	var after_label: Label = null
+	var before_slots: HBoxContainer = null
+	var after_slots: HBoxContainer = null
 
 	for cat in star_categories:
 		if cat == star_name:
@@ -1699,27 +1675,16 @@ func _build_star_flip_card(star_name: String, old_val: int, new_val: int,
 			flip_wrapper.custom_minimum_size = Vector2(200, 50)
 			flip_wrapper.pivot_offset = Vector2(100, 25)
 
-			before_label = Label.new()
-			before_label.text = _stars_string(old_val, 5)
-			before_label.position = Vector2.ZERO
-			before_label.size = Vector2(200, 50)
-			UIFont.apply(before_label, UIFont.BODY)
-			if old_val > 0:
-				before_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-			else:
-				before_label.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
-			before_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-			flip_wrapper.add_child(before_label)
+			before_slots = _build_star_slots(old_val, 5)
+			before_slots.position = Vector2.ZERO
+			before_slots.size = Vector2(200, 50)
+			flip_wrapper.add_child(before_slots)
 
-			after_label = Label.new()
-			after_label.text = _stars_string(new_val, 5)
-			after_label.position = Vector2.ZERO
-			after_label.size = Vector2(200, 50)
-			UIFont.apply(after_label, UIFont.BODY)
-			after_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-			after_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-			after_label.visible = false
-			flip_wrapper.add_child(after_label)
+			after_slots = _build_star_slots(new_val, 5)
+			after_slots.position = Vector2.ZERO
+			after_slots.size = Vector2(200, 50)
+			after_slots.visible = false
+			flip_wrapper.add_child(after_slots)
 
 			row.add_child(flip_wrapper)
 			card.add_child(row)
@@ -1753,8 +1718,8 @@ func _build_star_flip_card(star_name: String, old_val: int, new_val: int,
 	# Deferred animation
 	var card_idx := _cards.size() - 1
 	var _fw := flip_wrapper
-	var _bl := before_label
-	var _al := after_label
+	var _bl := before_slots
+	var _al := after_slots
 	var _cb = set_callback
 	_card_animations[card_idx] = func():
 		if _cb != null and _cb is Callable:
@@ -1862,7 +1827,7 @@ func _build_opponent_stats_card(opp_id: String, display_name: String,
 			var img := TextureRect.new()
 			img.texture = tex
 			img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			img.custom_minimum_size = Vector2(640, 180)
+			img.custom_minimum_size = Vector2(640, 160)
 			card.add_child(img)
 	else:
 		# Placeholder
@@ -2051,13 +2016,24 @@ func _format_money(pence: int) -> String:
 			result += s[i]
 		return "£" + result
 
-func _stars_string(filled: int, total: int) -> String:
-	var star_filled := "★"
-	var star_empty := "☆"
-	return star_filled.repeat(filled) + star_empty.repeat(total - filled)
-
-func _heft_stars(tier: int) -> String:
-	return _stars_string(mini(tier, 5), 5)
+func _build_star_slots(filled: int, total: int) -> HBoxContainer:
+	var container := HBoxContainer.new()
+	container.add_theme_constant_override("separation", 0)
+	container.alignment = BoxContainer.ALIGNMENT_CENTER
+	for i in total:
+		var slot := Label.new()
+		slot.custom_minimum_size = Vector2(36, 50)
+		slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		slot.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		if i < filled:
+			slot.text = "⭐"
+			UIFont.apply(slot, UIFont.BODY)
+		else:
+			slot.text = "—"
+			UIFont.apply(slot, 20)
+			slot.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
+		container.add_child(slot)
+	return container
 
 func _career_stars_row(cat_name: String, filled: int, total: int) -> HBoxContainer:
 	var row := HBoxContainer.new()
@@ -2073,16 +2049,7 @@ func _career_stars_row(cat_name: String, filled: int, total: int) -> HBoxContain
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(label)
 
-	var stars := Label.new()
-	stars.text = _stars_string(filled, total)
-	stars.custom_minimum_size = Vector2(200, 50)
-	UIFont.apply(stars, UIFont.BODY)
-	if filled > 0:
-		stars.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	else:
-		stars.add_theme_color_override("font_color", Color(0.35, 0.35, 0.4))
-	stars.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	row.add_child(stars)
+	row.add_child(_build_star_slots(filled, total))
 
 	return row
 

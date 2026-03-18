@@ -1165,7 +1165,8 @@ func _start_game_shot_cinematic(dart: Dart) -> void:
 		Vector3(landing_2d.x, landing_2d.y, CinematicCamera.FLIGHT_START_Z),
 		landing_2d,
 		is_checkout,
-		cinematic_tier
+		cinematic_tier,
+		_is_player_turn
 	)
 	_cinematic.play()
 
