@@ -80,23 +80,41 @@ func _build_visual() -> void:
 	_build_flights(flight_cols, flight_sheen, flight_gold)
 
 # === TIP ===
+# Two-part tip: straight cylinder shaft (2/3) then tapered cone to a point (1/3)
 # Higher tiers get a finer, more tapered point
 func _build_tip(barrel_r: float, barrel_len: float, taper: float) -> void:
-	var tip_mesh := MeshInstance3D.new()
-	var tip_cone := CylinderMesh.new()
-	tip_cone.top_radius = 0.0
-	tip_cone.bottom_radius = barrel_r * taper * 0.4  # Thin steel needle
-	tip_cone.height = TIP_LENGTH
-	tip_mesh.mesh = tip_cone
-	tip_mesh.rotation.x = PI / 2.0
-	tip_mesh.position.z = -(barrel_len + TIP_LENGTH / 2.0)
+	var tip_r := barrel_r * taper * 1.2  # Width where tip meets barrel
+	var shaft_len := TIP_LENGTH * 0.67   # Straight cylinder portion
+	var cone_len := TIP_LENGTH * 0.33    # Tapered cone to sharp point
 
 	var tip_mat := StandardMaterial3D.new()
-	tip_mat.albedo_color = Color(0.85, 0.85, 0.88)
+	tip_mat.albedo_color = Color(0.78, 0.78, 0.81)  # Mid-grey steel, lighter than board wire (0.75)
 	tip_mat.metallic = 1.0
 	tip_mat.roughness = 0.2
-	tip_mesh.material_override = tip_mat
-	_visual_root.add_child(tip_mesh)
+
+	# Straight shaft — constant width cylinder from barrel to taper start
+	var shaft_mesh := MeshInstance3D.new()
+	var shaft_cyl := CylinderMesh.new()
+	shaft_cyl.top_radius = tip_r
+	shaft_cyl.bottom_radius = tip_r
+	shaft_cyl.height = shaft_len
+	shaft_mesh.mesh = shaft_cyl
+	shaft_mesh.rotation.x = PI / 2.0
+	shaft_mesh.position.z = -(barrel_len + shaft_len / 2.0)
+	shaft_mesh.material_override = tip_mat
+	_visual_root.add_child(shaft_mesh)
+
+	# Cone taper — from shaft width down to sharp point
+	var cone_mesh := MeshInstance3D.new()
+	var cone := CylinderMesh.new()
+	cone.top_radius = tip_r      # Connects to shaft (barrel side)
+	cone.bottom_radius = 0.0     # Sharp point (board side)
+	cone.height = cone_len
+	cone_mesh.mesh = cone
+	cone_mesh.rotation.x = PI / 2.0
+	cone_mesh.position.z = -(barrel_len + shaft_len + cone_len / 2.0)
+	cone_mesh.material_override = tip_mat
+	_visual_root.add_child(cone_mesh)
 
 # === FRONT COLLAR ===
 # Chrome on brass → polished silver → dark gold → bright gold
@@ -225,6 +243,22 @@ func _build_flights(cols: Dictionary, sheen: bool, gold_edge: bool) -> void:
 	_flight_root = Node3D.new()
 	_flight_root.scale = Vector3(flight_scale, flight_scale, flight_scale)
 	_visual_root.add_child(_flight_root)
+
+	# Flight hub — solid cylinder where fins meet, blocks view through gaps
+	var hub := MeshInstance3D.new()
+	var hub_cyl := CylinderMesh.new()
+	hub_cyl.top_radius = FLIGHT_HEIGHT * 0.18
+	hub_cyl.bottom_radius = FLIGHT_HEIGHT * 0.18
+	hub_cyl.height = 0.010
+	hub.mesh = hub_cyl
+	hub.rotation.x = PI / 2.0
+	hub.position.z = flight_base_z + 0.005
+	var hub_mat := StandardMaterial3D.new()
+	hub_mat.albedo_color = Color(0.15, 0.15, 0.15)
+	hub_mat.metallic = 0.6
+	hub_mat.roughness = 0.3
+	hub.material_override = hub_mat
+	_flight_root.add_child(hub)
 
 	# North fin (+Y) — front colour
 	var n_fin := MeshInstance3D.new()
@@ -356,7 +390,8 @@ func _setup_physics() -> void:
 	var data := DartData.get_tier(_tier)
 	shape.radius = data["barrel_radius"] * 2.5
 	col_shape.shape = shape
-	col_shape.position = Vector3(0, 0, -(data["barrel_length"] + TIP_LENGTH))
+	# Place sphere 30% along the tip so ~70% penetrates the board on impact
+	col_shape.position = Vector3(0, 0, -(data["barrel_length"] + TIP_LENGTH * 0.3))
 	add_child(col_shape)
 
 	mass = 0.05

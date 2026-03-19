@@ -37,6 +37,7 @@ const OPPONENTS := {
 		"base_anger": 10,
 		"anger_rate": 0.5,
 		"legs_to_win": 1,
+		"fight_heft": 4, "fight_swagger": 1, "fight_drunk": 2,
 	},
 	"derek": {
 		"name": "Derek",
@@ -57,6 +58,7 @@ const OPPONENTS := {
 		"base_anger": 15,
 		"anger_rate": 0.8,
 		"legs_to_win": 2,
+		"fight_heft": 2, "fight_swagger": 2, "fight_drunk": 2,
 	},
 	"steve": {
 		"name": "Steve",
@@ -77,6 +79,7 @@ const OPPONENTS := {
 		"base_anger": 20,
 		"anger_rate": 1.0,
 		"legs_to_win": 4,
+		"fight_heft": 2, "fight_swagger": 2, "fight_drunk": 3,
 	},
 	"philip": {
 		"name": "Philip",
@@ -98,6 +101,7 @@ const OPPONENTS := {
 		"base_anger": 10,
 		"anger_rate": 0.6,
 		"legs_to_win": 3,
+		"fight_heft": 1, "fight_swagger": 1, "fight_drunk": 0,
 	},
 	"mad_dog": {
 		"name": "Mad Dog",
@@ -119,6 +123,7 @@ const OPPONENTS := {
 		"base_anger": 40,
 		"anger_rate": 2.0,
 		"legs_to_win": 4,
+		"fight_heft": 3, "fight_swagger": 4, "fight_drunk": 2,
 	},
 	"lars": {
 		"name": "Lars",
@@ -140,6 +145,7 @@ const OPPONENTS := {
 		"base_anger": 15,
 		"anger_rate": 0.7,
 		"legs_to_win": 3,
+		"fight_heft": 5, "fight_swagger": 4, "fight_drunk": 3,
 	},
 	"vinnie": {
 		"name": "Vinnie Gold",
@@ -161,6 +167,48 @@ const OPPONENTS := {
 		"base_anger": 25,
 		"anger_rate": 1.5,
 		"legs_to_win": 4,
+		"fight_heft": 3, "fight_swagger": 5, "fight_drunk": 2,
+	},
+	# ── Exhibition opponents (level 0 — no career slot) ──
+	"exh_barry": {
+		"name": "Barry", "nickname": "THE BRICKLAYER", "level": 0,
+		"scatter": 0.34, "double_hit_pct": 0.25, "throw_delay": 0.75,
+		"game_mode": "countdown", "starting_score": 301,
+		"image": "", "buy_in": 0, "prize_money": 0, "max_losses": 1,
+		"dart_quality": 30, "base_confidence": 45, "base_anger": 20, "anger_rate": 0.8,
+		"legs_to_win": 1,
+	},
+	"exh_donna": {
+		"name": "Donna", "nickname": "THE DUCHESS", "level": 0,
+		"scatter": 0.30, "double_hit_pct": 0.30, "throw_delay": 0.65,
+		"game_mode": "countdown", "starting_score": 301,
+		"image": "", "buy_in": 0, "prize_money": 0, "max_losses": 1,
+		"dart_quality": 40, "base_confidence": 55, "base_anger": 10, "anger_rate": 0.5,
+		"legs_to_win": 1,
+	},
+	"exh_slim": {
+		"name": "Slim", "nickname": "THE NEEDLE", "level": 0,
+		"scatter": 0.28, "double_hit_pct": 0.35, "throw_delay": 0.6,
+		"game_mode": "countdown", "starting_score": 301,
+		"image": "", "buy_in": 0, "prize_money": 0, "max_losses": 1,
+		"dart_quality": 45, "base_confidence": 50, "base_anger": 15, "anger_rate": 1.0,
+		"legs_to_win": 1,
+	},
+	"exh_tank": {
+		"name": "Tank", "nickname": "THE BULLDOZER", "level": 0,
+		"scatter": 0.36, "double_hit_pct": 0.20, "throw_delay": 0.85,
+		"game_mode": "countdown", "starting_score": 301,
+		"image": "", "buy_in": 0, "prize_money": 0, "max_losses": 1,
+		"dart_quality": 25, "base_confidence": 40, "base_anger": 35, "anger_rate": 1.5,
+		"legs_to_win": 1,
+	},
+	"exh_fingers": {
+		"name": "Fingers", "nickname": "THE MAGICIAN", "level": 0,
+		"scatter": 0.25, "double_hit_pct": 0.40, "throw_delay": 0.55,
+		"game_mode": "countdown", "starting_score": 301,
+		"image": "", "buy_in": 0, "prize_money": 0, "max_losses": 1,
+		"dart_quality": 50, "base_confidence": 60, "base_anger": 5, "anger_rate": 0.4,
+		"legs_to_win": 1,
 	},
 }
 
@@ -222,6 +270,9 @@ static func get_throw_delay(id: String) -> float:
 static func get_venue(id: String, character_index: int) -> String:
 	var opp: Dictionary = OPPONENTS[id]
 	var level: int = opp["level"]
+	# Exhibition opponents use the venue from ExhibitionData
+	if level == 0:
+		return ExhibitionData.current_venue
 	if level <= 3 and character_index in LOCAL_VENUES:
 		var char_venues: Dictionary = LOCAL_VENUES[character_index]
 		if level in char_venues:
@@ -256,6 +307,7 @@ static func get_rtc_scatter(id: String, lead: int) -> float:
 static func get_base_nerves(id: String) -> float:
 	var level: int = OPPONENTS[id]["level"]
 	match level:
+		0: return 35.0   # Exhibition — relaxed, no stakes
 		1: return 30.0   # Big Kev — friendly local, low pressure
 		2: return 40.0   # Derek — Friday night tournament
 		3: return 45.0   # Steve — regional, some crowd
@@ -287,6 +339,8 @@ static func get_max_losses(id: String) -> int:
 	return OPPONENTS[id].get("max_losses", 3)
 
 static func get_legs_to_win(id: String) -> int:
+	if OPPONENTS[id]["level"] == 0:
+		return ExhibitionData.get_legs_to_win()
 	return OPPONENTS[id].get("legs_to_win", 1)
 
 static func get_menu_label(id: String) -> String:

@@ -350,12 +350,14 @@ func _build_card_5_darts() -> void:
 
 	# Choice buttons
 	var btn_own := _create_button("USE MY OWN DARTS", Color(0.15, 0.15, 0.2), Color(0.3, 0.3, 0.35))
+	UIFont.apply_button(btn_own, UIFont.SUBHEADING)
 	var own_wrapper := CenterContainer.new()
 	own_wrapper.custom_minimum_size = Vector2(640, 100)
 	own_wrapper.add_child(btn_own)
 	card.add_child(own_wrapper)
 
 	var btn_bar := _create_button("ASK BEHIND THE BAR", Color(0.15, 0.15, 0.2), Color(0.3, 0.3, 0.35))
+	UIFont.apply_button(btn_bar, UIFont.SUBHEADING)
 	var bar_wrapper := CenterContainer.new()
 	bar_wrapper.custom_minimum_size = Vector2(640, 100)
 	bar_wrapper.add_child(btn_bar)
@@ -436,12 +438,18 @@ func _add_spacer(parent: Control, height: int) -> void:
 	parent.add_child(spacer)
 
 func _add_continue_button(card: Control) -> void:
+	var top_fill := Control.new()
+	top_fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	card.add_child(top_fill)
 	var btn := _create_button("CONTINUE", Color(0.15, 0.15, 0.25), Color(0.3, 0.3, 0.5))
 	btn.pressed.connect(_advance_card)
 	var wrapper := CenterContainer.new()
 	wrapper.custom_minimum_size = Vector2(640, 100)
 	wrapper.add_child(btn)
 	card.add_child(wrapper)
+	var bottom_fill := Control.new()
+	bottom_fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	card.add_child(bottom_fill)
 
 func _create_button(text: String, bg_color: Color, border_color: Color) -> Button:
 	var btn := Button.new()
@@ -485,7 +493,7 @@ func _build_star_image(filled: int) -> TextureRect:
 		img.texture = tex
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	img.custom_minimum_size = Vector2(260, 44)
+	img.custom_minimum_size = Vector2(260, 50)
 	img.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	return img
 

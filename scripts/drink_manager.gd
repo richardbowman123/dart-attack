@@ -32,6 +32,7 @@ extends Node
 signal drinks_changed(level: int)
 signal warning_triggered(message: String)
 signal passed_out
+signal sweet_spot_reached  # Fired once when player sobers from blurry (7+) to tipsy (≤6)
 
 const MAX_DRINKS := 13
 const COST_PER_UNIT := 340  # Pence — £3.40 per half-pint unit
@@ -46,7 +47,7 @@ const PRE_DRINKS := [
 	{"name": "Vodka Energy", "desc": "Vodka and energy drink. Pre-mixed in a 2-litre bottle. Ratio: unclear.", "units": 6},
 	{"name": "Own-Brand Gin", "desc": "Supermarket own-brand gin. Decanted into a Hendrick's bottle. Nobody fooled.", "units": 9},
 	{"name": "Alcopops", "desc": "6 alcopops of uncertain vintage. Provenance unclear.", "units": 5},
-	{"name": "Box Rose", "desc": "3-litre bag-in-box rose. Been open since Tuesday.", "units": 8},
+	{"name": "Box of Rosé", "desc": "3-litre bag-in-box rosé. Been open since Tuesday.", "units": 8},
 	{"name": "Green Liqueur", "desc": "Unidentifiable green liqueur. Label entirely in Catalan.", "units": 7},
 	{"name": "Mid-Tier Lager", "desc": "4 warm cans of mid-tier lager. Brand nobody recognises.", "units": 5},
 	{"name": "Cheap Champagne", "desc": "Warm cheap champagne. One ceremonial sip, then on to the real stuff.", "units": 7},
@@ -69,9 +70,9 @@ const PRE_DRINKS := [
 # round_size: total pints when player buys a round (includes player)
 const LEVEL_DRINKING := {
 	2: {
-		"companion": "mate",
+		"companion": "Alan",
 		"setting": "Car park. Back of his car.",
-		"intro": "Boot's open. Pick your poison. Just buy me a drink when it's your round.",
+		"intro": "Boot's open. Pick your poison.",
 		"pre_drink_price": 0,
 		"pint_price": 680,
 		"round_size": 2,
@@ -79,7 +80,7 @@ const LEVEL_DRINKING := {
 	3: {
 		"companion": "mates",
 		"setting": "Train to the venue.",
-		"intro": "Tenner in. I'll nip to the off-licence and get us some nerve settlers for the train.",
+		"intro": "Tenners in. Nipping to the off-licence and getting us some rowdy juice for the train.",
 		"pre_drink_price": 1000,
 		"pint_price": 750,
 		"round_size": 4,
@@ -120,6 +121,8 @@ const LEVEL_DRINKING := {
 
 var drinks_level: int = 0
 var _decay_accumulator: float = 0.0
+var _fast_recovery := false
+var _blackout_tween: Tween
 
 ## Placeholder budget in pence — will be wired to CareerState.money later
 var _budget: int = 5000
@@ -208,12 +211,6 @@ func add_drink(free: bool = false, amount: int = 1) -> bool:
 		warning_triggered.emit("Lights out...")
 		_show_warning("Lights out...")
 		passed_out.emit()
-	elif old_level < 9 and drinks_level >= 9:
-		warning_triggered.emit("If you start to think you're a state, you definitely are.")
-		_show_warning("If you start to think you're a state, you definitely are.")
-	elif old_level < 7 and drinks_level >= 7:
-		warning_triggered.emit("Take it easy mate...")
-		_show_warning("Take it easy mate...")
 
 	return true
 
@@ -228,12 +225,8 @@ func get_effect_intensity() -> float:
 ## Returns the current tier name based on drinks level.
 ## Empty string for sober (0–3).
 func get_tier_name() -> String:
-	if drinks_level <= 3:
+	if drinks_level <= 8:
 		return ""
-	elif drinks_level <= 6:
-		return "TIPSY"
-	elif drinks_level <= 8:
-		return "DRUNK"
 	elif drinks_level <= 10:
 		return "HAMMERED"
 	elif drinks_level <= 12:
@@ -271,19 +264,16 @@ func set_level(level: int) -> void:
 		warning_triggered.emit("Lights out...")
 		_show_warning("Lights out...")
 		passed_out.emit()
-	elif old_level < 9 and drinks_level >= 9:
-		warning_triggered.emit("If you start to think you're a state, you definitely are.")
-		_show_warning("If you start to think you're a state, you definitely are.")
-	elif old_level < 7 and drinks_level >= 7:
-		warning_triggered.emit("Take it easy mate...")
-		_show_warning("Take it easy mate...")
 
 
 ## Reset to sober — call at match start
 func reset() -> void:
 	drinks_level = 0
 	_decay_accumulator = 0.0
+	_fast_recovery = false
 	_budget = 5000
+	if _blackout_tween and _blackout_tween.is_valid():
+		_blackout_tween.kill()
 	_update_targets()
 	drinks_changed.emit(drinks_level)
 
@@ -292,6 +282,9 @@ func reset() -> void:
 func clear_effects() -> void:
 	drinks_level = 0
 	_decay_accumulator = 0.0
+	_fast_recovery = false
+	if _blackout_tween and _blackout_tween.is_valid():
+		_blackout_tween.kill()
 	_target_blur = 0.0
 	_target_double_vision = 0.0
 	_target_sway_amount = 0.0
@@ -306,6 +299,36 @@ func clear_effects() -> void:
 	_current_warmth = 0.0
 	_rect.visible = false
 	drinks_changed.emit(drinks_level)
+
+
+## Adrenaline snap sober — vision clears over ~2 seconds. Call on win while drunk.
+func sober_snap() -> void:
+	drinks_level = 0
+	_decay_accumulator = 0.0
+	_fast_recovery = true
+	if _blackout_tween and _blackout_tween.is_valid():
+		_blackout_tween.kill()
+	_update_targets()  # All targets go to 0
+	drinks_changed.emit(drinks_level)
+
+
+## Drunkenness spirals worse over duration seconds. Call on loss while drunk.
+## Steps drinks_level from current up to MAX_DRINKS over the given duration.
+func ramp_to_blackout(duration: float) -> void:
+	_fast_recovery = false
+	if _blackout_tween and _blackout_tween.is_valid():
+		_blackout_tween.kill()
+	var steps_needed := MAX_DRINKS - drinks_level
+	if steps_needed <= 0:
+		return
+	var step_time := duration / float(steps_needed)
+	_blackout_tween = create_tween()
+	for i in range(steps_needed):
+		_blackout_tween.tween_callback(func() -> void:
+			set_level(mini(drinks_level + 1, MAX_DRINKS))
+		)
+		if i < steps_needed - 1:
+			_blackout_tween.tween_interval(step_time)
 
 
 # ── Pre-match drinking helpers ───────────────────────────────────────────────
@@ -336,12 +359,16 @@ func format_price(pence: int) -> String:
 func apply_visit_decay() -> void:
 	if drinks_level <= 0:
 		return
+	var was_blurry := drinks_level >= 7
 	_decay_accumulator += 0.5
 	while _decay_accumulator >= 1.0 and drinks_level > 0:
 		_decay_accumulator -= 1.0
 		drinks_level = maxi(drinks_level - 1, 0)
 	_update_targets()
 	drinks_changed.emit(drinks_level)
+	# Crossed from blurry vision (Drunk tier, 7+) into clear tipsy zone (≤6)
+	if was_blurry and drinks_level <= 6 and drinks_level >= 4:
+		sweet_spot_reached.emit()
 
 
 # ── Target mapping from drinks_level ────────────────────────────────────────
@@ -425,8 +452,15 @@ func _process(delta: float) -> void:
 ## Smooth a single value toward its target.
 ## Onset (increasing) uses delta * 2.0 — settles in ~0.5s.
 ## Recovery (decreasing) uses delta * 0.5 — settles in ~2s.
+## Fast recovery (sober snap) uses delta * 3.0 — settles in ~1.5s.
 func _smooth(current: float, target: float, delta: float) -> float:
-	var factor := delta * 2.0 if target > current else delta * 0.5
+	var factor: float
+	if target > current:
+		factor = delta * 2.0
+	elif _fast_recovery:
+		factor = delta * 3.0
+	else:
+		factor = delta * 0.5
 	return lerpf(current, target, clampf(factor, 0.0, 1.0))
 
 

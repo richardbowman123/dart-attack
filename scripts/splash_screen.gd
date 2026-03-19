@@ -91,10 +91,10 @@ func _build_scene() -> void:
 	_build_logo_word("DART", logo_font_size, 350, 0, board_colours, title_container)
 	_build_logo_word("ATTACK", logo_font_size, 500, 4, board_colours, title_container)
 
-	# Play button — hidden initially
+	# Play button — hidden initially, sits just below DART ATTACK title
 	_play_button = Button.new()
 	_play_button.text = "PLAY"
-	_play_button.position = Vector2(210, 1050)
+	_play_button.position = Vector2(210, 690)
 	_play_button.size = Vector2(300, 80)
 	UIFont.apply_button(_play_button, UIFont.HEADING)
 	_play_button.modulate.a = 0.0
@@ -125,19 +125,19 @@ func _build_scene() -> void:
 	_play_button.pressed.connect(_on_play_pressed)
 	title_container.add_child(_play_button)
 
-	# Scrolling ticker: "ROAD TO THE ARROW PALACE"
+	# Scrolling ticker: "ROAD TO THE ARROW PALACE" — below PLAY button area
 	var ticker := Label.new()
 	ticker.text = "ROAD TO THE ARROW PALACE"
-	var ticker_settings := UIFont.make_label_settings(34, Color(0.85, 0.85, 0.9))
-	ticker_settings.outline_size = 3
+	var ticker_settings := UIFont.make_label_settings(34, Color.BLACK)
+	ticker_settings.outline_size = 10
 	ticker_settings.outline_color = Color.WHITE
 	ticker.label_settings = ticker_settings
 	ticker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ticker.position = Vector2(720, 1190)
+	ticker.position = Vector2(720, 1005)
 	ticker.size = Vector2(720, 50)
 	title_container.add_child(ticker)
 
-	# Scroll in from right, stop centred
+	# Scroll in from right, stop centred — arrives before PLAY fades in
 	var ticker_tween := create_tween()
 	ticker_tween.tween_interval(0.3)
 	ticker_tween.tween_property(ticker, "position:x", 0.0, 3.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
@@ -192,12 +192,13 @@ func _build_logo_word(word: String, font_size: int, y_pos: int, colour_offset: i
 # ─────────────────────────────────────────────────────────
 
 func _animate_darts() -> void:
-	# Hit positions — offset so the dart tip lands near the bullseye
-	# With the new dramatic angle, the barrel hangs mostly downward from the tip
+	# Hit positions — on the tilted board surface near the bullseye
+	# Board tilted -35deg on X, so surface Z ≈ Y * tan(35°) ≈ Y * 0.70
+	# Spread wider in X so flights don't overlap; red front and centre
 	var hit_positions: Array[Vector3] = [
-		Vector3(0.03, 0.84, 0.19),   # Green — back
-		Vector3(-0.02, 0.82, 0.20),  # Black — middle
-		Vector3(0.01, 0.83, 0.21),   # Red — front (closest to camera)
+		Vector3(0.07, 0.80, 0.55),   # Green — back right
+		Vector3(-0.06, 0.79, 0.54),  # Black — back left
+		Vector3(0.00, 0.78, 0.59),   # Red — front, dead centre
 	]
 
 	# Dart direction: 80deg from camera for dramatic full-profile view
@@ -228,6 +229,8 @@ func _animate_darts() -> void:
 
 		# Orient dart at dramatic 80deg angle — use BACK as up vector to avoid gimbal lock
 		dart.look_at(dart.global_position + dart_direction, Vector3.BACK)
+		# Rotate 45deg around shaft axis so no flight fin is perfectly edge-on to camera
+		dart.rotate_object_local(Vector3.FORWARD, PI / 4.0)
 
 		_darts.append(dart)
 
@@ -243,9 +246,9 @@ func _animate_darts() -> void:
 		# Thud sound when dart lands
 		tween.tween_callback(_play_thud)
 
-	# Fade in Play button after last dart (lands at ~2.15s)
+	# Fade in Play button after ticker scrolls in (ticker lands at ~3.3s)
 	var btn_tween := create_tween()
-	btn_tween.tween_interval(3.0)
+	btn_tween.tween_interval(3.5)
 	btn_tween.tween_property(_play_button, "modulate:a", 1.0, 0.8).set_ease(Tween.EASE_IN_OUT)
 
 # ─────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 Build career_progression_spec.xlsx — v3 with Richard's detailed feedback.
 Sheet 1: Career Journey (one row per level)
 Sheet 2: Economy (what you can buy)
+Sheet 3: Swagger Progression (star-by-star swagger triggers)
 Run with: py build_spec.py
 """
 import openpyxl
@@ -632,6 +633,62 @@ for r in range(2, ws2.max_row + 1):
 
 set_col_widths(ws2, [14, 32, 30, 16, 50, 45])
 freeze_top_row(ws2)
+
+
+# ── SHEET 3: Swagger Progression ───────────────────────────────────────
+ws3 = wb.create_sheet("Swagger Progression")
+headers3 = [
+    "Star", "Level", "Trigger", "Player Choice",
+    "Description", "Notes",
+]
+ws3.append(headers3)
+
+swagger = [
+    (
+        1, 2, "Shopping Spree",
+        "Forced \u2014 companion drags you",
+        "Bling + matching tattoos with your mate. First visible change to appearance.",
+        "Already wired in code. \u00a320 spend.",
+    ),
+    (
+        2, 3, "First Celebration",
+        "Pick style: The Flex / The Big Fish / Down a Pint",
+        "First celebration is automated in-match. Boosts confidence, makes opponent angry. "
+        "NOT enough for a fight first time.",
+        "Down a Pint costs a pint at venue price + adds one drink level. "
+        "From here on, celebrations available every leg win.",
+    ),
+    (
+        3, 4, "Silk Shirt",
+        "Gift \u2014 not optional",
+        "Coach/manager says \u2018not having my player looking like that\u2019 "
+        "and gifts a silk shirt. Look the part for the bigger stages.",
+        "Narrative moment. No cost. Triggers at level where coach is active.",
+    ),
+    (
+        4, 5, "Dodgy Bet on Yourself",
+        "Choose AMOUNT (not whether)",
+        "Place a bet on yourself before the match. Win the match = win the bet = swagger star. "
+        "The amount is the choice, not the act.",
+        "Ties into gambling mechanic from The Contact (L4). Pure ego move.",
+    ),
+    (
+        5, 6, "Walk-On Music",
+        "Pick your track (3 options)",
+        "Choose your entrance music. From this point, every match starts with a walk-on sequence. "
+        "The ultimate swagger.",
+        "The crowd goes before you\u2019ve even thrown a dart.",
+    ),
+]
+
+for row in swagger:
+    ws3.append(list(row))
+
+col_count3 = len(headers3)
+style_header(ws3, col_count3)
+style_body(ws3, ws3.max_row, col_count3)
+set_col_widths(ws3, [8, 8, 20, 28, 50, 40])
+freeze_top_row(ws3)
 
 
 # ── Save ────────────────────────────────────────────────────────────────

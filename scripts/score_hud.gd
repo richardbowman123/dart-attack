@@ -30,6 +30,7 @@ var _message_tween: Tween  # Track active message to prevent stacking
 var _summary_title: Label
 var _summary_darts_label: Label
 var _summary_total_label: Label
+var _rtc_hits_rich: RichTextLabel
 var _summary_remaining_label: Label
 
 # ── VS mode elements ──
@@ -51,6 +52,7 @@ var _portrait_left: Control    # Left slot in card
 var _portrait_right: Control   # Right slot in card
 var _name_left: Control        # Left name area
 var _name_right: Control       # Right name area
+var _portrait_tween: Tween     # Track portrait fade tween
 var _dart_dot_container: Control
 var _dart_dots: Array[Control] = []
 
@@ -60,11 +62,17 @@ var _zoom_hint: Label
 var _leg_counter: Label
 var _leg_counter_tween: Tween
 
+# ── Popup layer (above drunk overlay at layer 10) ──
+var _popup_layer: CanvasLayer
+
 # ── Throw tip popup ──
 var _throw_tip_overlay: Control
 
 # ── Doubles tip popup (one-time, first countdown game) ──
 var _doubles_tip_overlay: Control
+
+# ── Sweet spot tip popup (one-time, when sobering from blurry to clear) ──
+var _sweet_spot_overlay: Control
 
 # ── Balance display (career mode only) ──
 const BALANCE_BOX_W := 160
@@ -92,6 +100,11 @@ var _debug_tap_count: int = 0
 var _debug_last_tap_ms: int = 0
 
 func _ready() -> void:
+	# Popup layer renders above the drunk vision overlay (layer 10)
+	_popup_layer = CanvasLayer.new()
+	_popup_layer.layer = 15
+	add_child(_popup_layer)
+
 	_build_remaining_display()
 	_build_impact_flash()
 	_build_summary_panel()
@@ -99,6 +112,8 @@ func _ready() -> void:
 	_build_balance_display()
 	_build_throw_tip()
 	_build_doubles_tip()
+	_build_sweet_spot_tip()
+	DrinkManager.sweet_spot_reached.connect(_on_sweet_spot_reached)
 	_build_debug_tap_zone()
 	# In non-VS mode, build standalone dart dots at the bottom
 	if not GameState.is_vs_ai:
@@ -406,7 +421,7 @@ func _build_throw_tip() -> void:
 
 	panel.add_child(vbox)
 	_throw_tip_overlay.add_child(panel)
-	add_child(_throw_tip_overlay)
+	_popup_layer.add_child(_throw_tip_overlay)
 
 func show_throw_tip() -> void:
 	if not _throw_tip_overlay or _throw_tip_overlay.visible:
@@ -444,58 +459,94 @@ func _build_doubles_tip() -> void:
 
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.08, 0.12, 0.92)
-	style.corner_radius_top_left = 12
-	style.corner_radius_top_right = 12
-	style.corner_radius_bottom_left = 12
-	style.corner_radius_bottom_right = 12
-	style.content_margin_left = 28
-	style.content_margin_right = 28
-	style.content_margin_top = 24
-	style.content_margin_bottom = 20
+	style.bg_color = Color(0.08, 0.07, 0.12, 0.94)
+	style.corner_radius_top_left = 14
+	style.corner_radius_top_right = 14
+	style.corner_radius_bottom_left = 14
+	style.corner_radius_bottom_right = 14
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.85, 0.6, 0.15, 0.6)
+	style.content_margin_left = 20
+	style.content_margin_right = 20
+	style.content_margin_top = 18
+	style.content_margin_bottom = 18
 	panel.add_theme_stylebox_override("panel", style)
-	panel.position = Vector2(40, 320)
+	panel.position = Vector2(40, 260)
 	panel.size = Vector2(640, 0)
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
+	vbox.add_theme_constant_override("separation", 12)
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
+	# Portrait — small thumbnail, aspect ratio preserved (80x123, centred)
+	# Alan image is 832x1281 — at 80px wide, height = 80 * 1281/832 = 123px
+	var portrait_tex := TextureRect.new()
+	var img := load("res://Mate for Level 2 - Alan.png")
+	if img:
+		portrait_tex.texture = img
+		portrait_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		portrait_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		portrait_tex.custom_minimum_size = Vector2(80, 123)
+		portrait_tex.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		portrait_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(portrait_tex)
+
+	# Name label
+	var name_label := Label.new()
+	name_label.text = "Alan"
+	UIFont.apply(name_label, UIFont.BODY)
+	name_label.add_theme_color_override("font_color", Color(0.85, 0.6, 0.15))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(name_label)
+
+	# Dialogue text
 	var msg := Label.new()
-	msg.text = "Your mate leans over:\n\"Just remember, you have to\nhit a double to win this one.\""
-	UIFont.apply(msg, UIFont.BODY)
+	msg.text = "Just remember, you have to hit a double to win this one."
+	UIFont.apply(msg, UIFont.CAPTION)
 	msg.add_theme_color_override("font_color", Color.WHITE)
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(msg)
 
+	# Got it button — companion panel response style
 	var btn := Button.new()
 	btn.text = "Got it"
 	UIFont.apply_button(btn, UIFont.CAPTION)
-	var btn_style := StyleBoxFlat.new()
-	btn_style.bg_color = Color(0.15, 0.5, 0.2, 0.7)
-	btn_style.corner_radius_top_left = 6
-	btn_style.corner_radius_top_right = 6
-	btn_style.corner_radius_bottom_left = 6
-	btn_style.corner_radius_bottom_right = 6
-	btn_style.content_margin_left = 12
-	btn_style.content_margin_right = 12
-	btn_style.content_margin_top = 8
-	btn_style.content_margin_bottom = 8
-	btn.add_theme_stylebox_override("normal", btn_style)
-	btn.add_theme_stylebox_override("hover", btn_style)
-	btn.add_theme_stylebox_override("pressed", btn_style)
+
+	var btn_normal := StyleBoxFlat.new()
+	btn_normal.bg_color = Color(0.18, 0.15, 0.22)
+	btn_normal.corner_radius_top_left = 10
+	btn_normal.corner_radius_top_right = 10
+	btn_normal.corner_radius_bottom_left = 10
+	btn_normal.corner_radius_bottom_right = 10
+	btn_normal.border_width_left = 2
+	btn_normal.border_width_right = 2
+	btn_normal.border_width_top = 2
+	btn_normal.border_width_bottom = 2
+	btn_normal.border_color = Color(0.85, 0.6, 0.15, 0.5)
+	btn_normal.content_margin_left = 16
+	btn_normal.content_margin_right = 16
+	btn_normal.content_margin_top = 10
+	btn_normal.content_margin_bottom = 10
+	btn.add_theme_stylebox_override("normal", btn_normal)
+	btn.add_theme_stylebox_override("hover", btn_normal)
+	btn.add_theme_stylebox_override("pressed", btn_normal)
 	btn.add_theme_color_override("font_color", Color.WHITE)
-	btn.add_theme_color_override("font_hover_color", Color(0.9, 0.9, 0.95))
-	btn.add_theme_color_override("font_pressed_color", Color(0.7, 0.7, 0.75))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.8))
+	btn.add_theme_color_override("font_pressed_color", Color(0.8, 0.7, 0.5))
 	btn.mouse_filter = Control.MOUSE_FILTER_STOP
 	btn.pressed.connect(_on_doubles_tip_dismiss)
 	vbox.add_child(btn)
 
 	panel.add_child(vbox)
 	_doubles_tip_overlay.add_child(panel)
-	add_child(_doubles_tip_overlay)
+	_popup_layer.add_child(_doubles_tip_overlay)
 
 func show_doubles_tip() -> void:
 	if not _doubles_tip_overlay or _doubles_tip_overlay.visible:
@@ -510,6 +561,133 @@ func show_doubles_tip() -> void:
 func _on_doubles_tip_dismiss() -> void:
 	_doubles_tip_overlay.visible = false
 	CareerState.doubles_tip_shown = true
+
+# ── Sweet spot tip popup (one-time, when vision clears after being drunk) ──
+
+func _build_sweet_spot_tip() -> void:
+	_sweet_spot_overlay = Control.new()
+	_sweet_spot_overlay.size = Vector2(720, 1280)
+	_sweet_spot_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_sweet_spot_overlay.visible = false
+	_sweet_spot_overlay.z_index = 100
+
+	var dimmer := ColorRect.new()
+	dimmer.color = Color(0, 0, 0, 0.3)
+	dimmer.size = Vector2(720, 1280)
+	dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sweet_spot_overlay.add_child(dimmer)
+
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.07, 0.12, 0.94)
+	style.corner_radius_top_left = 14
+	style.corner_radius_top_right = 14
+	style.corner_radius_bottom_left = 14
+	style.corner_radius_bottom_right = 14
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.85, 0.6, 0.15, 0.6)
+	style.content_margin_left = 20
+	style.content_margin_right = 20
+	style.content_margin_top = 18
+	style.content_margin_bottom = 18
+	panel.add_theme_stylebox_override("panel", style)
+	panel.position = Vector2(40, 260)
+	panel.size = Vector2(640, 0)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# Portrait — small thumbnail, aspect ratio preserved (80px tall, width natural)
+	# Alan image is 832x1281 — at 80px tall, width = 80 * 832/1281 = 52px
+	var portrait_tex := TextureRect.new()
+	var img := load("res://Mate for Level 2 - Alan.png")
+	if img:
+		portrait_tex.texture = img
+		portrait_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		portrait_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		portrait_tex.custom_minimum_size = Vector2(52, 80)
+		portrait_tex.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		portrait_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(portrait_tex)
+
+	# Name label
+	var name_label := Label.new()
+	name_label.text = "Alan"
+	UIFont.apply(name_label, UIFont.BODY)
+	name_label.add_theme_color_override("font_color", Color(0.85, 0.6, 0.15))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(name_label)
+
+	# Dialogue text
+	var msg := Label.new()
+	msg.text = "You're handling the booze pretty well now. Clear eyes, steady nerves, bags of confidence. This is your peak condition — remember this feeling for the big matches."
+	UIFont.apply(msg, UIFont.CAPTION)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(msg)
+
+	# Got it button — companion panel response style
+	var btn := Button.new()
+	btn.text = "Got it"
+	UIFont.apply_button(btn, UIFont.CAPTION)
+
+	var btn_normal := StyleBoxFlat.new()
+	btn_normal.bg_color = Color(0.18, 0.15, 0.22)
+	btn_normal.corner_radius_top_left = 10
+	btn_normal.corner_radius_top_right = 10
+	btn_normal.corner_radius_bottom_left = 10
+	btn_normal.corner_radius_bottom_right = 10
+	btn_normal.border_width_left = 2
+	btn_normal.border_width_right = 2
+	btn_normal.border_width_top = 2
+	btn_normal.border_width_bottom = 2
+	btn_normal.border_color = Color(0.85, 0.6, 0.15, 0.5)
+	btn_normal.content_margin_left = 16
+	btn_normal.content_margin_right = 16
+	btn_normal.content_margin_top = 10
+	btn_normal.content_margin_bottom = 10
+	btn.add_theme_stylebox_override("normal", btn_normal)
+	btn.add_theme_stylebox_override("hover", btn_normal)
+	btn.add_theme_stylebox_override("pressed", btn_normal)
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.8))
+	btn.add_theme_color_override("font_pressed_color", Color(0.8, 0.7, 0.5))
+	btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	btn.pressed.connect(_on_sweet_spot_dismiss)
+	vbox.add_child(btn)
+
+	panel.add_child(vbox)
+	_sweet_spot_overlay.add_child(panel)
+	_popup_layer.add_child(_sweet_spot_overlay)
+
+func _on_sweet_spot_reached() -> void:
+	if CareerState.sweet_spot_tip_shown:
+		return
+	if not CareerState.career_mode_active:
+		return
+	show_sweet_spot_tip()
+
+func show_sweet_spot_tip() -> void:
+	if not _sweet_spot_overlay or _sweet_spot_overlay.visible:
+		return
+	if CareerState.sweet_spot_tip_shown:
+		return
+	_sweet_spot_overlay.visible = true
+	_sweet_spot_overlay.modulate = Color(1, 1, 1, 0)
+	var tween := create_tween()
+	tween.tween_property(_sweet_spot_overlay, "modulate", Color(1, 1, 1, 1), 0.2)
+
+func _on_sweet_spot_dismiss() -> void:
+	_sweet_spot_overlay.visible = false
+	CareerState.sweet_spot_tip_shown = true
 
 # ── Debug tap zone (hidden 10-tap trigger, top-right corner) ──
 
@@ -602,6 +780,15 @@ func _build_summary_panel() -> void:
 	_summary_total_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_summary_content.add_child(_summary_total_label)
 
+	_rtc_hits_rich = RichTextLabel.new()
+	_rtc_hits_rich.bbcode_enabled = true
+	_rtc_hits_rich.fit_content = true
+	_rtc_hits_rich.scroll_active = false
+	UIFont.apply_rich(_rtc_hits_rich, 38)
+	_rtc_hits_rich.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rtc_hits_rich.visible = false
+	_summary_content.add_child(_rtc_hits_rich)
+
 	_summary_remaining_label = Label.new()
 	UIFont.apply(_summary_remaining_label, 30)
 	_summary_remaining_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
@@ -610,7 +797,7 @@ func _build_summary_panel() -> void:
 	_summary_content.add_child(_summary_remaining_label)
 
 	_summary_panel.add_child(_summary_content)
-	add_child(_summary_panel)
+	_popup_layer.add_child(_summary_panel)
 
 # ── VS mode setup (called by match_manager when is_vs_ai) ──
 
@@ -754,8 +941,6 @@ func _build_bottom_card(opponent_id: String) -> void:
 	# ── Build portrait + label elements ──
 	_player_portrait = _build_player_portrait()
 	_portrait_left.add_child(_player_portrait)
-	_player_portrait.position = Vector2.ZERO
-	_player_portrait.size = Vector2(CARD_PORTRAIT_SIZE, CARD_PORTRAIT_SIZE)
 
 	_player_name_label = Label.new()
 	_player_name_label.text = DartData.get_character_name(GameState.character)
@@ -767,8 +952,6 @@ func _build_bottom_card(opponent_id: String) -> void:
 
 	_opp_portrait_panel = _build_opponent_placeholder(opponent_id)
 	_portrait_right.add_child(_opp_portrait_panel)
-	_opp_portrait_panel.position = Vector2.ZERO
-	_opp_portrait_panel.size = Vector2(CARD_PORTRAIT_SIZE, CARD_PORTRAIT_SIZE)
 
 	_opp_name_label = Label.new()
 	_opp_name_label.text = OpponentData.get_display_name(opponent_id)
@@ -790,12 +973,16 @@ func _build_player_portrait() -> Control:
 		push_warning("Player portrait failed to load: " + image_path + " — try deleting .godot folder")
 
 	if tex:
+		# Height-anchored portrait — fix height at 90px, width from aspect ratio
+		var tex_size := tex.get_size()
+		var scale_factor := float(sz) / tex_size.y
+		var img_width := tex_size.x * scale_factor
 		var portrait := TextureRect.new()
 		portrait.texture = tex
-		portrait.custom_minimum_size = Vector2(sz, sz)
-		portrait.size = Vector2(sz, sz)
-		portrait.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		portrait.size = Vector2(img_width, sz)
+		portrait.position = Vector2((sz - img_width) / 2.0, 0)
 		portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		return portrait
 
@@ -830,13 +1017,19 @@ func _build_opponent_placeholder(opponent_id: String) -> Control:
 	# Try loading image directly
 	if img_path != "":
 		var tex: Texture2D = load(img_path)
+		if not tex:
+			push_warning("Opponent portrait failed to load: " + img_path + " — try deleting .godot folder")
 		if tex:
+			# Height-anchored portrait — fix height at 90px, width from aspect ratio
+			var tex_size := tex.get_size()
+			var scale_factor := float(sz) / tex_size.y
+			var img_width := tex_size.x * scale_factor
 			var portrait := TextureRect.new()
 			portrait.texture = tex
-			portrait.custom_minimum_size = Vector2(sz, sz)
-			portrait.size = Vector2(sz, sz)
-			portrait.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+			portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			portrait.size = Vector2(img_width, sz)
+			portrait.position = Vector2((sz - img_width) / 2.0, 0)
 			portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			return portrait
 
@@ -865,13 +1058,25 @@ func _build_opponent_placeholder(opponent_id: String) -> Control:
 
 func _set_card_layout(is_player_turn: bool) -> void:
 	# Portraits stay fixed: player always left, opponent always right.
-	# Only the active player's name+nickname appears.
+	# Active thrower is bright, inactive is heavily faded.
 	for child in _name_left.get_children():
 		_name_left.remove_child(child)
 	for child in _name_right.get_children():
 		_name_right.remove_child(child)
 
 	var full_text_w := _portrait_right.position.x - _name_left.position.x - 10
+
+	# Fade portraits — active thrower fully visible, other heavily dimmed
+	if _portrait_tween and _portrait_tween.is_valid():
+		_portrait_tween.kill()
+	_portrait_tween = create_tween()
+	_portrait_tween.set_parallel(true)
+	if is_player_turn:
+		_portrait_tween.tween_property(_portrait_left, "modulate:a", 1.0, 0.25)
+		_portrait_tween.tween_property(_portrait_right, "modulate:a", 0.15, 0.25)
+	else:
+		_portrait_tween.tween_property(_portrait_left, "modulate:a", 0.15, 0.25)
+		_portrait_tween.tween_property(_portrait_right, "modulate:a", 1.0, 0.25)
 
 	if is_player_turn:
 		# Player name + nickname — left-aligned, next to player portrait
@@ -1133,21 +1338,30 @@ func show_impact(label_text: String, screen_pos: Vector2) -> void:
 
 func show_visit_summary(dart_labels: Array, visit_total: int, remaining: int) -> void:
 	_summary_title.text = "VISIT"
+	_summary_darts_label.visible = true
 	_set_darts_text(dart_labels)
+	_rtc_hits_rich.visible = false
+	_summary_total_label.visible = true
 	_set_visit_total(visit_total)
 	_summary_remaining_label.text = str(remaining) + " remaining"
 	_summary_panel.visible = true
 
 func show_visit_summary_named(name: String, dart_labels: Array, visit_total: int, remaining: int) -> void:
 	_summary_title.text = name + " - VISIT"
+	_summary_darts_label.visible = true
 	_set_darts_text(dart_labels)
+	_rtc_hits_rich.visible = false
+	_summary_total_label.visible = true
 	_set_visit_total(visit_total)
 	_summary_remaining_label.text = str(remaining) + " remaining"
 	_summary_panel.visible = true
 
 func show_bust_summary(dart_labels: Array, reverted_score: int) -> void:
 	_summary_title.text = "BUST!"
+	_summary_darts_label.visible = true
 	_set_darts_text(dart_labels)
+	_rtc_hits_rich.visible = false
+	_summary_total_label.visible = true
 	_summary_total_label.text = "BUST"
 	_summary_total_label.add_theme_color_override("font_color", Color(0.9, 0.2, 0.2))
 	_summary_remaining_label.text = "Back to " + str(reverted_score)
@@ -1155,7 +1369,10 @@ func show_bust_summary(dart_labels: Array, reverted_score: int) -> void:
 
 func show_bust_summary_named(name: String, dart_labels: Array, reverted_score: int) -> void:
 	_summary_title.text = name + " - BUST!"
+	_summary_darts_label.visible = true
 	_set_darts_text(dart_labels)
+	_rtc_hits_rich.visible = false
+	_summary_total_label.visible = true
 	_summary_total_label.text = "BUST"
 	_summary_total_label.add_theme_color_override("font_color", Color(0.9, 0.2, 0.2))
 	_summary_remaining_label.text = "Back to " + str(reverted_score)
@@ -1166,6 +1383,8 @@ func show_message(text: String, duration: float = 1.5) -> void:
 	if _message_tween and _message_tween.is_valid():
 		_message_tween.kill()
 
+	_rtc_hits_rich.visible = false
+	_summary_total_label.visible = true
 	_summary_title.text = ""
 	_summary_darts_label.text = ""
 	_summary_total_label.text = text
@@ -1178,14 +1397,18 @@ func show_message(text: String, duration: float = 1.5) -> void:
 
 func show_rtc_summary(dart_labels: Array, hits: Array, next_target: String) -> void:
 	_summary_title.text = "VISIT"
-	_set_darts_text(dart_labels)
+	_summary_darts_label.visible = false
+	_summary_total_label.visible = false
+	_rtc_hits_rich.visible = true
 	_set_rtc_hits(hits)
 	_summary_remaining_label.text = next_target
 	_summary_panel.visible = true
 
 func show_rtc_summary_named(name: String, dart_labels: Array, hits: Array, next_target: String) -> void:
 	_summary_title.text = name + " - VISIT"
-	_set_darts_text(dart_labels)
+	_summary_darts_label.visible = false
+	_summary_total_label.visible = false
+	_rtc_hits_rich.visible = true
 	_set_rtc_hits(hits)
 	_summary_remaining_label.text = next_target
 	_summary_panel.visible = true
@@ -1221,15 +1444,26 @@ func _set_visit_total(visit_total: int) -> void:
 		_summary_total_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 
 func _set_rtc_hits(hits: Array) -> void:
-	var hits_text := ""
-	for h in hits:
-		if h != "-":
-			if hits_text != "":
-				hits_text += ", "
-			hits_text += str(h)
-	if hits_text == "":
-		_summary_total_label.text = "No hits"
-		_summary_total_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-	else:
-		_summary_total_label.text = hits_text
-		_summary_total_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+	_summary_darts_label.text = ""
+	_summary_darts_label.visible = false
+	_rtc_hits_rich.clear()
+	_rtc_hits_rich.push_paragraph(HORIZONTAL_ALIGNMENT_CENTER)
+	var first := true
+	for hit in hits:
+		var text: String = hit.get("text", "") if hit is Dictionary else str(hit)
+		if text == "":
+			continue  # skip complete misses (no number hit)
+		if not first:
+			_rtc_hits_rich.push_color(Color.WHITE)
+			_rtc_hits_rich.add_text(",  ")
+			_rtc_hits_rich.pop()
+		var scoring: bool = hit.get("scoring", false) if hit is Dictionary else true
+		if scoring:
+			_rtc_hits_rich.push_color(Color(0.3, 1.0, 0.3))  # green for scoring
+		else:
+			_rtc_hits_rich.push_color(Color.WHITE)  # white for non-scoring
+		_rtc_hits_rich.add_text(text)
+		_rtc_hits_rich.pop()
+		first = false
+	_rtc_hits_rich.pop()  # end paragraph
+	_rtc_hits_rich.visible = true

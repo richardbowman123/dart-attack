@@ -2,11 +2,11 @@ extends Control
 
 ## Post-match results screen — multi-card flow.
 ## Level 1 Win: Prize -> Skill star -> Big Kev dialogue -> Buffet decision -> Heft star ->
-##              Barman L2 -> Friday night (ENTER SHOP) -> [dart shop] -> Bridge -> Doubles explanation -> Mate intro -> Derek stats
-## Level 2 Win: Prize -> Skill star -> Mate dialogue -> Kebab -> Heft star ->
-##              Shopping decision -> Swagger star -> Mate introduces Steve -> [DART SHOP] -> Bridge -> Steve stats
-## Level 3 Win: Prize -> Skill star -> Steve dialogue -> Full English -> Heft star ->
-##              Inflatables -> Coach offer -> Hustle star -> [DART SHOP] -> Bridge -> Philip stats
+##              Barman L2 -> Friday night (ENTER SHOP) -> [dart shop] -> Bridge -> Doubles explanation -> Alan intro -> Derek stats
+## Level 2 Win: Prize -> Skill star -> Alan dialogue -> Kebab -> Heft star ->
+##              Shopping decision -> Swagger star -> Alan introduces Steve -> [DART SHOP] -> Bridge -> Steve stats
+## Level 3 Win: Prize -> [Trader Profit] -> Skill star -> Steve dialogue -> Fry up -> Heft star ->
+##              Trader intro (sets trader_met) -> Coach offer -> Hustle star -> [DART SHOP] -> Mates joining -> Bridge -> Philip stats
 ## Level 4 Win: Prize -> Skill star -> Steak dinner -> Heft star -> Manager offer ->
 ##              Hustle star -> Gambling intro -> [DART SHOP] -> Bridge -> Mad Dog stats
 ## Level 5 Win: Prize -> Skill star (MAX) -> Pasta -> Heft star -> Sponsor intro ->
@@ -14,11 +14,33 @@ extends Control
 ## Level 6 Win: Prize -> All stars snapshot -> Room service -> Heft star (if <5) ->
 ##              Coach dialogue -> Doctor visit -> Vinnie Gold intro -> [DART SHOP] -> Bridge -> Vinnie stats
 ## Level 7 Win: Prize -> Final stars -> Ending -> New Career
-## Loss: Level-specific flavour text + strikes or career over
+## Loss: [Trader Profit if pending] -> Level-specific flavour text + strikes or career over
+## Trader profit card appears after prize (win) or before loss card (loss) if merch was committed
 
 var _cards: Array[Control] = []
 var _current_card: int = 0
 var _card_animations: Dictionary = {}
+var _retry_mode := false
+
+# Insistence dialogue — companion forces food/hiring if player declines twice
+const FOOD_INSISTENCE := {
+	1: {"speaker": "BIG KEV", "first": "Come on, I won this voucher for you. Don't be daft.", "forced": "Right, you're having the duck. End of.", "color": Color.BLACK, "initial": "", "image": "res://Big Kev.jpg"},
+	2: {"speaker": "ALAN", "first": "You need something to soak up tonight. Trust me.", "forced": "Right, you're eating whether you like it or not.", "color": Color.BLACK, "initial": "", "image": "res://Mate for Level 2 - Alan.png"},
+	3: {"speaker": "ALAN", "first": "Heavy day ahead. Best line your stomach.", "forced": "I'm not taking you to the county club looking like that. Eat.", "color": Color.BLACK, "initial": "", "image": "res://Mate for Level 2 - Alan.png"},
+	4: {"speaker": "THE MANAGER", "first": "She's paying. Don't be rude.", "forced": "It's already ordered. Sit down.", "color": Color(0.4, 0.15, 0.25), "initial": "S", "image": "res://Manager cropped.png"},
+	5: {"speaker": "THE COACH", "first": "Carb loading. It's science.", "forced": "You're eating the pasta. Non-negotiable.", "color": Color(0.15, 0.35, 0.2), "initial": "C", "image": "res://Coach cropped.png"},
+	6: {"speaker": "THE MANAGER", "first": "You need fuel for tomorrow. Order something.", "forced": "Room service is already on its way. Deal with it.", "color": Color(0.4, 0.15, 0.25), "initial": "S", "image": "res://Manager cropped.png"},
+}
+
+const HIRE_INSISTENCE := {
+	"coach": {"speaker": "ALAN", "first": "I've taken you as far as I can. You need someone who knows what they're doing.", "forced": "I've already spoken to him. He's on board.", "color": Color.BLACK, "initial": "", "image": "res://Mate for Level 2 - Alan.png"},
+	"manager": {"speaker": "THE COACH", "first": "You need someone handling the business side. Focus on the darts.", "forced": "I've arranged it. She's starting tomorrow.", "color": Color(0.15, 0.35, 0.2), "initial": "C", "image": "res://Coach cropped.png"},
+	"team": {"speaker": "THE MANAGER", "first": "The Worlds is a different beast. You can't do this alone.", "forced": "I've made the calls. The team's in place.", "color": Color(0.4, 0.15, 0.25), "initial": "S", "image": "res://Manager cropped.png"},
+}
+
+const SWAGGER_INSISTENCE := {
+	"speaker": "ALAN", "first": "They'll laugh you out the pub looking like that. Come on, it'll be a laugh.", "forced": "Right, we're doing this. No arguments.", "color": Color.BLACK, "initial": "", "image": "res://Mate for Level 2 - Alan.png",
+}
 
 func _ready() -> void:
 	_build_ui()
@@ -29,12 +51,16 @@ func _build_ui() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
-	if CareerState.post_shop_resume:
+	if CareerState.exhibition_mode:
+		_build_exhibition_result_cards()
+	elif CareerState.post_shop_resume:
 		CareerState.post_shop_resume = false
 		_build_post_shop_cards()
 	elif GameState.match_won:
 		_build_win_cards()
 	else:
+		# Trader profit card before loss card (sales happen regardless of result)
+		_build_trader_profit_card()
 		_build_loss_card()
 
 	_show_card(0)
@@ -52,6 +78,9 @@ func _build_win_cards() -> void:
 
 	# Card 1: Prize Money (all levels)
 	_build_prize_card(opp_name, opp_nick, prize)
+
+	# Trader profit card (if pending sale — appears after prize, before level cards)
+	_build_trader_profit_card()
 
 	# Branch by level
 	if CareerState.career_level > 7:
@@ -184,16 +213,16 @@ func _build_skill_star_card() -> void:
 	skill_row.add_child(skill_label)
 	# Stars overlay — only this part flips
 	var skill_stars_wrapper := Control.new()
-	skill_stars_wrapper.custom_minimum_size = Vector2(260, 44)
+	skill_stars_wrapper.custom_minimum_size = Vector2(260, 50)
 	skill_stars_wrapper.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	skill_stars_wrapper.pivot_offset = Vector2(130, 22)
+	skill_stars_wrapper.pivot_offset = Vector2(130, 25)
 	var skill_stars_before := _build_star_image(0)
 	skill_stars_before.position = Vector2.ZERO
-	skill_stars_before.size = Vector2(260, 44)
+	skill_stars_before.size = Vector2(260, 50)
 	skill_stars_wrapper.add_child(skill_stars_before)
 	var skill_stars_after := _build_star_image(1)
 	skill_stars_after.position = Vector2.ZERO
-	skill_stars_after.size = Vector2(260, 44)
+	skill_stars_after.size = Vector2(260, 50)
 	skill_stars_after.visible = false
 	skill_stars_wrapper.add_child(skill_stars_after)
 	skill_row.add_child(skill_stars_wrapper)
@@ -216,16 +245,16 @@ func _build_skill_star_card() -> void:
 	swagger_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	swagger_row.add_child(swagger_label)
 	var swagger_stars_wrapper := Control.new()
-	swagger_stars_wrapper.custom_minimum_size = Vector2(260, 44)
+	swagger_stars_wrapper.custom_minimum_size = Vector2(260, 50)
 	swagger_stars_wrapper.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	swagger_stars_wrapper.pivot_offset = Vector2(130, 22)
+	swagger_stars_wrapper.pivot_offset = Vector2(130, 25)
 	var swagger_stars_before := _build_star_image(0)
 	swagger_stars_before.position = Vector2.ZERO
-	swagger_stars_before.size = Vector2(260, 44)
+	swagger_stars_before.size = Vector2(260, 50)
 	swagger_stars_wrapper.add_child(swagger_stars_before)
 	var swagger_stars_after := _build_star_image(1)
 	swagger_stars_after.position = Vector2.ZERO
-	swagger_stars_after.size = Vector2(260, 44)
+	swagger_stars_after.size = Vector2(260, 50)
 	swagger_stars_after.visible = false
 	swagger_stars_wrapper.add_child(swagger_stars_after)
 	swagger_row.add_child(swagger_stars_wrapper)
@@ -235,7 +264,7 @@ func _build_skill_star_card() -> void:
 
 	# Quip (fades in after animation -- running commentary, no speech marks)
 	var quip := Label.new()
-	quip.text = "You can actually play."
+	quip.text = "Well, you're not hopeless..."
 	UIFont.apply(quip, UIFont.BODY)
 	quip.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
 	quip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -301,7 +330,7 @@ func _build_bigkev_dialogue_card() -> void:
 	var panel := _build_companion_panel(
 		"BIG KEV",
 		"\"Not bad. Not bad at all.\"\n\nHe slides a voucher across the bar.\n\n\"All-you-can-eat Chinese buffet. On me.\n\nGet yourself fed.\nYou'll need it.\"",
-		Color.BLACK, "", "res://Big Kev.jpg"
+		Color.BLACK, "", "res://Big Kev.jpg", UIFont.PORTRAIT_XL
 	)
 	card.add_child(panel)
 
@@ -313,7 +342,11 @@ func _build_bigkev_dialogue_card() -> void:
 func _build_chinese_buffet_card() -> void:
 	var card := _create_card()
 
-	_add_spacer(card, 150)
+	# --- Original group (visible by default) ---
+	var original_group := VBoxContainer.new()
+	original_group.add_theme_constant_override("separation", 0)
+
+	_add_spacer(original_group, 150)
 
 	var title_label := Label.new()
 	title_label.text = "ALL-YOU-CAN-EAT BUFFET"
@@ -322,9 +355,9 @@ func _build_chinese_buffet_card() -> void:
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title_label.custom_minimum_size = Vector2(640, 70)
-	card.add_child(title_label)
+	original_group.add_child(title_label)
 
-	_add_spacer(card, 30)
+	_add_spacer(original_group, 30)
 
 	var desc_label := Label.new()
 	desc_label.text = "Big Kev's Chinese buffet voucher.\nCrispy duck, sweet and sour,\nthe works."
@@ -333,24 +366,53 @@ func _build_chinese_buffet_card() -> void:
 	desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc_label.custom_minimum_size = Vector2(640, 120)
-	card.add_child(desc_label)
+	original_group.add_child(desc_label)
 
-	_add_spacer(card, 50)
+	_add_spacer(original_group, 50)
 
 	# Choice buttons
 	var use_btn := _create_button("USE VOUCHER", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
 	var use_wrapper := CenterContainer.new()
 	use_wrapper.custom_minimum_size = Vector2(640, 100)
 	use_wrapper.add_child(use_btn)
-	card.add_child(use_wrapper)
+	original_group.add_child(use_wrapper)
 
-	_add_spacer(card, 10)
+	_add_spacer(original_group, 10)
 
 	var skip_btn := _create_button("NO THANKS", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
 	var skip_wrapper := CenterContainer.new()
 	skip_wrapper.custom_minimum_size = Vector2(640, 100)
 	skip_wrapper.add_child(skip_btn)
-	card.add_child(skip_wrapper)
+	original_group.add_child(skip_wrapper)
+
+	card.add_child(original_group)
+
+	# --- Insistence group (hidden by default) ---
+	var insistence_group := VBoxContainer.new()
+	insistence_group.add_theme_constant_override("separation", 0)
+	insistence_group.visible = false
+
+	_add_spacer(insistence_group, 60)
+
+	var insist_panel := _build_companion_panel(
+		"BIG KEV",
+		"\"" + FOOD_INSISTENCE[1]["first"] + "\"",
+		Color.BLACK, "", "res://Big Kev.jpg", UIFont.PORTRAIT_XL
+	)
+	insistence_group.add_child(insist_panel)
+
+	_add_spacer(insistence_group, 30)
+
+	var ok_btn := _create_button("OK", Color(0.15, 0.15, 0.25), Color(0.3, 0.3, 0.5))
+	var ok_wrapper := CenterContainer.new()
+	ok_wrapper.custom_minimum_size = Vector2(640, 100)
+	ok_wrapper.add_child(ok_btn)
+	insistence_group.add_child(ok_wrapper)
+
+	card.add_child(insistence_group)
+
+	# --- Button logic with decline tracking ---
+	var decline_count := [0]  # Array to allow capture in lambda
 
 	# USE VOUCHER: increment heft, advance to heft snapshot card
 	use_btn.pressed.connect(func():
@@ -358,12 +420,22 @@ func _build_chinese_buffet_card() -> void:
 		_advance_card()
 	)
 
-	# NO THANKS: skip past the heft snapshot card (advance by 2)
+	# NO THANKS: first decline -> insistence, second decline -> forced
 	skip_btn.pressed.connect(func():
-		if _current_card + 2 < _cards.size():
-			_show_card(_current_card + 2)
+		decline_count[0] += 1
+		if decline_count[0] == 1:
+			original_group.visible = false
+			insistence_group.visible = true
 		else:
+			# Second decline — force it
+			CareerState.heft_tier += 1
 			_advance_card()
+	)
+
+	# OK on insistence — re-present the choice
+	ok_btn.pressed.connect(func():
+		insistence_group.visible = false
+		original_group.visible = true
 	)
 
 	_add_card(card, "Chinese Buffet")
@@ -412,16 +484,16 @@ func _build_heft_star_card() -> void:
 	heft_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	heft_row.add_child(heft_label)
 	var heft_stars_wrapper := Control.new()
-	heft_stars_wrapper.custom_minimum_size = Vector2(260, 44)
+	heft_stars_wrapper.custom_minimum_size = Vector2(260, 50)
 	heft_stars_wrapper.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	heft_stars_wrapper.pivot_offset = Vector2(130, 22)
+	heft_stars_wrapper.pivot_offset = Vector2(130, 25)
 	var heft_stars_before := _build_star_image(0)
 	heft_stars_before.position = Vector2.ZERO
-	heft_stars_before.size = Vector2(260, 44)
+	heft_stars_before.size = Vector2(260, 50)
 	heft_stars_wrapper.add_child(heft_stars_before)
 	var heft_stars_after := _build_star_image(1)
 	heft_stars_after.position = Vector2.ZERO
-	heft_stars_after.size = Vector2(260, 44)
+	heft_stars_after.size = Vector2(260, 50)
 	heft_stars_after.visible = false
 	heft_stars_wrapper.add_child(heft_stars_after)
 	heft_row.add_child(heft_stars_wrapper)
@@ -502,7 +574,7 @@ func _build_friday_night_card() -> void:
 	_add_spacer(card, 120)
 
 	var story := Label.new()
-	story.text = "Friday comes around quick enough.\n\nYour mate drags you to the sports shop on the way.\n\nTime to get your own set."
+	story.text = "Friday comes around quick enough.\n\nYour mate Alan drags you to a discount sports shop on the way.\n\nTime to get your own set."
 	UIFont.apply(story, UIFont.BODY)
 	story.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
 	story.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -620,25 +692,25 @@ func _build_post_shop_cards() -> void:
 			_build_pre_drink_card()
 			_build_derek_stats_card()
 		2:
-			_build_bridge_card("Four weeks later.", OpponentData.get_venue("steve", GameState.character), "Proper oche. Small stage. Folding chairs for fifty. A commentator with a microphone.", 2000)
+			_build_bridge_card("", OpponentData.get_venue("steve", GameState.character), "Proper oche. Small stage. Folding chairs for fifty. A commentator with a microphone.", 2000)
 			_build_pre_drink_card()
-			_build_opponent_stats_card("steve", "Steve", "The Sparky", {"SKILL": 3, "HEFT": 2, "HUSTLE": 2, "SWAGGER": 1}, "101 - Best of 7")
+			_build_opponent_stats_card("steve", "Steve", "The Sparky", {"SKILL": 3, "HEFT": 2, "HUSTLE": 2, "SWAGGER": 1}, "101, Best of 7")
 		3:
-			_build_bridge_card("Two months later.", "County Darts Club", "Lighting rig. Raised oche. Sponsor banners. Two hundred in the crowd. Regional TV cameras.\n\nWin or bust from here. No second chances.", 7500)
+			_build_bridge_card("", "County Darts Club", "Lighting rig. Raised oche. Sponsor banners. Two hundred in the crowd. Regional TV cameras.\n\nWin or bust from here. No second chances.", 7500)
 			_build_pre_drink_card()
-			_build_opponent_stats_card("philip", "Philip", "The Accountant", {"SKILL": 4, "HEFT": 2, "HUSTLE": 3, "SWAGGER": 2}, "301 - Best of 5")
+			_build_opponent_stats_card("philip", "Philip", "The Accountant", {"SKILL": 4, "HEFT": 2, "HUSTLE": 3, "SWAGGER": 2}, "301, Best of 5")
 		4:
-			_build_bridge_card("Three months later.", "National Qualifying, Milton Keynes", "Conference centre. Harsh fluorescent lighting. Five hundred watching. Everyone thinks they're good enough.\n\nWin or bust from here. No second chances.", 20000)
+			_build_bridge_card("", "National Qualifying, Milton Keynes", "Conference centre. Harsh fluorescent lighting. Five hundred watching. Everyone thinks they're good enough.\n\nWin or bust from here. No second chances.", 20000)
 			_build_pre_drink_card()
-			_build_opponent_stats_card("mad_dog", "Mad Dog", "Mad Dog", {"SKILL": 3, "HEFT": 3, "HUSTLE": 2, "SWAGGER": 4}, "301 - Best of 7")
+			_build_opponent_stats_card("mad_dog", "Mad Dog", "Mad Dog", {"SKILL": 3, "HEFT": 3, "HUSTLE": 2, "SWAGGER": 4}, "301, Best of 7")
 		5:
 			_build_bridge_card("The Arrow Palace, London.", "World Championship Semi-Final", "The cathedral of darts. Walk-on music. Pyrotechnics. Two thousand in fancy dress.", 50000)
 			_build_pre_drink_card()
-			_build_opponent_stats_card("lars", "Lars", "The Viking", {"SKILL": 5, "HEFT": 3, "HUSTLE": 3, "SWAGGER": 4}, "501 - Best of 5")
+			_build_opponent_stats_card("lars", "Lars", "The Viking", {"SKILL": 5, "HEFT": 3, "HUSTLE": 3, "SWAGGER": 4}, "501, Best of 5")
 		6:
 			_build_bridge_card("World Championship Final.", "The Arrow Palace, London", "Gold confetti loaded. Fireworks ready.\nTwo thousand on their feet.\n\nThis is it.", 100000)
 			_build_pre_drink_card()
-			_build_opponent_stats_card("vinnie", "Vinnie Gold", "The Gold", {"SKILL": 5, "HEFT": 4, "HUSTLE": 5, "SWAGGER": 5}, "501 - Best of 7")
+			_build_opponent_stats_card("vinnie", "Vinnie Gold", "The Gold", {"SKILL": 5, "HEFT": 4, "HUSTLE": 5, "SWAGGER": 5}, "501, Best of 7")
 
 func _build_doubles_explanation_card() -> void:
 	var card := _create_card()
@@ -646,11 +718,14 @@ func _build_doubles_explanation_card() -> void:
 	_add_spacer(card, 60)
 
 	var panel := _build_companion_panel(
-		"YOUR MATE",
+		"ALAN",
 		"This one's 101. You know you have to check out on a double, yeah?",
-		Color.BLACK, "", "res://Mate for Level 2 - Alan.png"
+		Color.BLACK, "", "res://Mate for Level 2 - Alan.png", UIFont.PORTRAIT_L
 	)
 	card.add_child(panel)
+
+	# Get reference to dialogue label inside panel so we can hide it on expand
+	var panel_dialogue: Label = panel.get_child(0).get_child(2)
 
 	_add_spacer(card, 20)
 
@@ -698,6 +773,7 @@ func _build_doubles_explanation_card() -> void:
 
 	not_btn.pressed.connect(func():
 		choice_box.visible = false
+		panel_dialogue.visible = false
 		explain.visible = true
 		got_wrapper.visible = true
 	)
@@ -714,27 +790,27 @@ func _build_mate_intro_card() -> void:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, UIFont.PORTRAIT_L)
+		img.custom_minimum_size = Vector2(640, UIFont.PORTRAIT_ML)
 		card.add_child(img)
 		_add_spacer(card, 15)
 
 	var panel := _build_companion_panel(
-		"YOUR MATE",
+		"ALAN",
 		"Derek \"The Postman\" they call him.\n\nI can't see him being too much of a problem.",
-		Color.BLACK, "", "res://Mate for Level 2 - Alan.png"
+		Color.BLACK, "", "res://Mate for Level 2 - Alan.png", UIFont.PORTRAIT_S
 	)
 	card.add_child(panel)
 
 	_add_spacer(card, 25)
 
 	_add_continue_button(card)
-	_add_card(card, "Mate Intro")
+	_add_card(card, "Alan Intro")
 
 func _build_derek_stats_card() -> void:
 	_build_opponent_stats_card(
 		"derek", "Derek", "The Postman",
 		{"SKILL": 4, "HEFT": 1, "HUSTLE": 4, "SWAGGER": 0},
-		"101"
+		"101, Best of 3"
 	)
 
 # ======================================================
@@ -745,86 +821,124 @@ func _build_l2_win_cards() -> void:
 	# Card 2: Skill star 1->2
 	_build_star_flip_card("SKILL", CareerState.skill_stars, CareerState.skill_stars + 1, "Friday night champion.", func(): CareerState.skill_stars += 1)
 
-	# Card 3: Mate dialogue
+	# Card 3: Drunken walk home — mate offers kebab
+	_build_food_card("KEBAB", "Drunken walk home. Alan steers you into the kebab shop.\nLamb doner, extra chilli sauce.\nSoaking up the booze.", "GET A KEBAB", 0, "Kebab meat and chilli sauce. Professional fuel.", 2)
+
+	# Card 4: Hungover next day — mate suggests tattoos and bling
 	var mate_card := _create_card()
 	_add_spacer(mate_card, 60)
 	var mate_panel := _build_companion_panel(
-		"YOUR MATE",
-		"Told you he wouldn't deliver. Come on - let's get you looking the part. Tattoos and a bit of bling.",
-		Color.BLACK, "", "res://Mate for Level 2 - Alan.png"
+		"ALAN",
+		"Hungover. Alan rings.\n\nTold you he wouldn't deliver. We should celebrate properly. Tattoos and a bit of bling. I know a place.",
+		Color.BLACK, "", "res://Mate for Level 2 - Alan.png", UIFont.PORTRAIT_XL
 	)
 	mate_card.add_child(mate_panel)
 	_add_spacer(mate_card, 30)
 	_add_continue_button(mate_card)
-	_add_card(mate_card, "L2 Mate")
+	_add_card(mate_card, "L2 Alan Hungover")
 
-	# Food card: Kebab on the way home
-	_build_food_card("KEBAB", "Your mate drags you to the kebab shop on the way home.\nLamb doner, extra chilli sauce.\nSoaking up the booze.", "GET A KEBAB", 0, "Kebab meat and chilli sauce. Professional fuel.")
-
-	# Card: Shopping decision
+	# Card 5: Shopping decision (forced — player cannot skip)
 	var shop_card := _create_card()
-	_add_spacer(shop_card, 120)
+	var shop_actual_cost: int = 2000 if CareerState.money >= 2000 else 0
+
+	# --- Original group ---
+	var shop_original := VBoxContainer.new()
+	shop_original.add_theme_constant_override("separation", 0)
+	_add_spacer(shop_original, 120)
 	var shop_title := Label.new()
 	shop_title.text = "SHOPPING SPREE"
 	UIFont.apply(shop_title, UIFont.HEADING)
 	shop_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	shop_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	shop_title.custom_minimum_size = Vector2(640, 70)
-	shop_card.add_child(shop_title)
-	_add_spacer(shop_card, 20)
+	shop_original.add_child(shop_title)
+	_add_spacer(shop_original, 20)
 	var shop_desc := Label.new()
-	shop_desc.text = "Matching tattoos and a sovereign ring.\nYour mate's treat. Well, mostly."
+	shop_desc.text = "Matching tattoos and a sovereign ring.\nAlan's treat. Well, mostly."
 	UIFont.apply(shop_desc, UIFont.BODY)
 	shop_desc.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
 	shop_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	shop_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	shop_desc.custom_minimum_size = Vector2(640, 100)
-	shop_card.add_child(shop_desc)
-	_add_spacer(shop_card, 10)
+	shop_original.add_child(shop_desc)
+	_add_spacer(shop_original, 10)
 	var shop_cost := Label.new()
-	shop_cost.text = "Cost: " + _format_money(2000)
+	shop_cost.text = ("Cost: " + _format_money(shop_actual_cost)) if shop_actual_cost > 0 else "FREE (Alan's paying)"
 	UIFont.apply(shop_cost, UIFont.BODY)
-	shop_cost.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
+	shop_cost.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3) if shop_actual_cost > 0 else Color(0.3, 0.8, 0.4))
 	shop_cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	shop_cost.custom_minimum_size = Vector2(640, 40)
-	shop_card.add_child(shop_cost)
-	_add_spacer(shop_card, 30)
+	shop_original.add_child(shop_cost)
+	_add_spacer(shop_original, 30)
 	var shop_yes := _create_button("LET'S DO IT", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
 	var shop_yes_w := CenterContainer.new()
 	shop_yes_w.custom_minimum_size = Vector2(640, 100)
 	shop_yes_w.add_child(shop_yes)
-	shop_card.add_child(shop_yes_w)
-	_add_spacer(shop_card, 10)
+	shop_original.add_child(shop_yes_w)
+	_add_spacer(shop_original, 10)
 	var shop_no := _create_button("NAH, SAVE IT", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
 	var shop_no_w := CenterContainer.new()
 	shop_no_w.custom_minimum_size = Vector2(640, 100)
 	shop_no_w.add_child(shop_no)
-	shop_card.add_child(shop_no_w)
+	shop_original.add_child(shop_no_w)
+	shop_card.add_child(shop_original)
 
-	shop_yes.pressed.connect(func():
-		CareerState.money -= 2000
+	# --- Swagger insistence group ---
+	var swagger_insist_group := VBoxContainer.new()
+	swagger_insist_group.add_theme_constant_override("separation", 0)
+	swagger_insist_group.visible = false
+	_add_spacer(swagger_insist_group, 60)
+	var swagger_insist_panel := _build_companion_panel(
+		SWAGGER_INSISTENCE["speaker"],
+		"\"" + SWAGGER_INSISTENCE["first"] + "\"",
+		SWAGGER_INSISTENCE["color"], SWAGGER_INSISTENCE["initial"],
+		SWAGGER_INSISTENCE["image"], UIFont.PORTRAIT_XL
+	)
+	swagger_insist_group.add_child(swagger_insist_panel)
+	_add_spacer(swagger_insist_group, 30)
+	var swagger_ok_btn := _create_button("OK", Color(0.15, 0.15, 0.25), Color(0.3, 0.3, 0.5))
+	var swagger_ok_w := CenterContainer.new()
+	swagger_ok_w.custom_minimum_size = Vector2(640, 100)
+	swagger_ok_w.add_child(swagger_ok_btn)
+	swagger_insist_group.add_child(swagger_ok_w)
+	shop_card.add_child(swagger_insist_group)
+
+	var shop_decline := [0]
+
+	var _do_shopping := func():
+		if shop_actual_cost > 0:
+			CareerState.money -= shop_actual_cost
 		CareerState.swagger_stars = 1
 		_advance_card()
-	)
+
+	shop_yes.pressed.connect(func(): _do_shopping.call())
+
 	shop_no.pressed.connect(func():
-		# Skip swagger star card
-		if _current_card + 2 < _cards.size():
-			_show_card(_current_card + 2)
+		shop_decline[0] += 1
+		if shop_decline[0] == 1:
+			shop_original.visible = false
+			swagger_insist_group.visible = true
 		else:
-			_advance_card()
+			_do_shopping.call()
 	)
+
+	swagger_ok_btn.pressed.connect(func():
+		swagger_insist_group.visible = false
+		shop_original.visible = true
+	)
+
 	_add_card(shop_card, "L2 Shopping")
 
-	# Card 5: Swagger star (only if shopped)
+	# Card 6: Swagger star (only if shopped)
 	_build_star_flip_card("SWAGGER", 0, 1, "Looking dangerous.", null)
 
-	# Card 6: Mate introduces Steve
+	# Card 7: Mate introduces Steve
 	var steve_intro := _create_card()
 	_add_spacer(steve_intro, 60)
 	var steve_panel := _build_companion_panel(
-		"YOUR MATE",
+		"ALAN",
 		"There's a regional comp next month. Steve \"The Sparky\" - three years running. Bit of a wind-up merchant. Talks through your throw.\n\nBest of seven this time. First to four legs.",
-		Color.BLACK, "", "res://Mate for Level 2 - Alan.png"
+		Color.BLACK, "", "res://Mate for Level 2 - Alan.png", UIFont.PORTRAIT_XL
 	)
 	steve_intro.add_child(steve_panel)
 	_add_spacer(steve_intro, 30)
@@ -837,7 +951,7 @@ func _build_l2_win_cards() -> void:
 	# Card 7: Bridge card
 	var next_venue: String = OpponentData.get_venue("steve", GameState.character)
 	_build_bridge_card(
-		"Four weeks later.",
+		"",
 		next_venue,
 		"Proper oche. Small stage. Folding chairs for fifty. A commentator with a microphone.",
 		2000
@@ -850,7 +964,7 @@ func _build_l2_win_cards() -> void:
 	_build_opponent_stats_card(
 		"steve", "Steve", "The Sparky",
 		{"SKILL": 3, "HEFT": 2, "HUSTLE": 2, "SWAGGER": 1},
-		"101 - Best of 7"
+		"101, Best of 7"
 	)
 
 # ======================================================
@@ -867,79 +981,37 @@ func _build_l3_win_cards() -> void:
 	var steve_panel := _build_companion_panel(
 		"STEVE",
 		"Steve shakes his head.\n\n\"Three years I've had that title. Three years.\"\n\nHe hands you a pint.\n\n\"Fair play. You earned it.\"",
-		Color(0.5, 0.35, 0.15), "S"
+		Color(0.5, 0.35, 0.15), "S", "", UIFont.PORTRAIT_XL
 	)
 	steve_card.add_child(steve_panel)
 	_add_spacer(steve_card, 30)
 	_add_continue_button(steve_card)
 	_add_card(steve_card, "L3 Steve Dialogue")
 
-	# Food card: Full English at the station
-	_build_food_card("FULL ENGLISH", "The lads find a cafe at the station.\nBacon, eggs, sausage, beans, toast.\nSobering up for the train home.", "FULL ENGLISH", 800, "Full English. You can feel the weight already.")
+	# Food card: Fry up at the station
+	_build_food_card("FRY UP", "Your mates find a cafe at the station.\nBacon, eggs, sausage, beans, toast.\nSobering up for the train home.", "FRY UP", 800, "Fry up. You can feel the weight already.", 3)
 
-	# Car park encounter — The Trader
+	# Car park encounter — The Trader (inflatables themed to player nickname)
+	var _inflatable_item: String = MerchData.get_inflatable_name(GameState.character)
 	var trader_card := _create_card()
 	_add_spacer(trader_card, 60)
 	var trader_panel := _build_companion_panel(
 		"THE TRADER",
-		"A bloke in a hi-vis catches you in the car park.\n\n\"You're getting a following, son. People need something to wave.\"\n\nHe opens the back of a van. Your face is on an inflatable.",
-		Color(0.7, 0.7, 0.1), "T"
+		"A bloke in a hi-vis catches you in the car park.\n\n\"You're getting a following, son. People need something to wave.\"\n\nHe opens the back of a van. Giant inflatable " + _inflatable_item + ".\n\n\"Come find me at the next venue. I'll sort you a deal.\"",
+		Color(0.7, 0.7, 0.1), "T", "", UIFont.PORTRAIT_ML
 	)
 	trader_card.add_child(trader_panel)
 	_add_spacer(trader_card, 30)
-	_add_continue_button(trader_card)
+	var trader_continue := _create_button("CONTINUE", Color(0.15, 0.15, 0.25), Color(0.3, 0.3, 0.5))
+	trader_continue.pressed.connect(func():
+		CareerState.trader_met = true
+		_advance_card()
+	)
+	var trader_wrapper := CenterContainer.new()
+	trader_wrapper.custom_minimum_size = Vector2(640, 100)
+	trader_wrapper.add_child(trader_continue)
+	trader_card.add_child(trader_wrapper)
 	_add_card(trader_card, "L3 Trader")
-
-	# Card 5: Inflatables decision
-	var infl_card := _create_card()
-	_add_spacer(infl_card, 120)
-	var infl_title := Label.new()
-	infl_title.text = "INFLATABLES"
-	UIFont.apply(infl_title, UIFont.HEADING)
-	infl_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	infl_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	infl_title.custom_minimum_size = Vector2(640, 70)
-	infl_card.add_child(infl_title)
-	_add_spacer(infl_card, 20)
-	var infl_desc := Label.new()
-	infl_desc.text = "Buy in bulk now while they're cheap.\nSell later when the crowds get bigger."
-	UIFont.apply(infl_desc, UIFont.BODY)
-	infl_desc.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
-	infl_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	infl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	infl_desc.custom_minimum_size = Vector2(640, 80)
-	infl_card.add_child(infl_desc)
-	_add_spacer(infl_card, 10)
-	var infl_cost := Label.new()
-	infl_cost.text = "Cost: " + _format_money(10000)
-	UIFont.apply(infl_cost, UIFont.BODY)
-	infl_cost.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
-	infl_cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	infl_cost.custom_minimum_size = Vector2(640, 40)
-	infl_card.add_child(infl_cost)
-	_add_spacer(infl_card, 30)
-	var infl_yes := _create_button("BUY SOME", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
-	var infl_yes_w := CenterContainer.new()
-	infl_yes_w.custom_minimum_size = Vector2(640, 100)
-	infl_yes_w.add_child(infl_yes)
-	infl_card.add_child(infl_yes_w)
-	_add_spacer(infl_card, 10)
-	var infl_no := _create_button("NOT YET", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
-	var infl_no_w := CenterContainer.new()
-	infl_no_w.custom_minimum_size = Vector2(640, 100)
-	infl_no_w.add_child(infl_no)
-	infl_card.add_child(infl_no_w)
-
-	infl_yes.pressed.connect(func():
-		CareerState.money -= 10000
-		CareerState.inflatables_owned = 1
-		CareerState.inflatables_cost = 10000
-		_advance_card()
-	)
-	infl_no.pressed.connect(func():
-		_advance_card()
-	)
-	_add_card(infl_card, "L3 Inflatables")
 
 	# Card 6: Coach introduction
 	var coach_card := _create_card()
@@ -947,24 +1019,29 @@ func _build_l3_win_cards() -> void:
 	var coach_panel := _build_companion_panel(
 		"THE COACH",
 		"A bloke in a flat cap catches your eye at the bar.\n\n\"Saw your match. You've got something. But the county tournament's a different beast. You need someone in your corner.\"\n\nHe taps his nose.\n\n\"I could help. If you're interested.\"",
-		Color(0.15, 0.35, 0.2), "C"
+		Color(0.15, 0.35, 0.2), "C", "res://Coach cropped.png", UIFont.PORTRAIT_ML
 	)
 	coach_card.add_child(coach_panel)
 	_add_spacer(coach_card, 30)
 	_add_continue_button(coach_card)
 	_add_card(coach_card, "L3 Coach Intro")
 
-	# Card 7: Coach decision
+	# Card 7: Coach decision (forced — player cannot skip)
 	var hire_card := _create_card()
-	_add_spacer(hire_card, 120)
+	var coach_actual_cost: int = 5000 if CareerState.money >= 5000 else 0
+
+	# --- Original group ---
+	var coach_original := VBoxContainer.new()
+	coach_original.add_theme_constant_override("separation", 0)
+	_add_spacer(coach_original, 120)
 	var hire_title := Label.new()
 	hire_title.text = "HIRE A COACH?"
 	UIFont.apply(hire_title, UIFont.HEADING)
 	hire_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	hire_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hire_title.custom_minimum_size = Vector2(640, 70)
-	hire_card.add_child(hire_title)
-	_add_spacer(hire_card, 20)
+	coach_original.add_child(hire_title)
+	_add_spacer(coach_original, 20)
 	var hire_desc := Label.new()
 	hire_desc.text = "Checkout hints during matches.\nPre-match strategy.\nSomeone who actually knows\nwhat they're doing."
 	UIFont.apply(hire_desc, UIFont.BODY)
@@ -972,52 +1049,105 @@ func _build_l3_win_cards() -> void:
 	hire_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hire_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hire_desc.custom_minimum_size = Vector2(640, 100)
-	hire_card.add_child(hire_desc)
-	_add_spacer(hire_card, 10)
+	coach_original.add_child(hire_desc)
+	_add_spacer(coach_original, 10)
 	var hire_cost := Label.new()
-	hire_cost.text = "Cost: " + _format_money(5000)
+	hire_cost.text = ("Cost: " + _format_money(coach_actual_cost)) if coach_actual_cost > 0 else "FREE (Alan's covering it)"
 	UIFont.apply(hire_cost, UIFont.BODY)
-	hire_cost.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
+	hire_cost.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3) if coach_actual_cost > 0 else Color(0.3, 0.8, 0.4))
 	hire_cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hire_cost.custom_minimum_size = Vector2(640, 40)
-	hire_card.add_child(hire_cost)
-	_add_spacer(hire_card, 30)
+	coach_original.add_child(hire_cost)
+	_add_spacer(coach_original, 30)
 	var hire_yes := _create_button("HIRE HIM", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
 	var hire_yes_w := CenterContainer.new()
 	hire_yes_w.custom_minimum_size = Vector2(640, 100)
 	hire_yes_w.add_child(hire_yes)
-	hire_card.add_child(hire_yes_w)
-	_add_spacer(hire_card, 10)
+	coach_original.add_child(hire_yes_w)
+	_add_spacer(coach_original, 10)
 	var hire_no := _create_button("I'LL MANAGE", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
 	var hire_no_w := CenterContainer.new()
 	hire_no_w.custom_minimum_size = Vector2(640, 100)
 	hire_no_w.add_child(hire_no)
-	hire_card.add_child(hire_no_w)
+	coach_original.add_child(hire_no_w)
+	hire_card.add_child(coach_original)
 
-	hire_yes.pressed.connect(func():
-		CareerState.money -= 5000
+	# --- Coach insistence group ---
+	var coach_insist_group := VBoxContainer.new()
+	coach_insist_group.add_theme_constant_override("separation", 0)
+	coach_insist_group.visible = false
+	_add_spacer(coach_insist_group, 60)
+	var coach_insist_data: Dictionary = HIRE_INSISTENCE["coach"]
+	var coach_insist_panel := _build_companion_panel(
+		coach_insist_data["speaker"],
+		"\"" + coach_insist_data["first"] + "\"",
+		coach_insist_data["color"], coach_insist_data["initial"], coach_insist_data["image"], UIFont.PORTRAIT_XL
+	)
+	coach_insist_group.add_child(coach_insist_panel)
+	_add_spacer(coach_insist_group, 30)
+	var coach_ok_btn := _create_button("OK", Color(0.15, 0.15, 0.25), Color(0.3, 0.3, 0.5))
+	var coach_ok_w := CenterContainer.new()
+	coach_ok_w.custom_minimum_size = Vector2(640, 100)
+	coach_ok_w.add_child(coach_ok_btn)
+	coach_insist_group.add_child(coach_ok_w)
+	hire_card.add_child(coach_insist_group)
+
+	var coach_decline := [0]
+
+	var _do_hire_coach := func():
+		if coach_actual_cost > 0:
+			CareerState.money -= coach_actual_cost
 		CareerState.coach_hired = true
-		CareerState.hustle_stars += 1
-		_advance_card()
-	)
-	hire_no.pressed.connect(func():
-		# Skip hustle star card
-		if _current_card + 2 < _cards.size():
-			_show_card(_current_card + 2)
-		else:
+		var old_hustle: int = CareerState.hustle_stars
+		CareerState.recalculate_hustle()
+		if CareerState.hustle_stars > old_hustle:
 			_advance_card()
+		else:
+			if _current_card + 2 < _cards.size():
+				_show_card(_current_card + 2)
+			else:
+				_advance_card()
+
+	hire_yes.pressed.connect(func(): _do_hire_coach.call())
+
+	hire_no.pressed.connect(func():
+		coach_decline[0] += 1
+		if coach_decline[0] == 1:
+			coach_original.visible = false
+			coach_insist_group.visible = true
+		else:
+			_do_hire_coach.call()
 	)
+
+	coach_ok_btn.pressed.connect(func():
+		coach_insist_group.visible = false
+		coach_original.visible = true
+	)
+
 	_add_card(hire_card, "L3 Coach Decision")
 
-	# Card 8: Hustle star (only if hired)
+	# Card 8: Hustle star (only if compound condition met: coach + merch bought)
 	_build_star_flip_card("HUSTLE", CareerState.hustle_stars, CareerState.hustle_stars + 1, "Going professional.", null)
 
 	# Dart shop
 	_build_dart_shop_card()
 
+	# Mates joining card
+	var mates_card := _create_card()
+	_add_spacer(mates_card, 60)
+	var mates_panel := _build_companion_panel(
+		"THE LADS",
+		"Excited by your emerging success, Alan ropes three other mates along.\n\nProper darts fans, this lot.",
+		Color.BLACK, "", "res://Group of mates for Level 3 better trimmed.png", UIFont.PORTRAIT_XL
+	)
+	mates_card.add_child(mates_panel)
+	_add_spacer(mates_card, 30)
+	_add_continue_button(mates_card)
+	_add_card(mates_card, "L3 Mates Joining")
+
 	# Card 9: Bridge card
 	_build_bridge_card(
-		"Two months later.",
+		"",
 		"County Darts Club",
 		"Lighting rig. Raised oche. Sponsor banners. Two hundred in the crowd. Regional TV cameras.",
 		7500
@@ -1030,7 +1160,7 @@ func _build_l3_win_cards() -> void:
 	_build_opponent_stats_card(
 		"philip", "Philip", "The Accountant",
 		{"SKILL": 4, "HEFT": 2, "HUSTLE": 3, "SWAGGER": 2},
-		"301 - Best of 5"
+		"301, Best of 5"
 	)
 
 # ======================================================
@@ -1042,7 +1172,7 @@ func _build_l4_win_cards() -> void:
 	_build_star_flip_card("SKILL", CareerState.skill_stars, CareerState.skill_stars + 1, "County champion. The phone's ringing.", func(): CareerState.skill_stars += 1)
 
 	# Food card: Steak dinner (manager's treat — free)
-	_build_food_card("STEAK DINNER", "The manager takes you out to celebrate.\nFillet steak, chips, peppercorn sauce.\nHer treat.", "ORDER THE STEAK", 0, "Steak and chips. This is the life.")
+	_build_food_card("STEAK DINNER", "The manager takes you out to celebrate.\nFillet steak, chips, peppercorn sauce.\nHer treat.", "ORDER THE STEAK", 0, "Steak and chips. This is the life.", 4)
 
 	# Manager introduction (companion panel)
 	var mgr_intro := _create_card()
@@ -1050,24 +1180,29 @@ func _build_l4_win_cards() -> void:
 	var mgr_panel := _build_companion_panel(
 		"THE MANAGER",
 		"A sharp-suited woman approaches your table.\n\n\"I manage fighters. Boxers mostly. But I know talent when I see it.\"\n\nShe slides a card across.\n\n\"Call me when you're ready to take this seriously.\"",
-		Color(0.4, 0.15, 0.25), "S"
+		Color(0.4, 0.15, 0.25), "S", "res://Manager cropped.png", UIFont.PORTRAIT_L
 	)
 	mgr_intro.add_child(mgr_panel)
 	_add_spacer(mgr_intro, 30)
 	_add_continue_button(mgr_intro)
 	_add_card(mgr_intro, "L4 Manager Intro")
 
-	# Card 4: Manager decision
+	# Card 4: Manager decision (forced — player cannot skip)
 	var mgr_card := _create_card()
-	_add_spacer(mgr_card, 120)
+	var mgr_actual_cost: int = 10000 if CareerState.money >= 10000 else 0
+
+	# --- Original group ---
+	var mgr_original := VBoxContainer.new()
+	mgr_original.add_theme_constant_override("separation", 0)
+	_add_spacer(mgr_original, 120)
 	var mgr_title := Label.new()
 	mgr_title.text = "HIRE A MANAGER?"
 	UIFont.apply(mgr_title, UIFont.HEADING)
 	mgr_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	mgr_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mgr_title.custom_minimum_size = Vector2(640, 70)
-	mgr_card.add_child(mgr_title)
-	_add_spacer(mgr_card, 20)
+	mgr_original.add_child(mgr_title)
+	_add_spacer(mgr_original, 20)
 	var mgr_desc := Label.new()
 	mgr_desc.text = "Sponsorship deals. Better money.\nSomeone to handle the business side\nso you can focus on the darts."
 	UIFont.apply(mgr_desc, UIFont.BODY)
@@ -1075,44 +1210,84 @@ func _build_l4_win_cards() -> void:
 	mgr_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mgr_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	mgr_desc.custom_minimum_size = Vector2(640, 100)
-	mgr_card.add_child(mgr_desc)
-	_add_spacer(mgr_card, 10)
+	mgr_original.add_child(mgr_desc)
+	_add_spacer(mgr_original, 10)
 	var mgr_cost := Label.new()
-	mgr_cost.text = "Cost: " + _format_money(10000)
+	mgr_cost.text = ("Cost: " + _format_money(mgr_actual_cost)) if mgr_actual_cost > 0 else "FREE (coach is covering it)"
 	UIFont.apply(mgr_cost, UIFont.BODY)
-	mgr_cost.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
+	mgr_cost.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3) if mgr_actual_cost > 0 else Color(0.3, 0.8, 0.4))
 	mgr_cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mgr_cost.custom_minimum_size = Vector2(640, 40)
-	mgr_card.add_child(mgr_cost)
-	_add_spacer(mgr_card, 30)
+	mgr_original.add_child(mgr_cost)
+	_add_spacer(mgr_original, 30)
 	var mgr_yes := _create_button("CALL HER", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
 	var mgr_yes_w := CenterContainer.new()
 	mgr_yes_w.custom_minimum_size = Vector2(640, 100)
 	mgr_yes_w.add_child(mgr_yes)
-	mgr_card.add_child(mgr_yes_w)
-	_add_spacer(mgr_card, 10)
+	mgr_original.add_child(mgr_yes_w)
+	_add_spacer(mgr_original, 10)
 	var mgr_no := _create_button("NOT YET", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
 	var mgr_no_w := CenterContainer.new()
 	mgr_no_w.custom_minimum_size = Vector2(640, 100)
 	mgr_no_w.add_child(mgr_no)
-	mgr_card.add_child(mgr_no_w)
+	mgr_original.add_child(mgr_no_w)
+	mgr_card.add_child(mgr_original)
 
-	mgr_yes.pressed.connect(func():
-		CareerState.money -= 10000
+	# --- Manager insistence group ---
+	var mgr_insist_group := VBoxContainer.new()
+	mgr_insist_group.add_theme_constant_override("separation", 0)
+	mgr_insist_group.visible = false
+	_add_spacer(mgr_insist_group, 60)
+	var mgr_insist_data: Dictionary = HIRE_INSISTENCE["manager"]
+	var mgr_insist_panel := _build_companion_panel(
+		mgr_insist_data["speaker"],
+		"\"" + mgr_insist_data["first"] + "\"",
+		mgr_insist_data["color"], mgr_insist_data["initial"], mgr_insist_data["image"], UIFont.PORTRAIT_XL
+	)
+	mgr_insist_group.add_child(mgr_insist_panel)
+	_add_spacer(mgr_insist_group, 30)
+	var mgr_ok_btn := _create_button("OK", Color(0.15, 0.15, 0.25), Color(0.3, 0.3, 0.5))
+	var mgr_ok_w := CenterContainer.new()
+	mgr_ok_w.custom_minimum_size = Vector2(640, 100)
+	mgr_ok_w.add_child(mgr_ok_btn)
+	mgr_insist_group.add_child(mgr_ok_w)
+	mgr_card.add_child(mgr_insist_group)
+
+	var mgr_decline := [0]
+
+	var _do_hire_manager := func():
+		if mgr_actual_cost > 0:
+			CareerState.money -= mgr_actual_cost
 		CareerState.manager_hired = true
-		CareerState.hustle_stars += 1
-		_advance_card()
-	)
-	mgr_no.pressed.connect(func():
-		# Skip hustle star card
-		if _current_card + 2 < _cards.size():
-			_show_card(_current_card + 2)
-		else:
+		var old_hustle: int = CareerState.hustle_stars
+		CareerState.recalculate_hustle()
+		if CareerState.hustle_stars > old_hustle:
 			_advance_card()
+		else:
+			if _current_card + 2 < _cards.size():
+				_show_card(_current_card + 2)
+			else:
+				_advance_card()
+
+	mgr_yes.pressed.connect(func(): _do_hire_manager.call())
+
+	mgr_no.pressed.connect(func():
+		mgr_decline[0] += 1
+		if mgr_decline[0] == 1:
+			mgr_original.visible = false
+			mgr_insist_group.visible = true
+		else:
+			_do_hire_manager.call()
 	)
+
+	mgr_ok_btn.pressed.connect(func():
+		mgr_insist_group.visible = false
+		mgr_original.visible = true
+	)
+
 	_add_card(mgr_card, "L4 Manager Decision")
 
-	# Card 5: Hustle star (only if hired)
+	# Card 5: Hustle star (only if compound condition met: manager + merch sold)
 	_build_star_flip_card("HUSTLE", CareerState.hustle_stars, CareerState.hustle_stars + 1, "Big time.", null)
 
 	# Card 6: Gambling introduction
@@ -1121,7 +1296,7 @@ func _build_l4_win_cards() -> void:
 	var gamble_panel := _build_companion_panel(
 		"THE CONTACT",
 		"A man in a sheepskin coat finds you in the car park.\n\n\"County champion. Very impressive.\"\n\nHe lights a cigarette.\n\n\"Word is, Mad Dog's beatable. You know it. I know it. The bookmakers don't.\"\n\nHe hands you a card.\n\n\"Think about it.\"",
-		Color(0.3, 0.3, 0.35), "?"
+		Color(0.3, 0.3, 0.35), "?", "", UIFont.PORTRAIT_ML
 	)
 	gamble_card.add_child(gamble_panel)
 	_add_spacer(gamble_card, 30)
@@ -1133,7 +1308,7 @@ func _build_l4_win_cards() -> void:
 
 	# Card 7: Bridge card
 	_build_bridge_card(
-		"Three months later.",
+		"",
 		"National Qualifying, Milton Keynes",
 		"Conference centre. Harsh fluorescent lighting. Five hundred watching. Everyone thinks they're good enough.\n\nWin or bust from here. No second chances.",
 		20000
@@ -1146,7 +1321,7 @@ func _build_l4_win_cards() -> void:
 	_build_opponent_stats_card(
 		"mad_dog", "Mad Dog", "Mad Dog",
 		{"SKILL": 3, "HEFT": 3, "HUSTLE": 2, "SWAGGER": 4},
-		"301 - Best of 7"
+		"301, Best of 7"
 	)
 
 # ======================================================
@@ -1158,7 +1333,7 @@ func _build_l5_win_cards() -> void:
 	_build_star_flip_card("SKILL", CareerState.skill_stars, 5, "National qualifier. Five stars. Maximum.", func(): CareerState.skill_stars = 5)
 
 	# Food card: Massive pasta / carb loading
-	_build_food_card("CARB LOADING", "The coach has a plan.\nMassive bowl of pasta. Garlic bread.\nBulking up so people think twice\nabout fighting you.", "LOAD UP", 1500, "Carb loaded. Nobody's messing with you now.")
+	_build_food_card("CARB LOADING", "The coach has a plan.\nMassive bowl of pasta. Garlic bread.\nBulking up so people think twice\nabout fighting you.", "LOAD UP", 1500, "Carb loaded. Nobody's messing with you now.", 5)
 
 	# Sponsor intro
 	var sponsor_card := _create_card()
@@ -1166,59 +1341,104 @@ func _build_l5_win_cards() -> void:
 	var sponsor_panel := _build_companion_panel(
 		"THE SPONSOR REP",
 		"After the match, a man with a clipboard and a lanyard corners you.\n\n\"Sponsorship opportunity. Big money.\"\n\nHe looks you up and down.\n\n\"But you'll need to fill that shirt out a bit more first. We'll talk.\"",
-		Color(0.1, 0.15, 0.35), "S"
+		Color(0.1, 0.15, 0.35), "S", "", UIFont.PORTRAIT_L
 	)
 	sponsor_card.add_child(sponsor_panel)
 	_add_spacer(sponsor_card, 30)
 	_add_continue_button(sponsor_card)
 	_add_card(sponsor_card, "L5 Sponsor Intro")
 
-	# Card 4: Team decision
+	# Card 4: Team decision (forced — player cannot skip)
 	var team_card := _create_card()
-	_add_spacer(team_card, 60)
-	var team_panel := _build_companion_panel(
+	var team_actual_cost: int = 50000 if CareerState.money >= 50000 else 0
+
+	# --- Original group ---
+	var team_original := VBoxContainer.new()
+	team_original.add_theme_constant_override("separation", 0)
+	_add_spacer(team_original, 60)
+	var team_intro_panel := _build_companion_panel(
 		"THE COACH",
 		"The coach pulls you aside.\n\n\"The Worlds is a different animal. You need a proper team. Physio. Medic. Someone to keep you alive up there.\"\n\nHe pauses.\n\n\"It's not cheap.\"",
-		Color(0.15, 0.35, 0.2), "C"
+		Color(0.15, 0.35, 0.2), "C", "res://Coach cropped.png", UIFont.PORTRAIT_ML
 	)
-	team_card.add_child(team_panel)
-	_add_spacer(team_card, 10)
+	team_original.add_child(team_intro_panel)
+	_add_spacer(team_original, 10)
 	var team_cost := Label.new()
-	team_cost.text = "Cost: " + _format_money(50000)
+	team_cost.text = ("Cost: " + _format_money(team_actual_cost)) if team_actual_cost > 0 else "FREE (manager's covering it)"
 	UIFont.apply(team_cost, UIFont.BODY)
-	team_cost.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
+	team_cost.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3) if team_actual_cost > 0 else Color(0.3, 0.8, 0.4))
 	team_cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	team_cost.custom_minimum_size = Vector2(640, 40)
-	team_card.add_child(team_cost)
-	_add_spacer(team_card, 20)
+	team_original.add_child(team_cost)
+	_add_spacer(team_original, 20)
 	var team_yes := _create_button("BUILD THE TEAM", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
 	var team_yes_w := CenterContainer.new()
 	team_yes_w.custom_minimum_size = Vector2(640, 100)
 	team_yes_w.add_child(team_yes)
-	team_card.add_child(team_yes_w)
-	_add_spacer(team_card, 10)
+	team_original.add_child(team_yes_w)
+	_add_spacer(team_original, 10)
 	var team_no := _create_button("JUST US", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
 	var team_no_w := CenterContainer.new()
 	team_no_w.custom_minimum_size = Vector2(640, 100)
 	team_no_w.add_child(team_no)
-	team_card.add_child(team_no_w)
+	team_original.add_child(team_no_w)
+	team_card.add_child(team_original)
 
-	team_yes.pressed.connect(func():
-		CareerState.money -= 50000
+	# --- Team insistence group ---
+	var team_insist_group := VBoxContainer.new()
+	team_insist_group.add_theme_constant_override("separation", 0)
+	team_insist_group.visible = false
+	_add_spacer(team_insist_group, 60)
+	var team_insist_data: Dictionary = HIRE_INSISTENCE["team"]
+	var team_insist_panel := _build_companion_panel(
+		team_insist_data["speaker"],
+		"\"" + team_insist_data["first"] + "\"",
+		team_insist_data["color"], team_insist_data["initial"], team_insist_data["image"], UIFont.PORTRAIT_XL
+	)
+	team_insist_group.add_child(team_insist_panel)
+	_add_spacer(team_insist_group, 30)
+	var team_ok_btn := _create_button("OK", Color(0.15, 0.15, 0.25), Color(0.3, 0.3, 0.5))
+	var team_ok_w := CenterContainer.new()
+	team_ok_w.custom_minimum_size = Vector2(640, 100)
+	team_ok_w.add_child(team_ok_btn)
+	team_insist_group.add_child(team_ok_w)
+	team_card.add_child(team_insist_group)
+
+	var team_decline := [0]
+
+	var _do_hire_team := func():
+		if team_actual_cost > 0:
+			CareerState.money -= team_actual_cost
 		CareerState.team_hired = true
-		CareerState.hustle_stars += 1
-		_advance_card()
-	)
-	team_no.pressed.connect(func():
-		# Skip hustle star card
-		if _current_card + 2 < _cards.size():
-			_show_card(_current_card + 2)
-		else:
+		var old_hustle: int = CareerState.hustle_stars
+		CareerState.recalculate_hustle()
+		if CareerState.hustle_stars > old_hustle:
 			_advance_card()
+		else:
+			if _current_card + 2 < _cards.size():
+				_show_card(_current_card + 2)
+			else:
+				_advance_card()
+
+	team_yes.pressed.connect(func(): _do_hire_team.call())
+
+	team_no.pressed.connect(func():
+		team_decline[0] += 1
+		if team_decline[0] == 1:
+			team_original.visible = false
+			team_insist_group.visible = true
+		else:
+			_do_hire_team.call()
 	)
+
+	team_ok_btn.pressed.connect(func():
+		team_insist_group.visible = false
+		team_original.visible = true
+	)
+
 	_add_card(team_card, "L5 Team Decision")
 
-	# Card 5: Hustle star (only if hired team)
+	# Card 5: Hustle star (team hire is standalone condition)
 	_build_star_flip_card("HUSTLE", CareerState.hustle_stars, CareerState.hustle_stars + 1, "Full support. No excuses.", null)
 
 	# Card 6: Doctor hint
@@ -1227,7 +1447,7 @@ func _build_l5_win_cards() -> void:
 	var doc_panel := _build_companion_panel(
 		"THE DOCTOR",
 		"A tired-looking man in a white coat catches you in the corridor.\n\n\"I see a lot of darts players come through here. Most of them in worse shape than they think.\"\n\nHe hands you a leaflet.\n\n\"Get checked out before the semis. Trust me.\"",
-		Color(0.3, 0.5, 0.35), "D"
+		Color(0.3, 0.5, 0.35), "D", "", UIFont.PORTRAIT_ML
 	)
 	doc_card.add_child(doc_panel)
 	_add_spacer(doc_card, 30)
@@ -1252,7 +1472,7 @@ func _build_l5_win_cards() -> void:
 	_build_opponent_stats_card(
 		"lars", "Lars", "The Viking",
 		{"SKILL": 5, "HEFT": 3, "HUSTLE": 3, "SWAGGER": 4},
-		"501 - Best of 5"
+		"501, Best of 5"
 	)
 
 # ======================================================
@@ -1309,16 +1529,17 @@ func _build_l6_win_cards() -> void:
 	_add_card(snap_card, "L6 Stars Snapshot")
 
 	# Food card: Room service at the hotel
-	_build_food_card("ROOM SERVICE", "Can't sleep. Pre-final nerves.\nThe entourage orders room service.\nClub sandwich, chips, cheesecake.\nComfort eating at midnight.", "ORDER IT", 2500, "Room service at midnight. Living the dream.")
+	_build_food_card("ROOM SERVICE", "Can't sleep. Pre-final nerves.\nThe entourage orders room service.\nClub sandwich, chips, cheesecake.\nComfort eating at midnight.", "ORDER IT", 2500, "Room service at midnight. Living the dream.", 6)
 
 	# Coach/team dialogue
 	var coach_card := _create_card()
 	_add_spacer(coach_card, 60)
 	var speaker_name: String = "THE TEAM" if CareerState.team_hired else "THE COACH"
+	var _coach_img: String = "res://Manager and full team cropped.png" if CareerState.team_hired else "res://Coach cropped.png"
 	var coach_panel := _build_companion_panel(
 		speaker_name,
 		"The coach speaks first.\n\n\"One more. That's all that stands between you and the title.\"\n\nHe pauses.\n\n\"But the doc says you need a check-up first. No arguments.\"",
-		Color(0.15, 0.35, 0.2), "C"
+		Color(0.15, 0.35, 0.2), "C", _coach_img, UIFont.PORTRAIT_XL
 	)
 	coach_card.add_child(coach_panel)
 	_add_spacer(coach_card, 30)
@@ -1338,7 +1559,7 @@ func _build_l6_win_cards() -> void:
 	var doc_panel := _build_companion_panel(
 		"THE DOCTOR",
 		doc_text,
-		Color(0.3, 0.5, 0.35), "D"
+		Color(0.3, 0.5, 0.35), "D", "", UIFont.PORTRAIT_XL
 	)
 	doc_card.add_child(doc_panel)
 	_add_spacer(doc_card, 30)
@@ -1351,7 +1572,7 @@ func _build_l6_win_cards() -> void:
 	var vinnie_panel := _build_companion_panel(
 		"VINNIE GOLD",
 		"The cameras find you in the corridor.\n\nVinnie Gold walks past. Gold shoes. Gold watch. Gold teeth.\n\nHe doesn't look at you.\n\n\"Tell him I said good luck.\"\n\nHe doesn't mean it.",
-		Color(0.6, 0.5, 0.1), "V"
+		Color(0.6, 0.5, 0.1), "V", "", UIFont.PORTRAIT_XL
 	)
 	vinnie_card.add_child(vinnie_panel)
 	_add_spacer(vinnie_card, 30)
@@ -1376,7 +1597,7 @@ func _build_l6_win_cards() -> void:
 	_build_opponent_stats_card(
 		"vinnie", "Vinnie Gold", "The Gold",
 		{"SKILL": 5, "HEFT": 4, "HUSTLE": 5, "SWAGGER": 5},
-		"501 - Best of 7"
+		"501, Best of 7"
 	)
 
 # ======================================================
@@ -1482,7 +1703,7 @@ const LOSS_FLAVOUR := {
 	# Level 3 (Steve)
 	3: {
 		1: "Steve grins. \"Better luck next time, pal.\"",
-		2: "The lads are going quiet.",
+		2: "Your mates are going quiet.",
 		"career_over": "Three-time champion.\nMake that four.\nSteve raises a pint. You don't.",
 		"retry": "ENTER AGAIN",
 	},
@@ -1506,6 +1727,128 @@ const LOSS_FLAVOUR := {
 		"career_over": "Gold confetti. Vinnie's confetti.\nNot yours.\n\nYou buy a kebab on the way to the station.",
 	},
 }
+
+# ======================================================
+# EXHIBITION RESULT CARDS
+# ======================================================
+
+func _build_exhibition_result_cards() -> void:
+	var opp_id: String = GameState.opponent_id
+	var opp_name: String = OpponentData.get_display_name(opp_id)
+	var opp_nick: String = OpponentData.get_nickname(opp_id)
+
+	var card := _create_card()
+
+	_add_spacer(card, 150)
+
+	if GameState.match_won:
+		var win_label := Label.new()
+		win_label.text = "EXHIBITION WIN"
+		UIFont.apply(win_label, UIFont.SCREEN_TITLE)
+		win_label.add_theme_color_override("font_color", Color(0.2, 1.0, 0.3))
+		win_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		win_label.custom_minimum_size = Vector2(640, 90)
+		card.add_child(win_label)
+
+		_add_spacer(card, 10)
+
+		var vs_label := Label.new()
+		vs_label.text = "vs " + opp_name + ' "' + opp_nick + '"'
+		UIFont.apply(vs_label, UIFont.SUBHEADING)
+		vs_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+		vs_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vs_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vs_label.custom_minimum_size = Vector2(640, 50)
+		card.add_child(vs_label)
+
+		_add_spacer(card, 50)
+
+		var prize_label := Label.new()
+		prize_label.text = _format_money(GameState.match_prize)
+		UIFont.apply(prize_label, UIFont.DISPLAY)
+		prize_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+		prize_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		prize_label.custom_minimum_size = Vector2(640, 130)
+		card.add_child(prize_label)
+
+		_add_spacer(card, 10)
+
+		var balance_label := Label.new()
+		balance_label.text = "Balance: " + _format_money(CareerState.money)
+		UIFont.apply(balance_label, UIFont.BODY)
+		balance_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
+		balance_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		balance_label.custom_minimum_size = Vector2(640, 50)
+		card.add_child(balance_label)
+	else:
+		var loss_label := Label.new()
+		loss_label.text = "EXHIBITION LOSS"
+		UIFont.apply(loss_label, UIFont.SCREEN_TITLE)
+		loss_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
+		loss_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		loss_label.custom_minimum_size = Vector2(640, 90)
+		card.add_child(loss_label)
+
+		_add_spacer(card, 10)
+
+		var vs_label := Label.new()
+		vs_label.text = "vs " + opp_name + ' "' + opp_nick + '"'
+		UIFont.apply(vs_label, UIFont.SUBHEADING)
+		vs_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+		vs_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vs_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vs_label.custom_minimum_size = Vector2(640, 50)
+		card.add_child(vs_label)
+
+		_add_spacer(card, 50)
+
+		var no_harm := Label.new()
+		no_harm.text = "No harm done.\nBack to the hub."
+		UIFont.apply(no_harm, UIFont.HEADING)
+		no_harm.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+		no_harm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		no_harm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		no_harm.custom_minimum_size = Vector2(640, 100)
+		card.add_child(no_harm)
+
+		_add_spacer(card, 20)
+
+		var balance_label := Label.new()
+		balance_label.text = "Balance: " + _format_money(CareerState.money)
+		UIFont.apply(balance_label, UIFont.BODY)
+		balance_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
+		balance_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		balance_label.custom_minimum_size = Vector2(640, 50)
+		card.add_child(balance_label)
+
+	_add_spacer(card, 80)
+
+	var hub_btn := _create_button("BACK TO HUB", Color(0.15, 0.15, 0.4), Color(0.3, 0.3, 0.7))
+	hub_btn.pressed.connect(_on_exhibition_return)
+	var hub_wrapper := CenterContainer.new()
+	hub_wrapper.custom_minimum_size = Vector2(640, 100)
+	hub_wrapper.add_child(hub_btn)
+	card.add_child(hub_wrapper)
+
+	_add_card(card, "Exhibition Result")
+
+
+func _on_exhibition_return() -> void:
+	CareerState.exhibition_mode = false
+	# Restore career opponent on GameState so the hub shows the right info
+	var career_opp_id: String = OpponentData.OPPONENT_ORDER[CareerState.career_level - 1]
+	var career_opp: Dictionary = OpponentData.get_opponent(career_opp_id)
+	GameState.opponent_id = career_opp_id
+	GameState.is_vs_ai = true
+	if career_opp["game_mode"] == "rtc":
+		GameState.game_mode = GameState.GameMode.ROUND_THE_CLOCK
+		GameState.starting_score = 0
+	else:
+		GameState.game_mode = GameState.GameMode.COUNTDOWN
+		GameState.starting_score = career_opp["starting_score"]
+	GameState.dart_tier = max(0, CareerState.dart_tier_owned)
+	get_tree().change_scene_to_file("res://scenes/between_match_hub.tscn")
+
 
 func _build_loss_card() -> void:
 	var opp_id: String = GameState.opponent_id
@@ -1661,6 +2004,87 @@ func _build_loss_card() -> void:
 
 	_add_card(card, "Loss")
 
+
+# ======================================================
+# TRADER PROFIT CARD (post-match, when pending sale > 0)
+# ======================================================
+
+func _build_trader_profit_card() -> void:
+	if CareerState.inflatables_pending_sale <= 0:
+		return
+
+	var level: int = CareerState.career_level
+	# Selling happens at the level we just played (career_level was already advanced for wins)
+	# For wins, career_level was bumped before this — use the opponent's level
+	var opp_id: String = GameState.opponent_id
+	var opp_level: int = OpponentData.get_opponent(opp_id)["level"]
+
+	var result: Dictionary = MerchData.resolve_sale(CareerState.inflatables_pending_sale, opp_level)
+	var sold: int = result["sold"]
+	var revenue: int = result["revenue"]
+	var unsold: int = result["unsold"]
+	var flavour: String = result["flavour_text"]
+
+	var item_name: String = MerchData.get_inflatable_name(GameState.character)
+
+	var card := _create_card()
+	_add_spacer(card, 60)
+
+	# Trader companion panel
+	var venue_config: Variant = MerchData.get_venue_config(opp_level)
+	var venue_name: String = venue_config["venue_name"] if venue_config else "the venue"
+
+	var dialogue: String = "\"Shifted " + str(sold) + " " + item_name + " at " + _format_money(venue_config["price_per_unit"]) + " each.\"\n\n" + flavour
+	if unsold > 0:
+		dialogue += "\n\n\"Got " + str(unsold) + " left. They'll keep.\""
+
+	var trader_panel := _build_companion_panel(
+		"THE TRADER",
+		dialogue,
+		Color(0.7, 0.7, 0.1), "T", "", UIFont.PORTRAIT_XL
+	)
+	card.add_child(trader_panel)
+	_add_spacer(card, 20)
+
+	# Revenue display
+	var revenue_label := Label.new()
+	revenue_label.text = "+" + _format_money(revenue)
+	UIFont.apply(revenue_label, UIFont.HEADING)
+	revenue_label.add_theme_color_override("font_color", Color(0.2, 0.85, 0.3))
+	revenue_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	revenue_label.custom_minimum_size = Vector2(640, 60)
+	card.add_child(revenue_label)
+
+	_add_spacer(card, 10)
+
+	# Apply the sale (cost was already deducted at purchase time)
+	CareerState.money += revenue
+	CareerState.inflatables_stock -= sold
+	# Unsold stock returns to inventory (already counted in stock minus sold)
+	CareerState.inflatables_total_sold += sold
+	CareerState.inflatables_total_profit += revenue
+	CareerState.inflatables_pending_sale = 0
+
+	# Check hustle
+	var old_hustle: int = CareerState.hustle_stars
+	CareerState.recalculate_hustle()
+
+	_add_spacer(card, 10)
+	_add_continue_button(card)
+	_add_card(card, "Trader Profit")
+
+	# If hustle increased, add a star flip card
+	if CareerState.hustle_stars > old_hustle:
+		var star_text: String
+		if CareerState.hustle_stars >= 5:
+			star_text = "Trading empire. Five star hustle."
+		elif CareerState.hustle_stars >= 3:
+			star_text = "The merch is moving."
+		else:
+			star_text = "Side hustle paying off."
+		_build_star_flip_card("HUSTLE", old_hustle, CareerState.hustle_stars, star_text, null)
+
+
 # ======================================================
 # REUSABLE HELPERS — Companion Panel
 # ======================================================
@@ -1670,7 +2094,7 @@ func _build_loss_card() -> void:
 ## Otherwise uses a coloured rectangle with an initial letter.
 func _build_companion_panel(speaker_name: String, dialogue_text: String,
 		portrait_color: Color, portrait_initial: String,
-		image_path: String = "") -> PanelContainer:
+		image_path: String = "", portrait_height: int = UIFont.PORTRAIT_S) -> PanelContainer:
 	var panel := PanelContainer.new()
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.08, 0.07, 0.12, 0.94)
@@ -1700,20 +2124,20 @@ func _build_companion_panel(speaker_name: String, dialogue_text: String,
 			portrait.texture = tex
 			portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			portrait.custom_minimum_size = Vector2(560, UIFont.PORTRAIT_S)
+			portrait.custom_minimum_size = Vector2(560, portrait_height)
 			vbox.add_child(portrait)
 	else:
 		var wrapper := Control.new()
-		wrapper.custom_minimum_size = Vector2(560, UIFont.PORTRAIT_S)
+		wrapper.custom_minimum_size = Vector2(560, portrait_height)
 		var bg := ColorRect.new()
 		bg.position = Vector2.ZERO
-		bg.size = Vector2(560, UIFont.PORTRAIT_S)
+		bg.size = Vector2(560, portrait_height)
 		bg.color = portrait_color
 		wrapper.add_child(bg)
 		var initial := Label.new()
 		initial.text = portrait_initial
 		initial.position = Vector2.ZERO
-		initial.size = Vector2(560, UIFont.PORTRAIT_S)
+		initial.size = Vector2(560, portrait_height)
 		initial.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		initial.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		UIFont.apply(initial, UIFont.SCREEN_TITLE)
@@ -1749,15 +2173,18 @@ func _build_companion_panel(speaker_name: String, dialogue_text: String,
 ## If player can't afford cost, the food card AND heft star flip are both skipped.
 ## If heft is already at max (5), only the food card is shown (no star flip).
 func _build_food_card(title: String, description: String,
-		button_text: String, cost: int, heft_quip: String) -> void:
-	# Skip entirely if player can't afford it
-	if cost > 0 and CareerState.money < cost:
-		return
-
+		button_text: String, cost: int, heft_quip: String, level: int = 0) -> void:
 	var can_gain_heft := CareerState.heft_tier < 5
+	# If player can't afford, companion covers it (cost waived)
+	var actual_cost: int = cost if CareerState.money >= cost else 0
 
 	var card := _create_card()
-	_add_spacer(card, 150)
+
+	# --- Original group (visible by default) ---
+	var original_group := VBoxContainer.new()
+	original_group.add_theme_constant_override("separation", 0)
+
+	_add_spacer(original_group, 150)
 
 	var title_label := Label.new()
 	title_label.text = title
@@ -1766,9 +2193,9 @@ func _build_food_card(title: String, description: String,
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title_label.custom_minimum_size = Vector2(640, 70)
-	card.add_child(title_label)
+	original_group.add_child(title_label)
 
-	_add_spacer(card, 30)
+	_add_spacer(original_group, 30)
 
 	var desc_label := Label.new()
 	desc_label.text = description
@@ -1777,51 +2204,89 @@ func _build_food_card(title: String, description: String,
 	desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc_label.custom_minimum_size = Vector2(640, 120)
-	card.add_child(desc_label)
+	original_group.add_child(desc_label)
 
-	if cost > 0:
-		_add_spacer(card, 10)
+	if actual_cost > 0:
+		_add_spacer(original_group, 10)
 		var cost_label := Label.new()
-		cost_label.text = "Cost: " + _format_money(cost)
+		cost_label.text = "Cost: " + _format_money(actual_cost)
 		UIFont.apply(cost_label, UIFont.BODY)
 		cost_label.add_theme_color_override("font_color", Color(0.9, 0.4, 0.3))
 		cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		cost_label.custom_minimum_size = Vector2(640, 40)
-		card.add_child(cost_label)
+		original_group.add_child(cost_label)
 
-	_add_spacer(card, 50)
+	_add_spacer(original_group, 50)
 
 	var eat_btn := _create_button(button_text, Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
 	var eat_wrapper := CenterContainer.new()
 	eat_wrapper.custom_minimum_size = Vector2(640, 100)
 	eat_wrapper.add_child(eat_btn)
-	card.add_child(eat_wrapper)
+	original_group.add_child(eat_wrapper)
 
-	_add_spacer(card, 10)
+	_add_spacer(original_group, 10)
 
 	var skip_btn := _create_button("NO THANKS", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
 	var skip_wrapper := CenterContainer.new()
 	skip_wrapper.custom_minimum_size = Vector2(640, 100)
 	skip_wrapper.add_child(skip_btn)
-	card.add_child(skip_wrapper)
+	original_group.add_child(skip_wrapper)
+
+	card.add_child(original_group)
+
+	# --- Insistence group (hidden by default) ---
+	var insistence_group := VBoxContainer.new()
+	insistence_group.add_theme_constant_override("separation", 0)
+	insistence_group.visible = false
+
+	_add_spacer(insistence_group, 60)
+
+	var insist_data: Dictionary = FOOD_INSISTENCE.get(level, FOOD_INSISTENCE[2])
+	var insist_panel := _build_companion_panel(
+		insist_data["speaker"],
+		"\"" + insist_data["first"] + "\"",
+		insist_data["color"], insist_data["initial"], insist_data["image"], UIFont.PORTRAIT_XL
+	)
+	insistence_group.add_child(insist_panel)
+
+	_add_spacer(insistence_group, 30)
+
+	var ok_btn := _create_button("OK", Color(0.15, 0.15, 0.25), Color(0.3, 0.3, 0.5))
+	var ok_wrapper := CenterContainer.new()
+	ok_wrapper.custom_minimum_size = Vector2(640, 100)
+	ok_wrapper.add_child(ok_btn)
+	insistence_group.add_child(ok_wrapper)
+
+	card.add_child(insistence_group)
+
+	# --- Button logic with decline tracking ---
+	var decline_count := [0]
 
 	eat_btn.pressed.connect(func():
-		if cost > 0:
-			CareerState.money -= cost
+		if actual_cost > 0:
+			CareerState.money -= actual_cost
 		if can_gain_heft:
 			CareerState.heft_tier += 1
 		_advance_card()
 	)
 
 	skip_btn.pressed.connect(func():
-		if can_gain_heft:
-			# Skip past the heft star flip card (advance by 2)
-			if _current_card + 2 < _cards.size():
-				_show_card(_current_card + 2)
-			else:
-				_advance_card()
+		decline_count[0] += 1
+		if decline_count[0] == 1:
+			original_group.visible = false
+			insistence_group.visible = true
 		else:
+			# Second decline — force it (companion covers cost if needed)
+			if actual_cost > 0:
+				CareerState.money -= actual_cost
+			if can_gain_heft:
+				CareerState.heft_tier += 1
 			_advance_card()
+	)
+
+	ok_btn.pressed.connect(func():
+		insistence_group.visible = false
+		original_group.visible = true
 	)
 
 	_add_card(card, "Food: " + title)
@@ -1895,18 +2360,18 @@ func _build_star_flip_card(star_name: String, old_val: int, new_val: int,
 			row.add_child(lbl)
 
 			flip_wrapper = Control.new()
-			flip_wrapper.custom_minimum_size = Vector2(260, 44)
+			flip_wrapper.custom_minimum_size = Vector2(260, 50)
 			flip_wrapper.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-			flip_wrapper.pivot_offset = Vector2(130, 22)
+			flip_wrapper.pivot_offset = Vector2(130, 25)
 
 			before_slots = _build_star_image(old_val)
 			before_slots.position = Vector2.ZERO
-			before_slots.size = Vector2(260, 44)
+			before_slots.size = Vector2(260, 50)
 			flip_wrapper.add_child(before_slots)
 
 			after_slots = _build_star_image(new_val)
 			after_slots.position = Vector2.ZERO
-			after_slots.size = Vector2(260, 44)
+			after_slots.size = Vector2(260, 50)
 			after_slots.visible = false
 			flip_wrapper.add_child(after_slots)
 
@@ -1967,16 +2432,16 @@ func _build_bridge_card(time_text: String, venue_name: String,
 	var card := _create_card()
 	_add_spacer(card, 120)
 
-	var time_label := Label.new()
-	time_label.text = time_text
-	UIFont.apply(time_label, UIFont.HEADING)
-	time_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	time_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	time_label.custom_minimum_size = Vector2(640, 60)
-	card.add_child(time_label)
-
-	_add_spacer(card, 10)
+	if time_text != "":
+		var time_label := Label.new()
+		time_label.text = time_text
+		UIFont.apply(time_label, UIFont.HEADING)
+		time_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+		time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		time_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		time_label.custom_minimum_size = Vector2(640, 60)
+		card.add_child(time_label)
+		_add_spacer(card, 10)
 
 	var venue_label := Label.new()
 	venue_label.text = venue_name
@@ -2133,7 +2598,11 @@ func _build_pre_drink_card() -> void:
 
 	# Companion image mapping
 	var companion_images := {
-		"mate": "res://Mate for Level 2 - Alan.png",
+		"Alan": "res://Mate for Level 2 - Alan.png",
+		"mates": "res://Group of mates for Level 3 better trimmed.png",
+		"coach": "res://Coach cropped.png",
+		"manager": "res://Manager cropped.png",
+		"entourage": "res://Manager and full team cropped.png",
 	}
 
 	var comp_type: String = config["companion"]
@@ -2153,12 +2622,24 @@ func _build_pre_drink_card() -> void:
 			card.add_child(img)
 			_add_spacer(card, 10)
 
-	# Intro line
+	# Setting line (where you are)
+	var setting_label := Label.new()
+	setting_label.text = config["setting"]
+	UIFont.apply(setting_label, UIFont.CAPTION)
+	setting_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
+	setting_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	setting_label.custom_minimum_size = Vector2(640, 0)
+	card.add_child(setting_label)
+
+	_add_spacer(card, 10)
+
+	# Companion's intro line
 	var intro := Label.new()
-	intro.text = "A couple of cheeky sharpeners\nwill help settle your nerves"
+	intro.text = config["intro"]
 	UIFont.apply(intro, UIFont.BODY)
 	intro.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
 	intro.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	intro.custom_minimum_size = Vector2(640, 0)
 	card.add_child(intro)
 
@@ -2288,7 +2769,15 @@ func _build_generic_next_opponent_card() -> void:
 	var next_name: String = OpponentData.get_display_name(next_opp_id)
 	var next_nick: String = OpponentData.get_nickname(next_opp_id)
 	var next_opp: Dictionary = OpponentData.get_opponent(next_opp_id)
-	var next_mode: String = "Round the Clock" if next_opp["game_mode"] == "rtc" else str(next_opp["starting_score"])
+	var next_mode: String
+	if next_opp["game_mode"] == "rtc":
+		next_mode = "Round the Clock"
+	else:
+		var legs: int = next_opp.get("legs_to_win", 1)
+		if legs > 1:
+			next_mode = str(next_opp["starting_score"]) + ", Best of " + str(legs * 2 - 1)
+		else:
+			next_mode = str(next_opp["starting_score"])
 	_build_opponent_stats_card(next_opp_id, next_name, next_nick,
 		{"SKILL": 3, "HEFT": 2, "HUSTLE": 2, "SWAGGER": 1}, next_mode)
 
@@ -2321,14 +2810,22 @@ func _show_card(index: int) -> void:
 func _advance_card() -> void:
 	if _current_card < _cards.size() - 1:
 		_show_card(_current_card + 1)
+	elif _retry_mode:
+		get_tree().change_scene_to_file("res://scenes/match.tscn")
 
 func _add_continue_button(card: Control) -> void:
+	var top_fill := Control.new()
+	top_fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	card.add_child(top_fill)
 	var btn := _create_button("CONTINUE", Color(0.15, 0.15, 0.25), Color(0.3, 0.3, 0.5))
 	btn.pressed.connect(_advance_card)
 	var wrapper := CenterContainer.new()
 	wrapper.custom_minimum_size = Vector2(640, 100)
 	wrapper.add_child(btn)
 	card.add_child(wrapper)
+	var bottom_fill := Control.new()
+	bottom_fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	card.add_child(bottom_fill)
 
 # ======================================================
 # Helpers
@@ -2395,7 +2892,7 @@ func _build_star_image(filled: int) -> TextureRect:
 		img.texture = tex
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	img.custom_minimum_size = Vector2(260, 44)
+	img.custom_minimum_size = Vector2(260, 50)
 	img.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	return img
 
@@ -2441,7 +2938,22 @@ func _on_next_match() -> void:
 
 func _on_try_again() -> void:
 	GameState.dart_tier = max(0, CareerState.dart_tier_owned)
-	get_tree().change_scene_to_file("res://scenes/match.tscn")
+	CareerState.pre_drink_units = 0
+	# Clear existing cards from screen
+	for card in _cards:
+		if is_instance_valid(card):
+			card.queue_free()
+	_cards.clear()
+	_card_animations.clear()
+	_current_card = 0
+	_retry_mode = true
+	# Build pre-drink card (L2+ only — returns without building if no config)
+	_build_pre_drink_card()
+	if _cards.size() > 0:
+		_show_card(0)
+	else:
+		# No pre-drink available (L1) — go straight to match
+		get_tree().change_scene_to_file("res://scenes/match.tscn")
 
 func _on_new_career() -> void:
 	CareerState.reset()

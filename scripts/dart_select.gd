@@ -112,7 +112,7 @@ func _build_ui() -> void:
 	# Hint
 	var hint := Label.new()
 	if _shop_mode:
-		hint.text = "Swipe to browse  ·  Tap to view"
+		hint.text = "Swipe to browse  ·  Tap to buy"
 	else:
 		hint.text = "Swipe to browse  ·  Tap to play"
 	UIFont.apply(hint, UIFont.CAPTION)
@@ -168,11 +168,14 @@ func _build_tile(tier: int) -> void:
 	# ── Dart name ──
 	var name_lbl := Label.new()
 	name_lbl.text = data["name"].to_upper()
-	UIFont.apply(name_lbl, UIFont.SUBHEADING)
+	# Use BODY for long names like "PREMIUM TUNGSTEN" that overflow at SUBHEADING
+	var name_font_size: int = UIFont.BODY if data["name"].length() > 14 else UIFont.SUBHEADING
+	UIFont.apply(name_lbl, name_font_size)
 	name_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_lbl.position = Vector2(10, 20)
-	name_lbl.size = Vector2(TILE_W - 20, 32)
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_lbl.position = Vector2(10, 14)
+	name_lbl.size = Vector2(TILE_W - 20, 44)
 	tile.add_child(name_lbl)
 
 	# ── Weight ──
@@ -255,7 +258,7 @@ func _build_tile(tier: int) -> void:
 
 		var action_lbl := Label.new()
 		if _shop_mode:
-			action_lbl.text = "TAP TO VIEW"
+			action_lbl.text = "TAP TO BUY" if can_afford else "CAN'T AFFORD YET"
 			action_lbl.add_theme_color_override("font_color", Color(0.2, 0.85, 0.3, 0.95) if can_afford else Color(0.5, 0.35, 0.3, 0.7))
 		else:
 			action_lbl.text = "LOCKED"
@@ -487,13 +490,10 @@ func _input(event: InputEvent) -> void:
 		if drag_dist < 12.0:
 			_snap_to_nearest()
 			if _shop_mode:
-				# Shop mode — tap to view, then tap again to buy
+				# Shop mode — tap to buy directly
 				if _is_tier_locked(_current_index):
-					if _viewing_tier == _current_index:
-						if CareerState.money >= TIER_COSTS[_current_index]:
-							_buy_tier(_current_index)
-					else:
-						_enter_view_mode(_current_index)
+					if CareerState.money >= TIER_COSTS[_current_index]:
+						_buy_tier(_current_index)
 			else:
 				# Normal mode — tap to play
 				if not _is_tier_locked(_current_index):
@@ -651,7 +651,7 @@ func _exit_view_mode() -> void:
 	if tier < _action_refs.size() and _action_refs[tier]:
 		var can_afford: bool = CareerState.money >= TIER_COSTS[tier]
 		if _shop_mode:
-			_action_refs[tier].text = "TAP TO VIEW"
+			_action_refs[tier].text = "TAP TO BUY" if can_afford else "CAN'T AFFORD YET"
 			_action_refs[tier].add_theme_color_override("font_color", Color(0.2, 0.85, 0.3, 0.95) if can_afford else Color(0.5, 0.35, 0.3, 0.7))
 	_viewing_tier = -1
 

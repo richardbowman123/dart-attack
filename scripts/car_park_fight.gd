@@ -15,22 +15,16 @@ const RESULT_LOST := 2
 const FIGHT_DURATION := 8.0
 const FREEZE_DURATION := 0.3
 
-# ── Tuning constants for power depletion ──
-# With these values:
-#   Heft=1.0 + drinks=7 → retains ~85% power after 8s
-#   Heft=0.0 + drinks=0 → bottoms out near 0%
-const BASE_DEPLETION_RATE := 0.155   # Power lost per second at worst stats
-const HEFT_WEIGHT := 0.40            # How much heft reduces depletion
-const ALCOHOL_WEIGHT := 0.45         # How much optimal drinking reduces depletion
-
 # ── Incoming stats (set before adding to tree) ──
 var player_heft: float = 0.0         # 0.0–1.0 (normalised from heft_tier)
 var player_drinks: int = 0           # 0–10
+var player_swagger: int = 0          # 0–5 stars (display only, no fight effect)
 var player_name: String = "PLAYER"
 var player_image_path: String = ""
 
 var opponent_heft: float = 0.5
 var opponent_drinks: int = 4
+var opponent_swagger: int = 0        # 0–5 stars (display only)
 var opponent_name: String = "OPPONENT"
 var opponent_image_path: String = ""
 var opponent_anger: float = 0.0      # 0–100, for future variance
@@ -39,10 +33,13 @@ var opponent_anger: float = 0.0      # 0–100, for future variance
 var _time_remaining: float = FIGHT_DURATION
 var _player_power: float = 100.0
 var _opponent_power: float = 100.0
-var _player_depletion_rate: float = 0.0
-var _opponent_depletion_rate: float = 0.0
 var _fight_active: bool = false
 var _fight_ended: bool = false
+
+# ── Hit event system — life drains in random chunks, not smoothly ──
+var _hit_events: Array = []     # [{time, target, damage}]
+var _next_hit_idx: int = 0
+var _elapsed: float = 0.0
 
 # ── UI references ──
 var _timer_label: Label
@@ -68,36 +65,85 @@ var _opponent_pulsing: bool = false
 
 
 func _ready() -> void:
-	_calculate_depletion_rates()
+	_generate_hit_events()
 	_build_ui()
 	_start_fight()
 
 
-# ── STAT CALCULATIONS ──
+# ── HIT EVENT GENERATION ──
+# Pre-generates all hits before the fight starts.
+# Outcome is determined by HEFT x DRUNKENNESS. Swagger is cosmetic.
 
-func _calculate_depletion_rates() -> void:
-	# Player
-	var player_alcohol_factor := _alcohol_curve(player_drinks)
-	_player_depletion_rate = BASE_DEPLETION_RATE * (
-		1.0 - (HEFT_WEIGHT * player_heft)
-		- (ALCOHOL_WEIGHT * player_alcohol_factor)
-	)
-	_player_depletion_rate = maxf(_player_depletion_rate, 0.005)
+func _generate_hit_events() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
 
-	# Opponent — same formula
-	var opp_alcohol_factor := _alcohol_curve(opponent_drinks)
-	_opponent_depletion_rate = BASE_DEPLETION_RATE * (
-		1.0 - (HEFT_WEIGHT * opponent_heft)
-		- (ALCOHOL_WEIGHT * opp_alcohol_factor)
-	)
-	_opponent_depletion_rate = maxf(_opponent_depletion_rate, 0.005)
-	# TODO: wire OpponentAnger variance once PlayerStats complete
+	# Fight score — HEFT x DRUNKENNESS (floor of 1 so sober still has a chance)
+	var player_score := player_heft * maxf(float(player_drinks), 1.0)
+	var opponent_score := opponent_heft * maxf(float(opponent_drinks), 1.0)
+	var player_wins := player_score >= opponent_score
 
+	# Total damage each side takes — loser always reaches 0
+	var score_ratio := maxf(player_score, opponent_score) / maxf(minf(player_score, opponent_score), 0.1)
+	var winner_damage := clampf(100.0 / score_ratio, 15.0, 85.0)
 
-## Parabola peaking at drinks=7. Returns 0.0–1.0.
-func _alcohol_curve(drinks: int) -> float:
-	var factor := 1.0 - ((float(drinks) - 7.0) ** 2) / 49.0
-	return clampf(factor, 0.0, 1.0)
+	var player_total: float
+	var opponent_total: float
+	if player_wins:
+		player_total = winner_damage
+		opponent_total = 100.0
+	else:
+		player_total = 100.0
+		opponent_total = winner_damage
+
+	_hit_events.clear()
+
+	# First blow — opponent ALWAYS hits player for ~1/6 of life
+	var first_blow := 16.0 + rng.randf_range(-2.0, 2.0)
+	_hit_events.append({"time": 0.3, "target": "player", "damage": first_blow})
+	var player_dmg_so_far := first_blow
+	var opp_dmg_so_far := 0.0
+
+	# Scatter remaining hits across 8 seconds
+	var t := 0.8
+	while t < FIGHT_DURATION - 0.5:
+		t += rng.randf_range(0.35, 0.85)
+		if t >= FIGHT_DURATION - 0.5:
+			break
+
+		var hit_player := rng.randf() < 0.5
+
+		# Hit size: big / medium / small
+		var roll := rng.randf()
+		var dmg: float
+		if roll < 0.2:
+			dmg = rng.randf_range(16.0, 26.0)
+		elif roll < 0.6:
+			dmg = rng.randf_range(8.0, 16.0)
+		else:
+			dmg = rng.randf_range(3.0, 8.0)
+
+		if hit_player:
+			dmg = minf(dmg, player_total - player_dmg_so_far)
+			if dmg > 0.5:
+				_hit_events.append({"time": t, "target": "player", "damage": dmg})
+				player_dmg_so_far += dmg
+		else:
+			dmg = minf(dmg, opponent_total - opp_dmg_so_far)
+			if dmg > 0.5:
+				_hit_events.append({"time": t, "target": "opponent", "damage": dmg})
+				opp_dmg_so_far += dmg
+
+	# Final blow — finish off whoever still has remaining damage
+	var player_remaining := player_total - player_dmg_so_far
+	var opp_remaining := opponent_total - opp_dmg_so_far
+	if player_remaining > 0.5:
+		_hit_events.append({"time": FIGHT_DURATION - 0.2, "target": "player", "damage": player_remaining})
+	if opp_remaining > 0.5:
+		_hit_events.append({"time": FIGHT_DURATION - 0.2, "target": "opponent", "damage": opp_remaining})
+
+	# Sort by time
+	_hit_events.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["time"] < b["time"])
 
 
 # ── UI BUILDING ──
@@ -223,22 +269,40 @@ func _build_fighter_panel(is_player: bool) -> void:
 	var bar_x: int = panel_x + 15
 	var bar_w: int = panel_w - 30
 	var bar_y_start := 470
+	var bar_spacing := 65
 
-	# 1. HEALTH bar (display only)
-	var health_fill := _build_stat_bar(
-		bar_x, bar_y_start, bar_w, "HEALTH",
-		Color(0.2, 0.7, 0.3),   # Green
-		player_heft if is_player else opponent_heft
+	# 1. LIFE bar (animated — drains during fight)
+	var life_fill := _build_stat_bar(
+		bar_x, bar_y_start, bar_w, "LIFE",
+		Color(0.85, 0.15, 0.15), # Red
+		1.0
 	)
 	if is_player:
-		_player_health_bar_fill = health_fill
+		_player_power_bar_fill = life_fill
+		_player_power_bar_bg = life_fill.get_parent().get_child(0)
 	else:
-		_opponent_health_bar_fill = health_fill
+		_opponent_power_bar_fill = life_fill
+		_opponent_power_bar_bg = life_fill.get_parent().get_child(0)
 
-	# 2. BOTTLE bar (display only)
+	# Life percentage label
+	var pct_label := Label.new()
+	pct_label.text = "100%"
+	UIFont.apply(pct_label, 18)
+	pct_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.8))
+	pct_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pct_label.position = Vector2(bar_x, bar_y_start + 22)
+	pct_label.size = Vector2(bar_w, 24)
+	pct_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shake_container.add_child(pct_label)
+	if is_player:
+		_player_power_label = pct_label
+	else:
+		_opponent_power_label = pct_label
+
+	# 2. DRUNKENNESS bar (display only)
 	var drink_val: float = float(player_drinks if is_player else opponent_drinks) / 10.0
 	var drink_fill := _build_stat_bar(
-		bar_x, bar_y_start + 80, bar_w, "BOTTLE",
+		bar_x, bar_y_start + bar_spacing, bar_w, "DRUNKENNESS",
 		Color(0.85, 0.6, 0.1),  # Amber
 		drink_val
 	)
@@ -247,33 +311,24 @@ func _build_fighter_panel(is_player: bool) -> void:
 	else:
 		_opponent_drink_bar_fill = drink_fill
 
-	# 3. POWER bar (animated, depletes during fight)
-	var power_fill := _build_stat_bar(
-		bar_x, bar_y_start + 160, bar_w, "POWER",
-		Color(0.85, 0.15, 0.15), # Red
-		1.0
+	# 3. HEFT bar (display only)
+	var heft_fill := _build_stat_bar(
+		bar_x, bar_y_start + bar_spacing * 2, bar_w, "HEFT",
+		Color(0.2, 0.7, 0.3),   # Green
+		player_heft if is_player else opponent_heft
 	)
 	if is_player:
-		_player_power_bar_fill = power_fill
-		_player_power_bar_bg = power_fill.get_parent().get_child(0)  # The bg rect
+		_player_health_bar_fill = heft_fill
 	else:
-		_opponent_power_bar_fill = power_fill
-		_opponent_power_bar_bg = power_fill.get_parent().get_child(0)
+		_opponent_health_bar_fill = heft_fill
 
-	# Power percentage label
-	var pct_label := Label.new()
-	pct_label.text = "100%"
-	UIFont.apply(pct_label, UIFont.CAPTION)
-	pct_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.8))
-	pct_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pct_label.position = Vector2(bar_x, bar_y_start + 160 + 22)
-	pct_label.size = Vector2(bar_w, 28)
-	pct_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_shake_container.add_child(pct_label)
-	if is_player:
-		_player_power_label = pct_label
-	else:
-		_opponent_power_label = pct_label
+	# 4. SWAGGER bar (display only — cosmetic, no fight effect)
+	var swagger_val: float = float(player_swagger if is_player else opponent_swagger) / 5.0
+	_build_stat_bar(
+		bar_x, bar_y_start + bar_spacing * 3, bar_w, "SWAGGER",
+		Color(0.7, 0.3, 0.85),  # Purple
+		swagger_val
+	)
 
 
 ## Builds a labelled stat bar and returns the fill ColorRect.
@@ -390,18 +445,25 @@ func _process(delta: float) -> void:
 	if not _fight_active or _fight_ended:
 		return
 
-	# Deplete power bars
-	_player_power -= _player_depletion_rate * delta * 100.0
-	_opponent_power -= _opponent_depletion_rate * delta * 100.0
-	_player_power = maxf(_player_power, 0.0)
-	_opponent_power = maxf(_opponent_power, 0.0)
+	_elapsed += delta
 
-	# Update power bar visuals (lerp for smooth feel)
+	# Process hit events as they come due
+	while _next_hit_idx < _hit_events.size() and _hit_events[_next_hit_idx]["time"] <= _elapsed:
+		var hit: Dictionary = _hit_events[_next_hit_idx]
+		if hit["target"] == "player":
+			_player_power = maxf(_player_power - hit["damage"], 0.0)
+			_do_screen_shake(hit["damage"] * 0.5, 0.15)
+		else:
+			_opponent_power = maxf(_opponent_power - hit["damage"], 0.0)
+			_do_screen_shake(hit["damage"] * 0.4, 0.12)
+		_next_hit_idx += 1
+
+	# Update power bar visuals (lerp for chunky-then-smooth feel)
 	var bar_w: float = _player_power_bar_fill.get_parent().size.x
 	var target_player_w: float = bar_w * (_player_power / 100.0)
 	var target_opp_w: float = bar_w * (_opponent_power / 100.0)
-	_player_power_bar_fill.size.x = lerpf(_player_power_bar_fill.size.x, target_player_w, 8.0 * delta)
-	_opponent_power_bar_fill.size.x = lerpf(_opponent_power_bar_fill.size.x, target_opp_w, 8.0 * delta)
+	_player_power_bar_fill.size.x = lerpf(_player_power_bar_fill.size.x, target_player_w, 10.0 * delta)
+	_opponent_power_bar_fill.size.x = lerpf(_opponent_power_bar_fill.size.x, target_opp_w, 10.0 * delta)
 
 	# Update percentage labels
 	_player_power_label.text = str(roundi(_player_power)) + "%"
@@ -546,23 +608,24 @@ func _on_fight_lost() -> void:
 # ── CONVENIENCE: set up from game state ──
 
 ## Call this to populate player stats from autoloads before adding to tree.
-static func create_fight(opp_name: String, opp_image: String,
-		opp_heft: float, opp_drinks: int, opp_anger: float,
-		p_drinks: int) -> CarParkFight:
+static func create_from_match(opp_id: String, p_drinks: int) -> CarParkFight:
 	var scene: PackedScene = load("res://scenes/car_park_fight.tscn")
 	var fight: CarParkFight = scene.instantiate()
+
+	var opp_data: Dictionary = OpponentData.get_opponent(opp_id)
 
 	# Player stats from autoloads
 	fight.player_name = DartData.get_character_name(GameState.character)
 	fight.player_image_path = DartData.get_profile_image(GameState.character)
-	fight.player_heft = float(CareerState.heft_tier) / 4.0  # Normalise 0-4 → 0.0-1.0
+	fight.player_heft = float(CareerState.heft_tier) / 5.0  # Normalise 0-5 → 0.0-1.0
 	fight.player_drinks = p_drinks
+	fight.player_swagger = CareerState.swagger_stars
 
 	# Opponent stats
-	fight.opponent_name = opp_name
-	fight.opponent_image_path = opp_image
-	fight.opponent_heft = opp_heft
-	fight.opponent_drinks = opp_drinks
-	fight.opponent_anger = opp_anger
+	fight.opponent_name = opp_data.get("name", "OPPONENT")
+	fight.opponent_image_path = opp_data.get("image", "")
+	fight.opponent_heft = float(opp_data.get("fight_heft", 2)) / 5.0
+	fight.opponent_drinks = opp_data.get("fight_drunk", 2)
+	fight.opponent_swagger = opp_data.get("fight_swagger", 2)
 
 	return fight

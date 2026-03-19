@@ -71,8 +71,8 @@ const STAGE_FULL_TEAM := 5
 
 static var COMPANION_NAMES := {
 	0: "Barman",
-	1: "Mate",
-	2: "The Lads",
+	1: "Alan",
+	2: "Mates",
 	3: "Coach",
 	4: "Manager",
 	5: "The Team",
@@ -93,11 +93,11 @@ static var PORTRAIT_COLORS := {
 
 static var PORTRAIT_IMAGES := {
 	0: "res://Barman.jpg",
-	1: "",
-	2: "",
-	3: "",
-	4: "",
-	5: "",
+	1: "res://Mate for Level 2 - Alan.png",
+	2: "res://Group of mates for Level 3 better trimmed.png",
+	3: "res://Coach cropped.png",
+	4: "res://Manager cropped.png",
+	5: "res://Manager and full team cropped.png",
 }
 
 # =====================================================================
@@ -396,7 +396,7 @@ static var INTERACTIVE_EXCHANGES: Array = [
 		"id": "friend_scouting",
 		"trigger": PRE_MATCH,
 		"companion_stage": 1,
-		"speaker": "Mate",
+		"speaker": "Alan",
 		"condition": "tough_opponent",
 		"prompt": "Mate, I've seen this bloke play. Want me to talk you through his weaknesses?",
 		"responses": [
@@ -517,12 +517,12 @@ static var INTERACTIVE_EXCHANGES: Array = [
 		],
 	},
 
-	# --- MATE: Companion's round (L2) ---
+	# --- ALAN: Companion's round (L2) ---
 	{
 		"id": "mate_companion_round",
 		"trigger": DRINK_OFFER,
 		"companion_stage": 1,
-		"speaker": "Mate",
+		"speaker": "Alan",
 		"condition": "companion_round",
 		"prompt": "My round. Pint?",
 		"responses": [
@@ -530,12 +530,12 @@ static var INTERACTIVE_EXCHANGES: Array = [
 			{"label": "I'm alright", "reply": "More for me then.", "consequence": ""},
 		],
 	},
-	# --- MATE: Player's round (L2) ---
+	# --- ALAN: Player's round (L2) ---
 	{
 		"id": "mate_player_round",
 		"trigger": DRINK_OFFER,
 		"companion_stage": 1,
-		"speaker": "Mate",
+		"speaker": "Alan",
 		"condition": "player_round",
 		"prompt": "Your round, I think.",
 		"responses": [
@@ -543,12 +543,12 @@ static var INTERACTIVE_EXCHANGES: Array = [
 			{"label": "I'm skint", "reply": "Tight. Fine.", "consequence": ""},
 		],
 	},
-	# --- LADS: Companion's round (L3) ---
+	# --- MATES: Companion's round (L3) ---
 	{
 		"id": "lads_companion_round",
 		"trigger": DRINK_OFFER,
 		"companion_stage": 2,
-		"speaker": "The Lads",
+		"speaker": "Mates",
 		"condition": "companion_round",
 		"prompt": "Dave's getting them in. Want one?",
 		"responses": [
@@ -556,12 +556,12 @@ static var INTERACTIVE_EXCHANGES: Array = [
 			{"label": "Nah I'm good", "reply": "More for Dave.", "consequence": ""},
 		],
 	},
-	# --- LADS: Player's round (L3) ---
+	# --- MATES: Player's round (L3) ---
 	{
 		"id": "lads_player_round",
 		"trigger": DRINK_OFFER,
 		"companion_stage": 2,
-		"speaker": "The Lads",
+		"speaker": "Mates",
 		"condition": "player_round",
 		"prompt": "Your round, mate. Four pints.",
 		"responses": [
@@ -724,7 +724,7 @@ static var DEBRIEF_WIN := {
 		"You absolute legend. Drinks on me. All night.",
 	],
 	2: [
-		"GET IN! The lads are going mental!",
+		"GET IN! Your mates are going mental!",
 		"We always knew! Well, Dave had doubts, but the rest of us!",
 	],
 	3: [

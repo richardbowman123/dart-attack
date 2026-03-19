@@ -212,15 +212,9 @@ func _update_display() -> void:
 	_intensity_label.text = "Intensity: " + str(snapped(intensity * 100, 1)) + "%"
 
 	# Tier name and colour
-	if level <= 3:
+	if level <= 8:
 		_tier_label.text = "SOBER"
 		_tier_label.add_theme_color_override("font_color", Color(0.4, 0.8, 0.4))
-	elif level <= 6:
-		_tier_label.text = "TIPSY"
-		_tier_label.add_theme_color_override("font_color", Color(0.9, 0.8, 0.3))
-	elif level <= 8:
-		_tier_label.text = "DRUNK"
-		_tier_label.add_theme_color_override("font_color", Color(0.9, 0.5, 0.2))
 	elif level <= 10:
 		_tier_label.text = "HAMMERED"
 		_tier_label.add_theme_color_override("font_color", Color(0.9, 0.2, 0.2))

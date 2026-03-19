@@ -45,12 +45,17 @@ var _ai_darts_thrown: int = 0
 var _ai_turn_tween: Tween
 
 # ── Career mode stats (only active when CareerState.career_mode_active) ──
-var _player_nerves: float = 50.0
-var _player_confidence: float = 50.0
+var _player_nerves: float = 50.0      # Derived — displayed on HUD
+var _player_confidence: float = 50.0  # Derived — displayed on HUD
 var _player_dart_quality: float = 0.0
-var _player_anger: float = 0.0
+var _player_anger: float = 0.0        # Derived — displayed on HUD
 var _drinks_this_match: int = 0
 var _player_visit_count: int = 0
+
+# ── Raw stats (before drunk modifiers) ──
+var _raw_nerves: float = 50.0
+var _raw_confidence: float = 50.0
+var _gameplay_anger: float = 0.0
 
 # ── Multi-leg match state ──
 var _legs_to_win: int = 1
@@ -138,10 +143,8 @@ func _stop_confidence_decay() -> void:
 	_confidence_decay_active = false
 
 func _apply_confidence_decay() -> void:
-	_player_confidence = clampf(_player_confidence - CONFIDENCE_DECAY_RATE, CONFIDENCE_FLOOR, 100.0)
-	_score_hud.update_stats_bars(_player_dart_quality, _player_nerves, _player_confidence, _player_anger)
-	# Update scatter multiplier in real time so the next dart uses decayed value
-	_throw_system.career_scatter_mult = get_career_scatter_mult()
+	_raw_confidence = clampf(_raw_confidence - CONFIDENCE_DECAY_RATE, CONFIDENCE_FLOOR, 100.0)
+	_recalculate_drunk_stats()
 
 func _setup_environment() -> void:
 	var env := Environment.new()
@@ -230,6 +233,7 @@ func _connect_signals() -> void:
 	if CareerState.career_mode_active:
 		CompanionManager.dialogue_finished.connect(_on_companion_dialogue_finished)
 		CompanionManager.consequence_triggered.connect(_on_companion_consequence)
+		DrinkManager.drinks_changed.connect(_on_drinks_changed)
 	_score_hud.debug_menu_requested.connect(_show_debug_menu)
 
 func _on_first_zoom() -> void:
@@ -254,13 +258,13 @@ func _init_game_mode() -> void:
 
 	# Init career stats
 	if CareerState.career_mode_active and _is_vs_ai:
-		_player_nerves = OpponentData.get_base_nerves(_opponent_id)
+		_raw_nerves = OpponentData.get_base_nerves(_opponent_id)
 		if CareerState.losses_at_current_level == 0:
-			_player_confidence = 20.0  # First attempt at this level
+			_raw_confidence = 20.0  # First attempt at this level
 		else:
-			_player_confidence = CareerState.confidence_carry
+			_raw_confidence = CareerState.confidence_carry
 		_player_dart_quality = _tier_to_quality(GameState.dart_tier)
-		_player_anger = 0.0
+		_gameplay_anger = 0.0
 		_drinks_this_match = 0
 		_player_visit_count = 0
 
@@ -270,10 +274,19 @@ func _init_game_mode() -> void:
 		_pre_drink_advice_shown = false
 		if CareerState.pre_drink_units > 0:
 			DrinkManager.set_level(CareerState.pre_drink_units)
-			# Heavier drinking = lower nerves going in (3% reduction per unit)
-			var nerves_reduction := CareerState.pre_drink_units * 3.0
-			_player_nerves = clampf(_player_nerves - nerves_reduction, 10.0, 100.0)
+			# Sober venue anxiety doesn't apply when pre-drinking
 			CareerState.pre_drink_units = 0
+		else:
+			# Sober: bigger venues add extra nerves from crowd/atmosphere
+			# L1-2: no extra (local pub). L3+: escalating venue pressure.
+			var venue_anxiety := maxf(0.0, (CareerState.career_level - 2) * 4.0)
+			# Exhibition matches are more relaxed — halve the venue pressure
+			if CareerState.exhibition_mode:
+				venue_anxiety *= 0.5
+			_raw_nerves = clampf(_raw_nerves + venue_anxiety, 0.0, 100.0)
+
+		# Derive displayed stats from raw + drunk modifiers
+		_recalculate_drunk_stats()
 
 		# Set companion stage for dialogue system
 		var stage_map := {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 5}
@@ -419,11 +432,11 @@ func _start_visit() -> void:
 		_score_hud.reset_dart_icons()
 		_score_hud.hide_summary()
 
-		# Ensure confidence is at least the floor at the start of each visit
+		# Ensure raw confidence is at least the floor at the start of each visit
 		if CareerState.career_mode_active:
-			if _player_confidence < CONFIDENCE_FLOOR:
-				_player_confidence = CONFIDENCE_FLOOR
-			_throw_system.career_scatter_mult = get_career_scatter_mult()
+			if _raw_confidence < CONFIDENCE_FLOOR:
+				_raw_confidence = CONFIDENCE_FLOOR
+			_recalculate_drunk_stats()
 
 		# Pre-drink advice on first visit (career L2+), or normal tier flash
 		if not _pre_drink_advice_shown and CareerState.career_mode_active and _pre_drink_units_at_start > 0 and CareerState.career_level >= 2:
@@ -434,7 +447,7 @@ func _start_visit() -> void:
 		else:
 			_throw_system.set_can_throw(true)
 			_start_confidence_decay()
-			if not CareerState.career_mode_active or _player_visit_count > 1:
+			if not CareerState.career_mode_active:
 				DrinkManager.flash_tier_name()
 
 		# Zoom reminder — reset per-visit tracking and show hint
@@ -626,14 +639,15 @@ func _handle_countdown_hit(score_data: Dictionary) -> void:
 		_update_stats_on_player_checkout()
 		_state = MatchState.FINISHED
 		_throw_system.set_can_throw(false)
-		_score_hud.show_message("GAME SHOT!", 3.0)
+		_score_hud.show_message(_checkout_message(true), 3.0)
 		var tween := create_tween()
 		tween.tween_interval(3.5)
 		tween.tween_callback(_on_leg_complete.bind(true))
 		return
 
 	if _visit_score == 180:
-		_score_hud.show_message("ONE HUNDRED AND EIGHTY!", 2.0)
+		_score_hud.show_message("ONE HUNDRED AND EIGHTY!", 3.0)
+		_flash_180()
 
 	_advance_turn()
 
@@ -686,8 +700,7 @@ func _handle_ai_countdown_hit(score_data: Dictionary) -> void:
 		_cancel_ai_turn()
 		_update_stats_on_opponent_checkout()
 		_state = MatchState.FINISHED
-		var opp_name := OpponentData.get_display_name(_opponent_id)
-		_score_hud.show_message(opp_name + " WINS!", 3.0)
+		_score_hud.show_message(_checkout_message(false), 3.0)
 		var tween := create_tween()
 		tween.tween_interval(3.5)
 		tween.tween_callback(_on_leg_complete.bind(false))
@@ -717,51 +730,44 @@ func _handle_rtc_hit(score_data: Dictionary) -> void:
 				# Target is 20: any hit advances to outer bull only
 				new_target = 21
 
-			# Build hit description with actual skipped numbers
+			# Build hit description
 			var prefix := ""
 			if multiplier == 2:
 				prefix = "D"
 			elif multiplier == 3:
 				prefix = "T"
-
-			var skipped: Array = []
-			for n in range(old_target + 1, new_target):
-				skipped.append(str(n))
-			if skipped.size() > 0:
-				_rtc_hits_this_visit.append(prefix + str(old_target) + " (skip " + ",".join(skipped) + ")")
-			else:
-				_rtc_hits_this_visit.append(prefix + str(old_target))
+			_rtc_hits_this_visit.append({"text": prefix + str(old_target), "scoring": true})
 
 			_rtc_target = new_target
 			_score_hud.update_remaining_text(_rtc_target_label())
 		else:
-			# Missed the target (hit wrong number or missed board)
-			_rtc_hits_this_visit.append("-")
+			# Hit wrong number or missed board — show what was actually hit
+			_rtc_hits_this_visit.append(_rtc_non_scoring_entry(hit_number, multiplier))
 	elif _rtc_target == 21:
 		# Must hit outer bull (25) specifically
 		if hit_number == 25:
-			_rtc_hits_this_visit.append("Outer Bull")
+			_rtc_hits_this_visit.append({"text": "Outer Bull", "scoring": true})
 			_rtc_target += 1
 			_score_hud.update_remaining_text(_rtc_target_label())
 		else:
-			_rtc_hits_this_visit.append("-")
+			_rtc_hits_this_visit.append(_rtc_non_scoring_entry(hit_number, multiplier))
 	else:
 		# Must hit bullseye (double 25) specifically
 		if hit_number == 25 and multiplier == 2:
-			_rtc_hits_this_visit.append("Bullseye")
+			_rtc_hits_this_visit.append({"text": "Bull's Eye", "scoring": true})
 			_rtc_target += 1
 			_score_hud.update_remaining_text(_rtc_target_label())
 		else:
-			_rtc_hits_this_visit.append("-")
+			_rtc_hits_this_visit.append(_rtc_non_scoring_entry(hit_number, multiplier))
 
 	# RTC: treat hitting the target as a good score for stats
-	# Treble gives biggest confidence bump, then double, then single
 	if _rtc_hits_this_visit.size() > 0:
-		var last_hit: String = _rtc_hits_this_visit[-1]
-		if last_hit != "-":
-			if last_hit.begins_with("T"):
+		var last_entry: Dictionary = _rtc_hits_this_visit[-1]
+		if last_entry.get("scoring", false):
+			var last_text: String = last_entry.get("text", "")
+			if last_text.begins_with("T"):
 				_update_career_stats(-3.0, 10.0)
-			elif last_hit.begins_with("D"):
+			elif last_text.begins_with("D"):
 				_update_career_stats(-2.0, 7.0)
 			else:
 				_update_career_stats(-1.0, 4.0)
@@ -774,7 +780,7 @@ func _handle_rtc_hit(score_data: Dictionary) -> void:
 		_state = MatchState.FINISHED
 		_throw_system.set_can_throw(false)
 		if _is_vs_ai:
-			_score_hud.show_message("YOU WIN!", 3.0)
+			_score_hud.show_message(_checkout_message(true), 3.0)
 		else:
 			_score_hud.show_message("ROUND COMPLETE!", 3.0)
 		var tween := create_tween()
@@ -812,43 +818,35 @@ func _handle_ai_rtc_hit(score_data: Dictionary) -> void:
 				prefix = "D"
 			elif multiplier == 3:
 				prefix = "T"
-
-			var skipped: Array = []
-			for n in range(old_target + 1, new_target):
-				skipped.append(str(n))
-			if skipped.size() > 0:
-				_opp_rtc_hits_this_visit.append(prefix + str(old_target) + " (skip " + ",".join(skipped) + ")")
-			else:
-				_opp_rtc_hits_this_visit.append(prefix + str(old_target))
+			_opp_rtc_hits_this_visit.append({"text": prefix + str(old_target), "scoring": true})
 
 			_opp_rtc_target = new_target
 			_score_hud.update_opponent_remaining_text(_opp_rtc_target_label())
 		else:
-			_opp_rtc_hits_this_visit.append("-")
+			_opp_rtc_hits_this_visit.append(_rtc_non_scoring_entry(hit_number, multiplier))
 	elif _opp_rtc_target == 21:
 		# Must hit outer bull (25) specifically
 		if hit_number == 25:
-			_opp_rtc_hits_this_visit.append("Outer Bull")
+			_opp_rtc_hits_this_visit.append({"text": "Outer Bull", "scoring": true})
 			_opp_rtc_target += 1
 			_score_hud.update_opponent_remaining_text(_opp_rtc_target_label())
 		else:
-			_opp_rtc_hits_this_visit.append("-")
+			_opp_rtc_hits_this_visit.append(_rtc_non_scoring_entry(hit_number, multiplier))
 	else:
 		# Must hit bullseye (double 25) specifically
 		if hit_number == 25 and multiplier == 2:
-			_opp_rtc_hits_this_visit.append("Bullseye")
+			_opp_rtc_hits_this_visit.append({"text": "Bull's Eye", "scoring": true})
 			_opp_rtc_target += 1
 			_score_hud.update_opponent_remaining_text(_opp_rtc_target_label())
 		else:
-			_opp_rtc_hits_this_visit.append("-")
+			_opp_rtc_hits_this_visit.append(_rtc_non_scoring_entry(hit_number, multiplier))
 
 	# Check for AI win
 	if _opp_rtc_target > 22:
 		_cancel_ai_turn()
 		_update_stats_on_opponent_checkout()
 		_state = MatchState.FINISHED
-		var opp_name := OpponentData.get_display_name(_opponent_id)
-		_score_hud.show_message(opp_name + " WINS!", 3.0)
+		_score_hud.show_message(_checkout_message(false), 3.0)
 		var tween := create_tween()
 		tween.tween_interval(3.5)
 		tween.tween_callback(_on_leg_complete.bind(false))
@@ -861,13 +859,23 @@ func _handle_ai_rtc_hit(score_data: Dictionary) -> void:
 
 	_ai_advance_turn()
 
+func _rtc_non_scoring_entry(hit_number: int, multiplier: int) -> Dictionary:
+	if hit_number > 0 and multiplier > 0:
+		var mp := ""
+		if multiplier == 2:
+			mp = "D"
+		elif multiplier == 3:
+			mp = "T"
+		return {"text": mp + str(hit_number), "scoring": false}
+	return {"text": "", "scoring": false}
+
 func _rtc_target_label() -> String:
 	if _rtc_target <= 20:
 		return "Next: " + str(_rtc_target)
 	elif _rtc_target == 21:
 		return "Next: Outer Bull"
 	elif _rtc_target == 22:
-		return "Next: Bullseye"
+		return "Next: Bull"
 	else:
 		return "DONE!"
 
@@ -877,7 +885,7 @@ func _opp_rtc_target_label() -> String:
 	elif _opp_rtc_target == 21:
 		return "Next: Outer Bull"
 	elif _opp_rtc_target == 22:
-		return "Next: Bullseye"
+		return "Next: Bull"
 	else:
 		return "DONE!"
 
@@ -1378,17 +1386,31 @@ func _clear_and_next_visit() -> void:
 
 	_start_visit()
 
+# ── 180 flash effect ──
+
+func _flash_180() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	var flash := ColorRect.new()
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	flash.color = Color(1, 1, 1, 0.8)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(flash)
+	add_child(layer)
+	var tween := create_tween()
+	tween.tween_property(flash, "color:a", 0.0, 0.5)
+	tween.tween_callback(layer.queue_free)
+
 # ── Career stats helpers ──
 
 func _update_career_stats(nerves_delta: float, confidence_delta: float) -> void:
 	if not CareerState.career_mode_active:
 		return
-	# Level-based nerves cap — early levels feel less punishing
+	# Update raw values — drunk modifiers applied by _recalculate_drunk_stats
 	var nerves_cap := _get_nerves_cap()
-	_player_nerves = clampf(_player_nerves + nerves_delta, 0.0, nerves_cap)
-	_player_confidence = clampf(_player_confidence + confidence_delta, 0.0, 100.0)
-	if not _suppress_hud_update:
-		_score_hud.update_stats_bars(_player_dart_quality, _player_nerves, _player_confidence, _player_anger)
+	_raw_nerves = clampf(_raw_nerves + nerves_delta, 0.0, nerves_cap)
+	_raw_confidence = clampf(_raw_confidence + confidence_delta, 0.0, 100.0)
+	_recalculate_drunk_stats()
 
 func _update_stats_on_player_score(score_data: Dictionary) -> void:
 	if not CareerState.career_mode_active:
@@ -1451,23 +1473,18 @@ func _update_stats_on_near_checkout() -> void:
 	# Called when player is near checkout (remaining <= 40)
 	_update_career_stats(3.0, 0.0)
 
-## Apply a drink effect to nerves, anger, and opponent anger.
-## A drink cuts nerves to a fraction of their current value — big visible effect.
+## Apply a drink effect — tracks drinks count and liver damage.
+## Nerve/confidence/anger effects are now driven by DrinkManager.drinks_level
+## via _recalculate_drunk_stats(), not one-off deltas.
 func apply_drink(is_full_pint: bool) -> void:
 	if is_full_pint:
-		_update_player_anger(4.0)
-		# Full pint: nerves drop to 15% of current, confidence +10
-		var nerve_drop := _player_nerves * 0.85
-		_update_career_stats(-nerve_drop, 10.0)
 		_drinks_this_match += 2
 		CareerState.liver_damage += 2.0 * maxf(0.5, 1.0 - CareerState.heft_tier * 0.15)
 	else:
-		_update_player_anger(2.0)
-		# Half pint: nerves drop to 25% of current, confidence +6
-		var nerve_drop := _player_nerves * 0.75
-		_update_career_stats(-nerve_drop, 6.0)
 		_drinks_this_match += 1
 		CareerState.liver_damage += 1.0 * maxf(0.5, 1.0 - CareerState.heft_tier * 0.15)
+	# Recalculate stats (DrinkManager.drinks_level already updated by caller)
+	_recalculate_drunk_stats()
 	# Opponent cools off slightly while player drinks
 	_update_opponent_stats(0.0, 0.0, -2.0)
 
@@ -1526,10 +1543,73 @@ func _show_opponent_stats() -> void:
 func _update_player_anger(delta: float) -> void:
 	if not CareerState.career_mode_active:
 		return
-	_player_anger = clampf(_player_anger + delta, 0.0, 100.0)
-	# Refresh HUD if it's the player's turn
-	if _is_player_turn and not _suppress_hud_update:
+	_gameplay_anger = clampf(_gameplay_anger + delta, 0.0, 100.0)
+	_recalculate_drunk_stats()
+
+# ── Drunk effects on stats ──
+
+## Signal handler for DrinkManager.drinks_changed — recalc whenever drinks change
+func _on_drinks_changed(_level: int) -> void:
+	_recalculate_drunk_stats()
+
+## Central recalculation — derives displayed stats from raw + drunk modifiers
+func _recalculate_drunk_stats() -> void:
+	var dl := DrinkManager.drinks_level
+	var nerves_cap := _get_nerves_cap()
+
+	# Nerves: raw * modifier (drunk suppresses nerves)
+	var nerve_mod := _get_drunk_nerve_modifier(dl)
+	_player_nerves = clampf(_raw_nerves * nerve_mod, 0.0, nerves_cap)
+
+	# Confidence: max of raw and drunk floor (drunk lifts the floor)
+	var conf_floor := _get_drunk_confidence_floor(dl)
+	_player_confidence = clampf(maxf(_raw_confidence, conf_floor), 0.0, 100.0)
+
+	# Anger: gameplay + drunk contribution, with dampening and hard cap
+	var drunk_anger := _get_drunk_anger(dl)
+	var total_anger := _gameplay_anger + drunk_anger
+	# Soft dampening above 60: excess scaled by 0.4
+	if total_anger > 60.0:
+		total_anger = 60.0 + (total_anger - 60.0) * 0.4
+	# Hard cap at 82 — player anger NEVER reaches 100 from drink alone
+	_player_anger = clampf(total_anger, 0.0, 82.0)
+
+	if not _suppress_hud_update and _is_player_turn:
 		_score_hud.update_stats_bars(_player_dart_quality, _player_nerves, _player_confidence, _player_anger)
+	_throw_system.career_scatter_mult = get_career_scatter_mult()
+
+## Nerve modifier: drinks suppress nerves. Floor depends on career level.
+func _get_drunk_nerve_modifier(dl: int) -> float:
+	if dl < 4:
+		return 1.0
+	# Level-based floor: L1-4 = 0.0 (full suppression), L5+ gets partial
+	var level: int = CareerState.career_level
+	var floor_mod: float
+	if level <= 4:
+		floor_mod = 0.0
+	elif level == 5:
+		floor_mod = 0.08
+	elif level == 6:
+		floor_mod = 0.16
+	else:
+		floor_mod = 0.25
+	# Ramp from 1.0 toward floor_mod over drinks 4-7
+	var t := clampf(float(dl - 3) / 4.0, 0.0, 1.0)  # 0 at 3, 1 at 7+
+	return lerpf(1.0, floor_mod, t)
+
+## Confidence floor: drunk raises the minimum displayed confidence
+func _get_drunk_confidence_floor(dl: int) -> float:
+	if dl < 4:
+		return 0.0
+	# Diminishing returns: each additional drink adds less
+	# drinks 4→60, 6→77, 8→88, 10→92
+	return 100.0 * (1.0 - pow(0.8, dl - 3))
+
+## Drunk anger: exponential curve starting at 4 drinks, capped at 60
+func _get_drunk_anger(dl: int) -> float:
+	if dl <= 3:
+		return 0.0
+	return minf(60.0, 0.6 * pow(float(dl - 3), 2.0))
 
 ## Update opponent stats (nerves, confidence, anger) and check anger threshold
 func _update_opponent_stats(nerves_d: float, confidence_d: float, anger_d: float) -> void:
@@ -1545,18 +1625,71 @@ func _update_opponent_stats(nerves_d: float, confidence_d: float, anger_d: float
 	if _opp_anger >= 100.0:
 		_trigger_fight_scene()
 
-## Stub — opponent anger has hit 100%. Show "FIGHT!" and treat as a loss.
+## Opponent anger has hit 100% — car park fight! Winner wins the whole match.
 func _trigger_fight_scene() -> void:
 	_cancel_ai_turn()
 	_throw_system.set_can_throw(false)
 	_state = MatchState.FINISHED
-	var opp_name := OpponentData.get_display_name(_opponent_id)
-	_score_hud.show_message("FIGHT!", 3.0)
+	_score_hud.show_message("FIGHT!", 2.0)
+
+	# Store fight context so fight screen can set up
+	CareerState.fight_pending = true
+	CareerState.fight_opponent_id = _opponent_id
+
+	# Brief pause to show "FIGHT!" then transition
 	var tween := create_tween()
-	tween.tween_interval(3.5)
-	tween.tween_callback(_on_player_loses)
+	tween.tween_interval(2.5)
+	tween.tween_callback(_goto_fight_screen)
+
+func _goto_fight_screen() -> void:
+	var fight := CarParkFight.create_from_match(
+		CareerState.fight_opponent_id,
+		DrinkManager.drinks_level
+	)
+	fight.fight_finished.connect(_on_fight_finished)
+	get_tree().root.add_child(fight)
+	# Hide the match scene — fight takes over
+	visible = false
+	_score_hud.visible = false
+
+func _on_fight_finished(result: int) -> void:
+	CareerState.fight_pending = false
+	if result == CarParkFight.RESULT_WIN or result == CarParkFight.RESULT_SCRAPE:
+		_on_player_wins()
+	else:
+		_on_player_loses()
 
 # ── Multi-leg match handling ──
+
+func _leg_ordinal(n: int) -> String:
+	match n:
+		1: return "FIRST"
+		2: return "SECOND"
+		3: return "THIRD"
+		4: return "FOURTH"
+		5: return "FIFTH"
+		6: return "SIXTH"
+		7: return "SEVENTH"
+		_: return str(n) + "TH"
+
+func _checkout_message(player_won: bool) -> String:
+	# Single-leg match
+	if _legs_to_win <= 1:
+		if player_won:
+			return "GAME SHOT!"
+		else:
+			return OpponentData.get_display_name(_opponent_id) + " WINS!"
+	# Multi-leg: check if this leg decides the match
+	var winning_count: int
+	if player_won:
+		winning_count = _player_legs_won + 1
+	else:
+		winning_count = _opponent_legs_won + 1
+	if winning_count >= _legs_to_win:
+		return "GAME SHOT\nAND THE MATCH!"
+	# Non-deciding leg
+	var leg_number := _player_legs_won + _opponent_legs_won + 1
+	return "GAME SHOT\nAND THE " + _leg_ordinal(leg_number) + " LEG!"
 
 func _on_leg_complete(player_won: bool) -> void:
 	# Single-leg match — go straight to win/loss
@@ -1583,16 +1716,10 @@ func _on_leg_complete(player_won: bool) -> void:
 		_on_player_loses()
 		return
 
-	# More legs to play — show transition message
-	var msg: String
-	if player_won:
-		msg = "YOUR LEG!"
-	else:
-		msg = OpponentData.get_display_name(_opponent_id) + "\nTAKES THE LEG!"
-	_score_hud.show_message(msg, 2.5)
-
+	# More legs to play — brief pause then start new leg
+	# (the checkout message already announced which leg it was)
 	var tween := create_tween()
-	tween.tween_interval(3.0)
+	tween.tween_interval(1.0)
 	tween.tween_callback(_start_new_leg.bind(not player_won))
 
 func _start_new_leg(player_throws_first: bool) -> void:
@@ -1636,30 +1763,71 @@ func _start_new_leg(player_throws_first: bool) -> void:
 
 func _on_player_wins() -> void:
 	if CareerState.career_mode_active:
-		CareerState.confidence_carry = _player_confidence * 0.5
-		CareerState.losses_at_current_level = 0
-		var prize: int = OpponentData.get_prize_money(_opponent_id)
-		CareerState.money += prize
-		CareerState.career_level += 1
-		GameState.match_won = true
-		GameState.match_prize = prize
-		GameState.match_career_over = false
-		_goto_results()
+		CareerState.confidence_carry = _raw_confidence * 0.5
+		if CareerState.exhibition_mode:
+			# Exhibition win: prize money, no career progression
+			var prize: int = ExhibitionData.current_prize
+			CareerState.money += prize
+			GameState.match_won = true
+			GameState.match_prize = prize
+			GameState.match_career_over = false
+		else:
+			CareerState.losses_at_current_level = 0
+			var prize: int = OpponentData.get_prize_money(_opponent_id)
+			CareerState.money += prize
+			CareerState.career_level += 1
+			GameState.match_won = true
+			GameState.match_prize = prize
+			GameState.match_career_over = false
+		# Drunk win: adrenaline snap sober over ~2s before results
+		if DrinkManager.drinks_level > 3:
+			DrinkManager.sober_snap()
+			var tween := create_tween()
+			tween.tween_interval(2.5)
+			tween.tween_callback(_goto_results)
+		else:
+			_goto_results()
 		return
 	_restart_game()
 
 func _on_player_loses() -> void:
 	if CareerState.career_mode_active:
 		CareerState.confidence_carry = 20.0
-		CareerState.losses_at_current_level += 1
-		var max_losses: int = OpponentData.get_max_losses(_opponent_id)
-		var is_career_over: bool = CareerState.losses_at_current_level >= max_losses
-		GameState.match_won = false
-		GameState.match_prize = 0
-		GameState.match_career_over = is_career_over
-		_goto_results()
+		if CareerState.exhibition_mode:
+			# Exhibition loss: no strike, no career impact
+			GameState.match_won = false
+			GameState.match_prize = 0
+			GameState.match_career_over = false
+		else:
+			CareerState.losses_at_current_level += 1
+			var max_losses: int = OpponentData.get_max_losses(_opponent_id)
+			var is_career_over: bool = CareerState.losses_at_current_level >= max_losses
+			GameState.match_won = false
+			GameState.match_prize = 0
+			GameState.match_career_over = is_career_over
+		# Drunk loss: drunkenness spirals worse, then fade to black
+		if DrinkManager.drinks_level > 3:
+			DrinkManager.ramp_to_blackout(5.0)
+			var tween := create_tween()
+			tween.tween_interval(5.5)
+			tween.tween_callback(_fade_to_black_and_results)
+		else:
+			_goto_results()
 		return
 	_restart_game()
+
+func _fade_to_black_and_results() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	var black := ColorRect.new()
+	black.set_anchors_preset(Control.PRESET_FULL_RECT)
+	black.color = Color(0, 0, 0, 0)
+	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(black)
+	add_child(layer)
+	var tween := create_tween()
+	tween.tween_property(black, "color:a", 1.0, 1.0)
+	tween.tween_callback(_goto_results)
 
 func _goto_results() -> void:
 	_cancel_ai_turn()
@@ -1819,13 +1987,13 @@ func _display_pre_drink_popup() -> void:
 	# Pick advice text based on how much they drank
 	var advice: String
 	if units <= 4:
-		advice = "Those pre-drinks really settled your nerves. Nice and steady."
+		advice = "Those pre-drinks really settled your nerves.\n\nNice and steady."
 	elif units <= 6:
-		advice = "You've got a good base, but remember to keep drinking or you'll get nervy."
+		advice = "You've got a good base, but remember to keep drinking or you'll get nervy.\n\nTry and keep that level."
 	elif units <= 8:
-		advice = "Looks like you went a bit heavy on the drinks there. Try and hold it together."
+		advice = "Looks like you went a bit heavy on the drinks there.\n\nTry and hold it together."
 	else:
-		advice = "Mate... you can barely see straight. Good luck with that."
+		advice = "Mate... you can barely see straight. Good luck with that.\n\nMaybe try and avoid that one in the future."
 
 	# Build popup overlay
 	var overlay := Control.new()
@@ -1921,9 +2089,9 @@ func _display_pre_drink_popup() -> void:
 	btn_wrapper.add_child(btn)
 	overlay.add_child(btn_wrapper)
 
-	# Fade in
+	# Fade in — add to popup layer so it renders above drunk vision overlay
 	overlay.modulate = Color(1, 1, 1, 0)
-	_score_hud.add_child(overlay)
+	_score_hud._popup_layer.add_child(overlay)
 	var fade := create_tween()
 	fade.tween_property(overlay, "modulate", Color(1, 1, 1, 1), 0.25)
 
