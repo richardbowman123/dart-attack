@@ -14,28 +14,28 @@ func _build_screen() -> void:
 	var characters := [
 		{
 			"enum": DartData.Character.DAI,
-			"name": "Dai \"The Dragon\" Davies",
+			"name": "Dai Davies",
 			"short_name": "DAI",
 			"origin": "Pontypridd, Wales",
 			"image": "res://Dai The Dragon Davies 16 profile.jpg",
 		},
 		{
 			"enum": DartData.Character.TERRY,
-			"name": "Terry \"The Hammer\" Hoskins",
+			"name": "Terry Hoskins",
 			"short_name": "TERRY",
 			"origin": "Bethnal Green, London",
 			"image": "res://Terry The Hammer Hoskins 19 profile.jpg",
 		},
 		{
 			"enum": DartData.Character.RAB,
-			"name": "Rab \"The Flame\" McTavish",
+			"name": "Rab McTavish",
 			"short_name": "RAB",
 			"origin": "Dundee, Scotland",
 			"image": "res://Rab The Flame McTavish 21 profile.jpg",
 		},
 		{
 			"enum": DartData.Character.SIOBHAN,
-			"name": "Siobhan \"The Banshee\" O'Hara",
+			"name": "Siobhan O'Hara",
 			"short_name": "SIOBHAN",
 			"origin": "Belfast, N. Ireland",
 			"image": "res://Siobhan The Banshee O'Hara 19 profile.jpg",
@@ -209,10 +209,10 @@ func _refresh_selection() -> void:
 			_card_names[i].add_theme_color_override("font_color", Color(0.4, 0.4, 0.45))
 
 	var names := [
-		"Dai \"The Dragon\" Davies",
-		"Terry \"The Hammer\" Hoskins",
-		"Rab \"The Flame\" McTavish",
-		"Siobhan \"The Banshee\" O'Hara",
+		"Dai Davies",
+		"Terry Hoskins",
+		"Rab McTavish",
+		"Siobhan O'Hara",
 	]
 	var origins := [
 		"Pontypridd, Wales",

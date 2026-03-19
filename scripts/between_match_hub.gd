@@ -15,7 +15,7 @@ const HUB_FOOD := {
 
 # Glow Up — cosmetic shopping spree per level (money sink, no stat effect)
 const GLOW_UP := {
-	3: {"name": "Gold chain and sunglasses", "cost": 2000, "quip": "Market stall bling. Fake gold chain, wraparound shades. You look like a bouncer."},
+	3: {"name": "Gold chain", "cost": 2000, "quip": "Market stall bling. Fake gold chain to go with the tattoos. Completing the look."},
 	4: {"name": "Designer polo shirt", "cost": 5000, "quip": "Sports brand outlet. Polo shirt with the collar up. Very 2005."},
 	5: {"name": "New trainers and watch", "cost": 8000, "quip": "Retail park shopping spree. White trainers, chunky watch. Looking the part."},
 	6: {"name": "Full outfit and haircut", "cost": 15000, "quip": "High street makeover. New jeans, shirt, shoes, and a proper barber trim. Almost unrecognisable."},
@@ -42,19 +42,14 @@ func _build_ui() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
-	# Scrollable content area
-	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(40, 0)
-	scroll.size = Vector2(640, 1280)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	add_child(scroll)
-
+	# Content area (no scrolling — everything fits in 1280px)
 	var content := VBoxContainer.new()
-	content.custom_minimum_size = Vector2(640, 0)
+	content.position = Vector2(40, 0)
+	content.size = Vector2(640, 1280)
 	content.add_theme_constant_override("separation", 0)
-	scroll.add_child(content)
+	add_child(content)
 
-	_add_spacer(content, 30)
+	_add_spacer(content, 20)
 
 	# Balance display
 	_balance_label = Label.new()
@@ -62,15 +57,15 @@ func _build_ui() -> void:
 	UIFont.apply(_balance_label, UIFont.CAPTION)
 	_balance_label.add_theme_color_override("font_color", Color(0.2, 0.85, 0.3))
 	_balance_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_balance_label.custom_minimum_size = Vector2(640, 40)
+	_balance_label.custom_minimum_size = Vector2(640, 35)
 	content.add_child(_balance_label)
 
-	_add_spacer(content, 20)
+	_add_spacer(content, 12)
 
 	# Opponent info panel
 	_build_opponent_panel(content)
 
-	_add_spacer(content, 30)
+	_add_spacer(content, 15)
 
 	# "PREPARE FOR MATCH" header
 	var prep_label := Label.new()
@@ -78,25 +73,25 @@ func _build_ui() -> void:
 	UIFont.apply(prep_label, UIFont.SUBHEADING)
 	prep_label.add_theme_color_override("font_color", Color(0.85, 0.6, 0.15))
 	prep_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	prep_label.custom_minimum_size = Vector2(640, 55)
+	prep_label.custom_minimum_size = Vector2(640, 45)
 	content.add_child(prep_label)
 
-	_add_spacer(content, 15)
+	_add_spacer(content, 8)
 
 	# Action buttons (only unlocked ones)
 	_build_action_buttons(content)
 
-	_add_spacer(content, 30)
+	_add_spacer(content, 15)
 
 	# PROCEED button
-	var proceed_btn := _create_button("PROCEED TO MATCH", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4), UIFont.SUBHEADING, Vector2(620, 100))
+	var proceed_btn := _create_button("PROCEED TO MATCH", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4), UIFont.SUBHEADING, Vector2(620, 85))
 	proceed_btn.pressed.connect(_on_proceed)
 	var proceed_wrapper := CenterContainer.new()
-	proceed_wrapper.custom_minimum_size = Vector2(640, 110)
+	proceed_wrapper.custom_minimum_size = Vector2(640, 90)
 	proceed_wrapper.add_child(proceed_btn)
 	content.add_child(proceed_wrapper)
 
-	_add_spacer(content, 40)
+	_add_spacer(content, 15)
 
 	# Popup system (on top of everything)
 	_build_popup_system()
@@ -116,10 +111,10 @@ func _build_opponent_panel(parent: Control) -> void:
 	panel_style.corner_radius_top_right = 14
 	panel_style.corner_radius_bottom_left = 14
 	panel_style.corner_radius_bottom_right = 14
-	panel_style.content_margin_left = 20
-	panel_style.content_margin_right = 20
-	panel_style.content_margin_top = 18
-	panel_style.content_margin_bottom = 18
+	panel_style.content_margin_left = 15
+	panel_style.content_margin_right = 15
+	panel_style.content_margin_top = 12
+	panel_style.content_margin_bottom = 12
 	panel_style.border_width_top = 2
 	panel_style.border_width_bottom = 2
 	panel_style.border_width_left = 2
@@ -128,7 +123,7 @@ func _build_opponent_panel(parent: Control) -> void:
 	panel.add_theme_stylebox_override("panel", panel_style)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
+	vbox.add_theme_constant_override("separation", 5)
 
 	# "YOUR NEXT OPPONENT" header
 	var header := Label.new()
@@ -136,10 +131,10 @@ func _build_opponent_panel(parent: Control) -> void:
 	UIFont.apply(header, UIFont.CAPTION)
 	header.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.custom_minimum_size = Vector2(600, 35)
+	header.custom_minimum_size = Vector2(600, 30)
 	vbox.add_child(header)
 
-	# Portrait
+	# Portrait (compact for hub)
 	var image_path: String = OpponentData.get_image(opp_id)
 	if image_path != "":
 		var tex := load(image_path)
@@ -148,23 +143,23 @@ func _build_opponent_panel(parent: Control) -> void:
 			img.texture = tex
 			img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			img.custom_minimum_size = Vector2(560, UIFont.PORTRAIT_S)
+			img.custom_minimum_size = Vector2(560, 80)
 			vbox.add_child(img)
 	else:
 		var wrapper := Control.new()
-		wrapper.custom_minimum_size = Vector2(560, UIFont.PORTRAIT_S)
-		var bg := ColorRect.new()
-		bg.position = Vector2(100, 0)
-		bg.size = Vector2(360, UIFont.PORTRAIT_S)
-		bg.color = Color(0.2, 0.2, 0.25)
-		wrapper.add_child(bg)
+		wrapper.custom_minimum_size = Vector2(560, 80)
+		var prt_bg := ColorRect.new()
+		prt_bg.position = Vector2(100, 0)
+		prt_bg.size = Vector2(360, 80)
+		prt_bg.color = Color(0.2, 0.2, 0.25)
+		wrapper.add_child(prt_bg)
 		var initial := Label.new()
 		initial.text = display_name.left(1)
 		initial.position = Vector2(100, 0)
-		initial.size = Vector2(360, UIFont.PORTRAIT_S)
+		initial.size = Vector2(360, 80)
 		initial.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		initial.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		UIFont.apply(initial, UIFont.SCREEN_TITLE)
+		UIFont.apply(initial, UIFont.HEADING)
 		initial.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 		wrapper.add_child(initial)
 		vbox.add_child(wrapper)
@@ -225,14 +220,14 @@ func _build_action_buttons(parent: Control) -> void:
 	_eat_button.pressed.connect(_on_eat_pressed)
 	parent.add_child(_center_button(_eat_button))
 
-	_add_spacer(parent, 10)
+	_add_spacer(parent, 6)
 
 	# GLOW UP — always available from L3
 	var glow_btn := _create_action_button("GLOW UP")
 	glow_btn.pressed.connect(_on_glow_up_pressed)
 	parent.add_child(_center_button(glow_btn))
 
-	_add_spacer(parent, 10)
+	_add_spacer(parent, 6)
 
 	# BUY/SELL MERCH — from L3 (Trader met after L2 win)
 	var merch_btn := _create_action_button("BUY/SELL MERCH")
@@ -240,23 +235,19 @@ func _build_action_buttons(parent: Control) -> void:
 	parent.add_child(_center_button(merch_btn))
 
 	if level >= 5:
-		_add_spacer(parent, 10)
-		# PLACE A BET — from L4 (Contact met after L3 win)
-		# Actually available from L5 since Contact is met after L4 win
+		_add_spacer(parent, 6)
 		var bet_btn := _create_action_button("PLACE A BET")
 		bet_btn.pressed.connect(_on_bet_pressed)
 		parent.add_child(_center_button(bet_btn))
 
 	if level >= 6:
-		_add_spacer(parent, 10)
-		# GET SPONSORSHIP — from L5 (Sponsor Rep met after L4 win)
-		# Actually available from L6 since Sponsor Rep is met after L5 win
+		_add_spacer(parent, 6)
 		var sponsor_btn := _create_action_button("GET SPONSORSHIP")
 		sponsor_btn.pressed.connect(_on_sponsor_pressed)
 		parent.add_child(_center_button(sponsor_btn))
 
 	# EXHIBITION MATCH — always available from L3
-	_add_spacer(parent, 10)
+	_add_spacer(parent, 6)
 	var exh_btn := _create_action_button("EXHIBITION MATCH")
 	exh_btn.pressed.connect(_on_exhibition_pressed)
 	parent.add_child(_center_button(exh_btn))
@@ -320,7 +311,7 @@ func _on_merch_pressed() -> void:
 		_show_popup(_build_coming_soon("MERCH", "The Trader is setting up his stall. Inflatables, knock-off watches, and dodgy aftershave."))
 
 func _on_bet_pressed() -> void:
-	_show_popup(_build_coming_soon("BETTING", "The Contact knows a bloke who knows a bloke. Side bets, accumulators, and risky propositions."))
+	_show_popup(_build_coming_soon("BETTING", "Unknown Number has a proposition. Lose a leg on purpose. Big money if you do. Broken legs if you don't."))
 
 func _on_sponsor_pressed() -> void:
 	_show_popup(_build_coming_soon("SPONSORSHIP", "The Sponsor Rep has some interesting offers. Logos on your shirt, branding on your darts."))
@@ -411,16 +402,15 @@ func _build_food_popup() -> VBoxContainer:
 		free_label.custom_minimum_size = Vector2(590, 35)
 		content.add_child(free_label)
 
-	# Heft maxed note
-	if CareerState.heft_tier >= 5:
-		var maxed := Label.new()
-		maxed.text = "Heft maxed — eat for fun, no stat gain"
-		UIFont.apply(maxed, UIFont.CAPTION)
-		maxed.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
-		maxed.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		maxed.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		maxed.custom_minimum_size = Vector2(590, 0)
-		content.add_child(maxed)
+	# Note — no stat effect (heft handled by narrative cards)
+	var note := Label.new()
+	note.text = "Line your stomach before the match. No stat effect."
+	UIFont.apply(note, UIFont.CAPTION)
+	note.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(590, 0)
+	content.add_child(note)
 
 	# Can't afford?
 	if cost > 0 and CareerState.money < cost:
@@ -618,7 +608,7 @@ func _build_exhibition_popup() -> VBoxContainer:
 
 	# Companion advice
 	var advice := Label.new()
-	advice.text = "Set some money aside for drinks during the next round."
+	advice.text = "No pre-drinking. Less pressure. Just darts."
 	UIFont.apply(advice, UIFont.CAPTION)
 	advice.add_theme_color_override("font_color", Color(0.65, 0.6, 0.5))
 	advice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1099,8 +1089,7 @@ func _on_food_accept(cost: int) -> void:
 	_has_eaten = true
 	if cost > 0:
 		CareerState.money -= cost
-	if CareerState.heft_tier < 5:
-		CareerState.heft_tier += 1
+	# Hub food is flavour/money sink only — heft progression handled by narrative cards
 	_dismiss_popup()
 
 
@@ -1152,7 +1141,7 @@ func _dismiss_popup() -> void:
 func _create_action_button(text: String) -> Button:
 	var btn := Button.new()
 	btn.text = text
-	btn.custom_minimum_size = Vector2(620, 80)
+	btn.custom_minimum_size = Vector2(620, 65)
 	UIFont.apply_button(btn, UIFont.BODY)
 	btn.add_theme_color_override("font_color", Color.WHITE)
 
@@ -1207,7 +1196,7 @@ func _create_button(text: String, bg_color: Color, border_color: Color, font_siz
 
 func _center_button(btn: Button) -> CenterContainer:
 	var wrapper := CenterContainer.new()
-	wrapper.custom_minimum_size = Vector2(640, 90)
+	wrapper.custom_minimum_size = Vector2(640, 70)
 	wrapper.add_child(btn)
 	return wrapper
 

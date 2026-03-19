@@ -138,6 +138,7 @@ func _show_broadcast_for_trigger(trigger: String, context: Dictionary) -> bool:
 	return true
 
 func _find_interactive(trigger: String, context: Dictionary) -> Dictionary:
+	var matches: Array = []
 	for exchange in CompanionData.INTERACTIVE_EXCHANGES:
 		if exchange["trigger"] != trigger:
 			continue
@@ -145,8 +146,10 @@ func _find_interactive(trigger: String, context: Dictionary) -> Dictionary:
 			continue
 		if not _check_condition(exchange.get("condition", ""), context):
 			continue
-		return exchange
-	return {}
+		matches.append(exchange)
+	if matches.is_empty():
+		return {}
+	return matches[randi() % matches.size()]
 
 func _show_exchange(exchange: Dictionary) -> void:
 	var speaker: String = exchange.get("speaker", _get_speaker_name(companion_stage))
@@ -188,6 +191,8 @@ func _check_condition(condition: String, context: Dictionary) -> bool:
 			return context.get("companion_round", false)
 		"player_round":
 			return context.get("player_round", false)
+		"player_broke":
+			return context.get("player_broke", false)
 		"periodic":
 			# Always valid when explicitly triggered
 			return true

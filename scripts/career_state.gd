@@ -35,9 +35,18 @@ var team_hired: bool = false
 
 # Pre-match drinking — units stored here, applied when match starts
 var pre_drink_units: int = 0
+var pre_drink_refused: bool = false
+
+# Nickname — hidden until trader assigns it at L3
+var nickname_active: bool = false
 
 # Exhibition mode — one-off matches, no career progression
 var exhibition_mode: bool = false
+
+# Mad Dog bribe/throw system (L5)
+var bribe_legs_used: int = 0         # Legs bribed back during Mad Dog match
+var bribe_mafia_hit: bool = false     # Whether mafia roughed player up
+var throw_leg_money: int = 0         # Pence earned from throwing a leg
 
 # Swagger progression — all non-optional, forced by narrative
 var shopping_spree_done: bool = false   # Star 1 (L2) — bling + tattoos
@@ -45,6 +54,7 @@ var celebration_style: int = -1         # Star 2 (L3) — 0=Flex, 1=Big Fish, 2=
 var silk_shirt_received: bool = false   # Star 3 (L4) — gift from coach/manager
 var dodgy_bet_won: bool = false         # Star 4 (L5) — bet on yourself and won
 var walkon_track: int = -1              # Star 5 (L6) — 0/1/2 = track choices
+var walkon_volume: int = -1             # 0=quiet, 1=medium, 2=loud, 3=deafening
 
 # Fight state — set before transitioning to fight screen
 var fight_pending: bool = false
@@ -91,12 +101,18 @@ func reset() -> void:
 	manager_hired = false
 	team_hired = false
 	pre_drink_units = 0
+	pre_drink_refused = false
+	nickname_active = false
 	exhibition_mode = false
+	bribe_legs_used = 0
+	bribe_mafia_hit = false
+	throw_leg_money = 0
 	shopping_spree_done = false
 	celebration_style = -1
 	silk_shirt_received = false
 	dodgy_bet_won = false
 	walkon_track = -1
+	walkon_volume = -1
 	fight_pending = false
 	fight_opponent_id = ""
 	liver_damage = 0.0
@@ -111,16 +127,16 @@ func get_inflatable_unit_price() -> int:
 	return int(100.0 * pow(0.95, discount_steps))
 
 ## Recalculate hustle_stars from compound conditions.
-## Call after any change to coach/manager/team/merch state.
+## Call after any change to skill/coach/manager/team/merch state.
 func recalculate_hustle() -> void:
 	var stars := 1  # base
+	if skill_stars >= 2:
+		stars += 1  # proven tournament winner
 	if coach_hired and inflatables_total_bought > 0:
 		stars += 1
 	if manager_hired and inflatables_total_sold > 0:
 		stars += 1
 	if team_hired:
-		stars += 1
-	if inflatables_total_profit >= 20000:  # £200 in pence
 		stars += 1
 	hustle_stars = mini(stars, 5)
 
@@ -128,14 +144,22 @@ func recalculate_hustle() -> void:
 ## All are non-optional — companion forces each one.
 func recalculate_swagger() -> void:
 	var stars := 0
+	if dart_tier_owned >= 0:
+		stars += 1  # Star 1: first darts (L1 shop)
 	if shopping_spree_done:
-		stars += 1
+		stars += 1  # Star 2: bling/tattoos (L2)
 	if celebration_style >= 0:
-		stars += 1
+		stars += 1  # Star 3: celebration choice (L3)
 	if silk_shirt_received:
-		stars += 1
+		stars += 1  # Star 4: silk shirt from manager (L4)
 	if dodgy_bet_won:
-		stars += 1
-	if walkon_track >= 0:
-		stars += 1
+		stars += 1  # Star 5: dodgy bet payoff (L5)
 	swagger_stars = mini(stars, 5)
+
+## Calculate appearance tier from all four star categories.
+## First image transition requires 2 stars in ALL categories (not 1).
+## Tier 0 = aged 19 (0-1 stars), Tier 1 = aged 21 (2 stars all),
+## Tier 2 = aged 23 (3 stars all), Tier 3 = aged 25 (4+ stars all).
+func calculate_appearance_tier() -> int:
+	var raw_min := mini(mini(skill_stars, heft_tier), mini(hustle_stars, swagger_stars))
+	return clampi(raw_min - 1, 0, 3)

@@ -96,8 +96,8 @@ static var PORTRAIT_IMAGES := {
 	1: "res://Mate for Level 2 - Alan.png",
 	2: "res://Group of mates for Level 3 better trimmed.png",
 	3: "res://Coach cropped.png",
-	4: "res://Manager cropped.png",
-	5: "res://Manager and full team cropped.png",
+	4: "res://Manager cropped new.png",
+	5: "res://Manager and full team cropped new.png",
 }
 
 # =====================================================================
@@ -197,7 +197,7 @@ static var BROADCAST := {
 	],
 	"2_DRINK_OFFER": [
 		"We've got a kitty going. What are you having?",
-		"Dave's buying. He doesn't know yet. What do you want?",
+		"Spencer's buying. He doesn't know yet. What are you having?",
 		"Three pints here already with your name on.",
 	],
 
@@ -517,6 +517,68 @@ static var INTERACTIVE_EXCHANGES: Array = [
 		],
 	},
 
+	# --- BROKE ROUND: Player can't afford their round — guilt trip (all stages) ---
+	{
+		"id": "mate_broke_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 1,
+		"speaker": "Alan",
+		"condition": "player_broke",
+		"prompt": "Your round, I think... oh. You can't, can you. I'll get it. Win this and you owe me.",
+		"responses": [
+			{"label": "Cheers", "reply": "Yeah yeah.", "consequence": "accept_free_pint"},
+			{"label": "No, I'm fine", "reply": "Suit yourself.", "consequence": ""},
+		],
+	},
+	{
+		"id": "mates_broke_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 2,
+		"speaker": "Alan",
+		"condition": "player_broke",
+		"prompt": "Your shout... wait, you're skint aren't you. I'll cover it. But you owe us. Big time.",
+		"responses": [
+			{"label": "Cheers", "reply": "You're buying next three.", "consequence": "accept_free_pint"},
+			{"label": "No, I'm fine", "reply": "Probably wise.", "consequence": ""},
+		],
+	},
+	{
+		"id": "coach_broke_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 3,
+		"speaker": "Coach",
+		"condition": "player_broke",
+		"prompt": "Your round. What's that? Can't afford it? Start winning then. I'll cover it.",
+		"responses": [
+			{"label": "Thanks coach", "reply": "Don't thank me. Win.", "consequence": "accept_free_pint"},
+			{"label": "I'm alright", "reply": "Fine. More focus, less excuses.", "consequence": ""},
+		],
+	},
+	{
+		"id": "manager_broke_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 4,
+		"speaker": "Manager",
+		"condition": "player_broke",
+		"prompt": "Player's round. Oh. You're broke. Fantastic. I'll get it. Win this and we'll talk.",
+		"responses": [
+			{"label": "Sorry", "reply": "Sorry doesn't pay bar tabs.", "consequence": "accept_free_pint"},
+			{"label": "I'm fine", "reply": "Good. Save your money. What's left of it.", "consequence": ""},
+		],
+	},
+	{
+		"id": "team_broke_round",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 5,
+		"speaker": "Manager",
+		"condition": "player_broke",
+		"prompt": "Your round. Again. And again you can't afford it. Someone — anyone — get the drinks in!",
+		"responses": [
+			{"label": "I'll pay you back", "reply": "Course you will.", "consequence": "accept_free_pint"},
+			{"label": "I'm alright", "reply": "At least that saves us money.", "consequence": ""},
+		],
+	},
+
 	# --- ALAN: Companion's round (L2) ---
 	{
 		"id": "mate_companion_round",
@@ -543,30 +605,82 @@ static var INTERACTIVE_EXCHANGES: Array = [
 			{"label": "I'm skint", "reply": "Tight. Fine.", "consequence": ""},
 		],
 	},
-	# --- MATES: Companion's round (L3) ---
+	# --- MATES: Companion's round — Alan (L3) ---
 	{
-		"id": "lads_companion_round",
+		"id": "lads_companion_round_alan",
 		"trigger": DRINK_OFFER,
 		"companion_stage": 2,
-		"speaker": "Mates",
+		"speaker": "Alan",
 		"condition": "companion_round",
-		"prompt": "Dave's getting them in. Want one?",
+		"prompt": "My shout. Same again?",
 		"responses": [
-			{"label": "Yeah go on", "reply": "PINT FOR THE PLAYER!", "consequence": "accept_free_pint"},
-			{"label": "Nah I'm good", "reply": "More for Dave.", "consequence": ""},
+			{"label": "Go on then", "reply": "PINT FOR THE PLAYER!", "consequence": "accept_free_pint"},
+			{"label": "I'm alright", "reply": "More for me.", "consequence": ""},
 		],
 	},
-	# --- MATES: Player's round (L3) ---
+	# --- MATES: Companion's round — Spencer (L3) ---
 	{
-		"id": "lads_player_round",
+		"id": "lads_companion_round_spencer",
 		"trigger": DRINK_OFFER,
 		"companion_stage": 2,
-		"speaker": "Mates",
+		"speaker": "Spencer",
+		"condition": "companion_round",
+		"prompt": "Spencer's at the bar. Want one?",
+		"responses": [
+			{"label": "Yeah go on", "reply": "Coming up!", "consequence": "accept_free_pint"},
+			{"label": "Nah I'm good", "reply": "Suit yourself.", "consequence": ""},
+		],
+	},
+	# --- MATES: Companion's round — Louisa (L3) ---
+	{
+		"id": "lads_companion_round_louisa",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 2,
+		"speaker": "Louisa",
+		"condition": "companion_round",
+		"prompt": "Louisa waves from the bar. Pint?",
+		"responses": [
+			{"label": "Please", "reply": "On its way.", "consequence": "accept_free_pint"},
+			{"label": "No thanks", "reply": "Your loss.", "consequence": ""},
+		],
+	},
+	# --- MATES: Player's round — Alan (L3) ---
+	{
+		"id": "lads_player_round_alan",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 2,
+		"speaker": "Alan",
 		"condition": "player_round",
 		"prompt": "Your round, mate. Four pints.",
 		"responses": [
 			{"label": "Get them in", "reply": "That's the spirit! FOUR PINTS!", "consequence": "buy_round"},
 			{"label": "Not this time", "reply": "Booooo!", "consequence": ""},
+		],
+	},
+	# --- MATES: Player's round — Spencer (L3) ---
+	{
+		"id": "lads_player_round_spencer",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 2,
+		"speaker": "Spencer",
+		"condition": "player_round",
+		"prompt": "Spencer's glass is empty. Your turn.",
+		"responses": [
+			{"label": "Fine, fine", "reply": "Legend. Cheers!", "consequence": "buy_round"},
+			{"label": "In a minute", "reply": "Tight.", "consequence": ""},
+		],
+	},
+	# --- MATES: Player's round — Louisa (L3) ---
+	{
+		"id": "lads_player_round_louisa",
+		"trigger": DRINK_OFFER,
+		"companion_stage": 2,
+		"speaker": "Louisa",
+		"condition": "player_round",
+		"prompt": "Louisa taps her empty glass. Your round.",
+		"responses": [
+			{"label": "On it", "reply": "About time!", "consequence": "buy_round"},
+			{"label": "Later", "reply": "Typical.", "consequence": ""},
 		],
 	},
 	# --- COACH: Companion's round (L4) ---
@@ -725,7 +839,7 @@ static var DEBRIEF_WIN := {
 	],
 	2: [
 		"GET IN! Your mates are going mental!",
-		"We always knew! Well, Dave had doubts, but the rest of us!",
+		"We always knew! Well, Spencer had doubts, but the rest of us!",
 	],
 	3: [
 		"Good result. But there's still work to do.",

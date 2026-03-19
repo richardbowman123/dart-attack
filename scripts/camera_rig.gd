@@ -187,7 +187,24 @@ func focus_segment(segment_index: int) -> void:
 	_target = Vector2(cos(mid_angle) * focus_r, sin(mid_angle) * focus_r)
 	_zoom = 0.4
 
+## Auto-zoom toward the 20 segment (top of board) for 301/501 high scores
+func zoom_to_twenty() -> void:
+	_target = Vector2(0.0, 1.2)
+	_zoom = 0.5
+
 ## Reset camera to show the full board
 func reset_view() -> void:
 	_target = Vector2.ZERO
 	_zoom = 0.0
+
+## Save and restore camera state (used around cinematics)
+var _saved_target := Vector2.ZERO
+var _saved_zoom := 0.0
+
+func save_view() -> void:
+	_saved_target = _target
+	_saved_zoom = _zoom
+
+func restore_view() -> void:
+	_target = _saved_target
+	_zoom = _saved_zoom

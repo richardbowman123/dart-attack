@@ -39,16 +39,14 @@ func _build_menu() -> void:
 
 	_add_spacer(content, 8)
 
-	# Show selected character name
-	var names := [
-		"Dai \"The Dragon\" Davies",
-		"Terry \"The Hammer\" Hoskins",
-		"Rab \"The Flame\" McTavish",
-		"Siobhan \"The Banshee\" O'Hara",
-	]
+	# Show selected character name (nickname only if earned)
 	var char_index: int = GameState.character
+	var display_name: String = DartData.get_full_name(char_index)
+	if CareerState.nickname_active:
+		var nick: String = DartData.get_character_nickname(char_index)
+		display_name = DartData.get_character_name(char_index) + ' "' + nick + '" ' + display_name.split(" ")[-1]
 	var player_label := Label.new()
-	player_label.text = "Playing as " + names[char_index]
+	player_label.text = "Playing as " + display_name
 	UIFont.apply(player_label, UIFont.CAPTION)
 	player_label.add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
 	player_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

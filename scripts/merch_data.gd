@@ -17,7 +17,7 @@ const INFLATABLE_NAMES := {
 	"THE DRAGON": "dragons",
 	"THE HAMMER": "hammers",
 	"THE FLAME": "flames",
-	"THE BANSHEE": "banshees",
+	"THE SHAMROCK": "shamrocks",
 }
 
 ## Get the inflatable item name (plural) for the current character.

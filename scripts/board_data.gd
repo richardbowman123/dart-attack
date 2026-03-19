@@ -44,15 +44,15 @@ static func get_score(pos: Vector2) -> Dictionary:
 
 	# Off the board entirely
 	if dist > DOUBLE_OUTER_R:
-		return {"number": 0, "multiplier": 0, "label": "Miss"}
+		return {"number": 0, "multiplier": 0, "label": "MISS"}
 
 	# Bullseye — double 25 (counts as a double for checkout)
 	if dist <= BULLSEYE_R:
-		return {"number": 25, "multiplier": 2, "label": "BULLSEYE!"}
+		return {"number": 25, "multiplier": 2, "label": "BULL", "total": 50}
 
 	# Outer bull
 	if dist <= OUTER_BULL_R:
-		return {"number": 25, "multiplier": 1, "label": "25"}
+		return {"number": 25, "multiplier": 1, "label": "25", "total": 25}
 
 	# Determine which segment (number)
 	# Angle 0 is right (3 o'clock). Segment 20 is at 12 o'clock (PI/2).

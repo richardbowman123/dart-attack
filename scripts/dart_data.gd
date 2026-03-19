@@ -52,7 +52,7 @@ const TIERS := [
 	{
 		# ── Tier 2: Tungsten ── serious kit, spending real money
 		"name": "Tungsten",
-		"barrel_color": Color(0.35, 0.35, 0.40),
+		"barrel_color": Color(0.65, 0.65, 0.70),
 		"barrel_metallic": 0.85,
 		"barrel_roughness": 0.25,
 		"barrel_radius": 0.011,
@@ -76,7 +76,7 @@ const TIERS := [
 		# ── Tier 3: Premium Tungsten ── match-day darts, kept in a leather case
 		# Gunmetal blue-steel finish — darker than Tungsten but visible against black board
 		"name": "Premium Tungsten",
-		"barrel_color": Color(0.25, 0.27, 0.38),
+		"barrel_color": Color(0.55, 0.58, 0.68),
 		"barrel_metallic": 0.92,
 		"barrel_roughness": 0.12,
 		"barrel_radius": 0.010,
@@ -167,14 +167,42 @@ const CHARACTER_NICKNAMES := {
 	Character.DAI: "THE DRAGON",
 	Character.TERRY: "THE HAMMER",
 	Character.RAB: "THE FLAME",
-	Character.SIOBHAN: "THE BANSHEE",
+	Character.SIOBHAN: "THE SHAMROCK",
 }
 
 static func get_profile_image(character: Character) -> String:
 	return PROFILE_IMAGES[character]
+
+# Age labels for each appearance tier (0-3)
+const TIER_AGES := ["19", "21", "23", "25"]
+
+## Get career progression portrait for a given appearance tier (0-3).
+## Uses images from "Final player images/" folder.
+static func get_profile_image_for_tier(character: Character, tier: int) -> String:
+	var char_name: String = CHARACTER_NAMES[character]
+	var age: String = TIER_AGES[clampi(tier, 0, 3)]
+	return "res://Final player images/" + char_name + " aged " + age + ".jpg"
+
+## Get the victory crowd scene image (used only on L7 world champion win).
+static func get_victory_image(character: Character) -> String:
+	return "res://Final player images/" + CHARACTER_NAMES[character] + " wins.jpg"
 
 static func get_character_name(character: Character) -> String:
 	return CHARACTER_NAMES[character]
 
 static func get_character_nickname(character: Character) -> String:
 	return CHARACTER_NICKNAMES[character]
+
+static func get_is_female(character: Character) -> bool:
+	return character == Character.SIOBHAN
+
+## Full surname for each character
+const CHARACTER_FULL_NAMES := {
+	Character.DAI: "Dai Davies",
+	Character.TERRY: "Terry Hoskins",
+	Character.RAB: "Rab McTavish",
+	Character.SIOBHAN: "Siobhan O'Hara",
+}
+
+static func get_full_name(character: Character) -> String:
+	return CHARACTER_FULL_NAMES[character]

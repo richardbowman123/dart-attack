@@ -72,22 +72,22 @@ const LEVEL_DRINKING := {
 	2: {
 		"companion": "Alan",
 		"setting": "Car park. Back of his car.",
-		"intro": "Boot's open. Pick your poison.",
+		"intro": "I find a stiff drink before I play handles the jitters.\nPop outside, my car boot's open. Pick your poison.",
 		"pre_drink_price": 0,
 		"pint_price": 680,
 		"round_size": 2,
 	},
 	3: {
 		"companion": "mates",
-		"setting": "Train to the venue.",
-		"intro": "Tenners in. Nipping to the off-licence and getting us some rowdy juice for the train.",
+		"setting": "Train to the venue. Alan and his mates.",
+		"intro": "Alan cracks open a carrier bag.\n\"Right then, long journey ahead. Get stuck in.\"",
 		"pre_drink_price": 1000,
 		"pint_price": 750,
 		"round_size": 4,
 	},
 	4: {
 		"companion": "coach",
-		"setting": "Dodgy pub round the corner. Basically a glorified off-licence.",
+		"setting": "Dodgy pub round the corner.\nBasically a glorified off-licence.",
 		"intro": "Right. Settle the nerves before we go in.",
 		"pre_drink_price": 1500,
 		"pint_price": 850,
@@ -95,8 +95,8 @@ const LEVEL_DRINKING := {
 	},
 	5: {
 		"companion": "manager",
-		"setting": "Hotel bar. The manager's idea of preparation.",
-		"intro": "The manager orders a round. Professional pre-match routine.",
+		"setting": "Hotel bar. The manager's idea of prep.",
+		"intro": "The manager orders a round.\nProfessional pre-match routine.",
 		"pre_drink_price": 3000,
 		"pint_price": 1000,
 		"round_size": 2,
@@ -354,13 +354,13 @@ func format_price(pence: int) -> String:
 
 # ── Alcohol decay (called each player visit to the oche) ─────────────────────
 
-## Reduce drunkenness by 0.5 per visit. Uses an accumulator since
-## drinks_level is an integer — every 2nd visit, level drops by 1.
+## Reduce drunkenness by 0.25 per visit. Uses an accumulator since
+## drinks_level is an integer — every 4th visit, level drops by 1.
 func apply_visit_decay() -> void:
 	if drinks_level <= 0:
 		return
 	var was_blurry := drinks_level >= 7
-	_decay_accumulator += 0.5
+	_decay_accumulator += 0.25
 	while _decay_accumulator >= 1.0 and drinks_level > 0:
 		_decay_accumulator -= 1.0
 		drinks_level = maxi(drinks_level - 1, 0)

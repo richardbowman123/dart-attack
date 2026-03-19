@@ -34,29 +34,33 @@ func _build_ui() -> void:
 func _build_card_1_stars() -> void:
 	var card := _create_card()
 
-	_add_spacer(card, 40)
+	_add_spacer(card, 15)
 
-	# Player portrait
-	var portrait_path: String = DartData.get_profile_image(GameState.character)
+	# Player portrait — tier-aware in career mode
+	var portrait_path: String
+	if CareerState.career_mode_active:
+		portrait_path = DartData.get_profile_image_for_tier(GameState.character, CareerState.calculate_appearance_tier())
+	else:
+		portrait_path = DartData.get_profile_image(GameState.character)
 	var tex := load(portrait_path)
 	if tex:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, UIFont.PORTRAIT_M)
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		img.custom_minimum_size = Vector2(640, 420)
 		card.add_child(img)
 
 	_add_spacer(card, 10)
 
-	# Player name + nickname
-	var char_name: String = DartData.get_character_name(GameState.character)
-	var char_nick: String = DartData.get_character_nickname(GameState.character)
+	# Player name (nickname hidden until L3 trader assigns it)
+	var char_name: String = DartData.get_full_name(GameState.character)
 	var name_label := Label.new()
-	name_label.text = char_name + '\n"' + char_nick + '"'
+	name_label.text = char_name
 	UIFont.apply(name_label, UIFont.HEADING)
 	name_label.add_theme_color_override("font_color", Color.WHITE)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.custom_minimum_size = Vector2(640, 100)
+	name_label.custom_minimum_size = Vector2(640, 60)
 	card.add_child(name_label)
 
 	_add_spacer(card, 20)
@@ -265,7 +269,7 @@ func _build_card_3_rules() -> void:
 func _build_card_4_opponent() -> void:
 	var card := _create_card()
 
-	_add_spacer(card, 30)
+	_add_spacer(card, 10)
 
 	# "YOUR OPPONENT" header (yellow — standard for all opponent reveal cards)
 	var header := Label.new()
@@ -276,7 +280,7 @@ func _build_card_4_opponent() -> void:
 	header.custom_minimum_size = Vector2(640, 50)
 	card.add_child(header)
 
-	_add_spacer(card, 10)
+	_add_spacer(card, 5)
 
 	# Opponent portrait
 	var tex := load("res://Big Kev.jpg")
@@ -284,10 +288,11 @@ func _build_card_4_opponent() -> void:
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.custom_minimum_size = Vector2(640, UIFont.PORTRAIT_M)
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		img.custom_minimum_size = Vector2(640, 420)
 		card.add_child(img)
 
-	_add_spacer(card, 10)
+	_add_spacer(card, 5)
 
 	# Name + nickname
 	var name_label := Label.new()
@@ -295,10 +300,10 @@ func _build_card_4_opponent() -> void:
 	UIFont.apply(name_label, UIFont.HEADING)
 	name_label.add_theme_color_override("font_color", Color.WHITE)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.custom_minimum_size = Vector2(640, 90)
+	name_label.custom_minimum_size = Vector2(640, 80)
 	card.add_child(name_label)
 
-	_add_spacer(card, 10)
+	_add_spacer(card, 5)
 
 	# His star ratings
 	var kev_skill := _career_stars_row("SKILL", 2, 5)
@@ -310,7 +315,7 @@ func _build_card_4_opponent() -> void:
 	var kev_swagger := _career_stars_row("SWAGGER", 3, 5)
 	card.add_child(kev_swagger)
 
-	_add_spacer(card, 10)
+	_add_spacer(card, 5)
 
 	# Venue
 	var venue_text: String = OpponentData.get_venue("big_kev", GameState.character)
@@ -319,10 +324,10 @@ func _build_card_4_opponent() -> void:
 	UIFont.apply(venue_label, UIFont.BODY)
 	venue_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
 	venue_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	venue_label.custom_minimum_size = Vector2(640, 100)
+	venue_label.custom_minimum_size = Vector2(640, 0)
 	card.add_child(venue_label)
 
-	_add_spacer(card, 20)
+	_add_spacer(card, 10)
 
 	_add_continue_button(card)
 

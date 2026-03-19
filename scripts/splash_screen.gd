@@ -192,13 +192,12 @@ func _build_logo_word(word: String, font_size: int, y_pos: int, colour_offset: i
 # ─────────────────────────────────────────────────────────
 
 func _animate_darts() -> void:
-	# Hit positions — on the tilted board surface near the bullseye
-	# Board tilted -35deg on X, so surface Z ≈ Y * tan(35°) ≈ Y * 0.70
-	# Spread wider in X so flights don't overlap; red front and centre
+	# Hit positions — offset so the dart tip lands near the bullseye
+	# With the new dramatic angle, the barrel hangs mostly downward from the tip
 	var hit_positions: Array[Vector3] = [
-		Vector3(0.07, 0.80, 0.55),   # Green — back right
-		Vector3(-0.06, 0.79, 0.54),  # Black — back left
-		Vector3(0.00, 0.78, 0.59),   # Red — front, dead centre
+		Vector3(0.03, 0.84, 0.19),   # Green — back
+		Vector3(-0.02, 0.82, 0.20),  # Black — middle
+		Vector3(0.01, 0.83, 0.21),   # Red — front (closest to camera)
 	]
 
 	# Dart direction: 80deg from camera for dramatic full-profile view
@@ -229,8 +228,6 @@ func _animate_darts() -> void:
 
 		# Orient dart at dramatic 80deg angle — use BACK as up vector to avoid gimbal lock
 		dart.look_at(dart.global_position + dart_direction, Vector3.BACK)
-		# Rotate 45deg around shaft axis so no flight fin is perfectly edge-on to camera
-		dart.rotate_object_local(Vector3.FORWARD, PI / 4.0)
 
 		_darts.append(dart)
 

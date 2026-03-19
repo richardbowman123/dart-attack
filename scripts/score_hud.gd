@@ -61,6 +61,7 @@ var _zoom_hint: Label
 # ── Leg counter (multi-leg matches only) ──
 var _leg_counter: Label
 var _leg_counter_tween: Tween
+var _legs_to_win_display: int = 1
 
 # ── Popup layer (above drunk overlay at layer 10) ──
 var _popup_layer: CanvasLayer
@@ -126,9 +127,9 @@ func _build_remaining_display() -> void:
 	_remaining_label.text = "501"
 	UIFont.apply(_remaining_label, 38)
 	_remaining_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 0.7))
-	_remaining_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_remaining_label.position = Vector2(720 - 360 - REMAINING_MARGIN, REMAINING_MARGIN)
-	_remaining_label.size = Vector2(360, 45)
+	_remaining_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_remaining_label.position = Vector2(REMAINING_MARGIN, REMAINING_MARGIN)
+	_remaining_label.size = Vector2(250, 45)
 	_remaining_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_remaining_label)
 
@@ -805,14 +806,14 @@ func setup_vs_mode(opponent_id: String) -> void:
 	_is_vs_mode = true
 	_vs_opponent_id = opponent_id
 
-	# Opponent name + score at top-left
+	# Opponent name + score at top-right
 	_opponent_label = Label.new()
 	var opp_name := OpponentData.get_display_name(opponent_id)
 	_opponent_label.text = opp_name
 	UIFont.apply(_opponent_label, 30)
 	_opponent_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 0.5))
-	_opponent_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_opponent_label.position = Vector2(REMAINING_MARGIN, REMAINING_MARGIN)
+	_opponent_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_opponent_label.position = Vector2(720 - 300 - REMAINING_MARGIN, REMAINING_MARGIN)
 	_opponent_label.size = Vector2(300, 55)
 	_opponent_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_opponent_label)
@@ -835,8 +836,10 @@ func setup_vs_mode(opponent_id: String) -> void:
 func setup_leg_counter(legs_to_win: int) -> void:
 	if legs_to_win <= 1:
 		return
+	_legs_to_win_display = legs_to_win
+	var best_of: int = legs_to_win * 2 - 1
 	_leg_counter = Label.new()
-	_leg_counter.text = "LEGS 0 - 0"
+	_leg_counter.text = "LEGS 0 - 0 (Best of " + str(best_of) + ")"
 	UIFont.apply(_leg_counter, 24)
 	_leg_counter.add_theme_color_override("font_color", Color(1, 1, 1, 0.5))
 	_leg_counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -852,7 +855,8 @@ func setup_leg_counter(legs_to_win: int) -> void:
 func update_leg_score(player_legs: int, opp_legs: int) -> void:
 	if not _leg_counter:
 		return
-	_leg_counter.text = "LEGS " + str(player_legs) + " - " + str(opp_legs)
+	var best_of: int = _legs_to_win_display * 2 - 1
+	_leg_counter.text = "LEGS " + str(player_legs) + " - " + str(opp_legs) + " (Best of " + str(best_of) + ")"
 	# Flash: full opacity then fade to 50%
 	if _leg_counter_tween and _leg_counter_tween.is_valid():
 		_leg_counter_tween.kill()
@@ -947,7 +951,10 @@ func _build_bottom_card(opponent_id: String) -> void:
 	_player_name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_player_nick_label = Label.new()
-	_player_nick_label.text = DartData.get_character_nickname(GameState.character)
+	if CareerState.nickname_active:
+		_player_nick_label.text = DartData.get_character_nickname(GameState.character)
+	else:
+		_player_nick_label.text = ""
 	_player_nick_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_opp_portrait_panel = _build_opponent_placeholder(opponent_id)
@@ -1321,9 +1328,7 @@ func on_dart_thrown(dart_index: int) -> void:
 
 func show_impact(label_text: String, screen_pos: Vector2) -> void:
 	# Brief score flash near where the dart hit
-	if label_text == "BOUNCE OUT":
-		_impact_label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.1))
-	elif label_text == "Miss":
+	if label_text == "MISS":
 		_impact_label.add_theme_color_override("font_color", Color(0.6, 0.3, 0.3))
 	else:
 		_impact_label.add_theme_color_override("font_color", Color.WHITE)
@@ -1426,7 +1431,7 @@ func _set_darts_text(dart_labels: Array) -> void:
 	var darts_text := ""
 	for i in range(dart_labels.size()):
 		if i > 0:
-			darts_text += "   "
+			darts_text += ",  "
 		darts_text += str(dart_labels[i])
 	_summary_darts_label.text = darts_text
 

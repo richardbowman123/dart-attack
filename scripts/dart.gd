@@ -442,7 +442,7 @@ func _on_body_entered(body: Node) -> void:
 	# Check for bounce-out (wire deflection)
 	if BoardData.check_bounce_out(hit_pos_2d, _tier):
 		_bouncing = true
-		_hit_score = {"number": 0, "multiplier": 0, "label": "BOUNCE OUT", "total": 0, "bounce_out": true}
+		_hit_score = {"number": 0, "multiplier": 0, "label": "MISS", "total": 0, "bounce_out": true}
 		dart_hit.emit(_hit_score, hit_pos_2d)
 		_do_bounce_out()
 		return
