@@ -52,7 +52,7 @@ const TIERS := [
 	{
 		# ── Tier 2: Tungsten ── serious kit, spending real money
 		"name": "Tungsten",
-		"barrel_color": Color(0.65, 0.65, 0.70),
+		"barrel_color": Color(0.78, 0.78, 0.82),
 		"barrel_metallic": 0.85,
 		"barrel_roughness": 0.25,
 		"barrel_radius": 0.011,
@@ -74,9 +74,9 @@ const TIERS := [
 	},
 	{
 		# ── Tier 3: Premium Tungsten ── match-day darts, kept in a leather case
-		# Gunmetal blue-steel finish — darker than Tungsten but visible against black board
+		# Blue-steel silver finish — lighter than before, visible against black board segments
 		"name": "Premium Tungsten",
-		"barrel_color": Color(0.55, 0.58, 0.68),
+		"barrel_color": Color(0.75, 0.77, 0.85),
 		"barrel_metallic": 0.92,
 		"barrel_roughness": 0.12,
 		"barrel_radius": 0.010,

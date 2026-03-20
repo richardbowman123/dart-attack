@@ -22,6 +22,14 @@ const GLOW_UP := {
 	7: {"name": "Suit and cufflinks", "cost": 25000, "quip": "Suited and booted for the final. Three-piece, silk tie, monogrammed cufflinks. The full works."},
 }
 
+# Alan's warnings when player can't afford the next match
+const ALAN_WARNINGS := [
+	"You're skint, {name}. You need cash. A few exhibition matches should sort you out.",
+	"You haven't got enough money for the next match, {name}. Get on the exhibition board and earn a few quid.",
+	"Your wallet's looking thin, {name}. Exhibition matches are free to enter — go win some cash.",
+	"You'll need at least {amount} for the next match, {name}. You haven't got it. Exhibitions are free — go earn some money.",
+]
+
 var _balance_label: Label
 var _popup_overlay: ColorRect
 var _popup_card: PanelContainer
@@ -321,7 +329,72 @@ func _on_exhibition_pressed() -> void:
 	_show_popup(_build_exhibition_popup())
 
 func _on_proceed() -> void:
+	var min_required := _get_minimum_required()
+	if CareerState.money < min_required:
+		_show_popup(_build_alan_warning_popup(min_required))
+		return
 	get_tree().change_scene_to_file("res://scenes/match.tscn")
+
+
+func _get_minimum_required() -> int:
+	var buy_in: int = OpponentData.get_buy_in(GameState.opponent_id)
+	var config = DrinkManager.get_level_config(CareerState.career_level)
+	var pre_drink_price: int = 0
+	if config != null:
+		pre_drink_price = config.get("pre_drink_price", 0)
+	return buy_in + pre_drink_price
+
+
+func _build_alan_warning_popup(min_required: int) -> VBoxContainer:
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 12)
+
+	# Alan portrait
+	var tex := load("res://Mate for Level 2 - Alan.png")
+	if tex:
+		var img := TextureRect.new()
+		img.texture = tex
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		img.custom_minimum_size = Vector2(590, 123)
+		var img_wrapper := CenterContainer.new()
+		img_wrapper.custom_minimum_size = Vector2(590, 123)
+		img_wrapper.add_child(img)
+		content.add_child(img_wrapper)
+
+	# "Alan" name
+	var name_label := Label.new()
+	name_label.text = "Alan"
+	UIFont.apply(name_label, UIFont.BODY)
+	name_label.add_theme_color_override("font_color", Color(0.85, 0.6, 0.15))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.custom_minimum_size = Vector2(590, 0)
+	content.add_child(name_label)
+
+	# Warning text (random pick, replace placeholders)
+	var player_name: String = DartData.get_character_name(GameState.character)
+	var warning_text: String = ALAN_WARNINGS[randi() % ALAN_WARNINGS.size()]
+	warning_text = warning_text.replace("{name}", player_name)
+	warning_text = warning_text.replace("{amount}", _format_money(min_required))
+
+	var msg := Label.new()
+	msg.text = warning_text
+	UIFont.apply(msg, UIFont.BODY)
+	msg.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.custom_minimum_size = Vector2(590, 0)
+	content.add_child(msg)
+
+	# OK button
+	var ok_btn := _create_button("OK", Color(0.15, 0.15, 0.25), Color(0.3, 0.3, 0.5), UIFont.BODY, Vector2(300, 65))
+	ok_btn.pressed.connect(_dismiss_popup)
+	var ok_wrapper := CenterContainer.new()
+	ok_wrapper.custom_minimum_size = Vector2(590, 70)
+	ok_wrapper.add_child(ok_btn)
+	content.add_child(ok_wrapper)
+
+	return content
 
 
 # ======================================================

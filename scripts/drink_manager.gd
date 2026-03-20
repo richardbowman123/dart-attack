@@ -8,9 +8,9 @@ extends Node
 ## without touching any existing scene nodes.
 ##
 ## Usage:
-##   DrinkManager.add_drink(true)       # Free drink (companion buys), 1 unit
-##   DrinkManager.add_drink(false)      # Purchased half pint (1 unit)
-##   DrinkManager.add_drink(false, 2)   # Purchased full pint (2 units)
+##   DrinkManager.add_drink(true, 2)    # Free drink (companion buys), half pint (2 units)
+##   DrinkManager.add_drink(false, 2)   # Purchased half pint (2 units)
+##   DrinkManager.add_drink(false, 4)   # Purchased full pint (4 units)
 ##   DrinkManager.reset()               # Call at match start
 
 # TODO: wire to PlayerStats.Heft — high Heft means drinks above 5
@@ -189,9 +189,9 @@ func _build_warning_label() -> void:
 # ── Public API ───────────────────────────────────────────────────────────────
 
 ## Add drinks. free=true means no cost deducted.
-## amount: 1 = half pint, 2 = full pint.
+## amount: 2 = half pint, 4 = full pint.
 ## Returns true if drink was added, false if at max or can't afford.
-func add_drink(free: bool = false, amount: int = 1) -> bool:
+func add_drink(free: bool = false, amount: int = 2) -> bool:
 	if drinks_level >= MAX_DRINKS:
 		return false
 

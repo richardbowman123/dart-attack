@@ -209,6 +209,50 @@ Potential factors that could increase max zoom:
 
 **When to build:** after career mode progression is working, so there's a natural place to gate the zoom levels.
 
+## Outstanding — 20 March 2026
+
+1. **Fight scene** — Need to design and build the fight mechanic. Think about what happens when anger hits 100. Who is the unknown caller? Will we lose the fourth leg?
+
+2. **Over-celebrating** — After L3 (where you learn to celebrate), L4 should have a consequence for celebrating too hard. Getting in a fight or getting knocked out. Steve already squares up at L3 — this should escalate.
+
+3. **Menu usability pass** — Some menus are pushed over to the right. The "take it easy, mate" drunk warning is popping up in places it shouldn't. Need a thorough check across all screens.
+
+4. **Outstanding images** — A couple of player character images still need putting in. All exhibition match opponent images need adding.
+
+5. **Money system** — Make sure you actually spend money and can't go overdrawn. Money display should be consistent throughout: visible when playing the match, but especially visible when you're actually spending money. Currently feels backwards (shows during play, missing during spending).
+
+6. **In-match drinking** — Need the ability to drink more during the game itself, not just from pre-drinking. Player should be able to get too drunk through in-match drinking as well. The round offer system exists but needs checking that it actually accumulates properly and can push you into heavy/hammered territory.
+
+7. **Unknown caller follow-up** — When the unknown caller rings, it doesn't lead to a conversation afterwards. Need a card after the call that prompts you to actually throw/lose the leg. The call should flow into a decision, not just end.
+
+8. **Mates card still too late** — The mates card was moved earlier (from after dart shop to after food) but Richard feels it still needs to come even earlier in the L3 flow. Review positioning.
+
+9. **Team introduction** — When the full team is hired, we need to properly introduce them. Each person in the team should have a named role. Not just "you've got a team now" — give each member a purpose. Also: the team card currently says "the coach speaks first" but the coach isn't part of the management team — should be "the manager speaks first". Some unknown metric is displayed that makes no sense — replace with a breathalyser reading (fits the drinking theme).
+
+10. **Doctor description wrong** — The doctor card currently describes a "tired-looking man" which doesn't match the image. Needs updating to match the actual doctor character. Smooth over the whole doctor introduction.
+
+11. **Skip dart shop when maxed out** — Once you own Premium Tungsten (top tier), stop showing the dart shop card between levels. Nothing left to buy.
+
+12. **End credits** — After winning the final, show what happened to each character. Every opponent, companion, and key figure gets a "where are they now" line. The £50k buys the parents a house. Full closing credits sequence.
+
+13. **Vinnie naming — confirmed** — Full name: Vinnie "The Gold" Gold. "The Gold" in title case. Fix across all files (opponent_data, match_results, image references).
+
+14. **Victory image full width** — The winning/celebration image on the final card should be full width of the screen, not constrained to portrait size.
+
+15. **Fifth hustle star** — Player needs to be awarded the 5th hustle star to complete the full set. Currently missing from the final win flow.
+
+16. **Pint = 4 units, not 1** — Player sobers up faster than they can drink. A pint should count as 4 units (not 1 or 2). At 4 units per drink every 3 visits, the player progressively gets drunker through a match, which is what we want.
+
+17. **Experienced opponents — nerves display** — Older, more experienced opponents shouldn't display as being too nervous. They've been here and done it all before. Their actual play quality stays the same (AI stats don't affect play), but the displayed stats should make narrative sense — a seasoned pro doesn't get nervous.
+
+18. **Coach checkout advice** — The coach promises to help with checkouts but never does. Fix: first time you come to the oche after recruiting the coach, he gives general advice. NOT specific routes like "triple 20, triple 19, double 16" — more like "You can check out here. Just try to get the score as low as possible and then work out which double you need." Deliberately basic advice, but he's being true to his word. One or two lines, not annoying.
+
+19. **180 visual fanfare** — Currently anticlimactic. Use the current 180 graphic for any score 140+. For actual 180: bigger celebration — number pops out of the screen, visual glint/glisten from white to gold sweeping left to right. Not razzmatazz, but something that marks it as special.
+
+20. **Bounce out vs Miss** — When a dart hits the wire or another dart, the in-game popup should say "BOUNCE OUT" not "MISS". The post-visit summary still shows "Miss" (that's fine). Currently both say "Miss" which is confusing — player needs to know they hit the wire, not that they missed.
+
+21. **Post-visit summary miss display** — Richard gave feedback yesterday about how misses display in the visit summary. Check this is working correctly.
+
 ## Technical notes
 - 720x1280 portrait viewport, mobile renderer
 - Touch emulated from mouse for PC testing

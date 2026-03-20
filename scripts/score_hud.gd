@@ -1328,7 +1328,7 @@ func on_dart_thrown(dart_index: int) -> void:
 
 func show_impact(label_text: String, screen_pos: Vector2) -> void:
 	# Brief score flash near where the dart hit
-	if label_text == "MISS":
+	if label_text == "MISS" or label_text == "BOUNCE OUT":
 		_impact_label.add_theme_color_override("font_color", Color(0.6, 0.3, 0.3))
 	else:
 		_impact_label.add_theme_color_override("font_color", Color.WHITE)

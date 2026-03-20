@@ -4,15 +4,15 @@ extends Control
 ## Level 1 Win: Prize -> Skill star -> Big Kev dialogue -> Buffet decision -> Heft star ->
 ##              Barman L2 -> Friday night (ENTER SHOP) -> [dart shop] -> Swagger star (first darts!) -> Bridge -> Doubles explanation -> Alan intro -> Derek stats
 ## Level 2 Win: Prize -> Skill star -> Hustle star -> Kebab -> Alan hungover ->
-##              Tattoos & Bling (3 tiers) -> Swagger star (IMAGE CHANGE!) -> Alan introduces Steve -> [DART SHOP] -> Bridge -> Steve stats
+##              Tattoos & Bling (3 tiers) -> Swagger star (IMAGE CHANGE!) -> Alan introduces Steve -> Mates joining -> [DART SHOP] -> Bridge -> Steve stats
 ## Level 3 Win: Prize -> [Trader Profit] -> Skill star -> Steve dialogue -> Celebration choice -> Swagger star ->
-##              Fry up -> Heft star -> Trader intro -> Coach offer -> Hustle star -> [DART SHOP] -> Mates joining -> Bridge -> Philip stats
+##              Fry up -> Heft star -> Trader intro -> Coach offer -> Hustle star -> [DART SHOP] -> Bridge -> Edward stats
 ## Level 4 Win: Prize -> Skill star -> Steak dinner -> Heft star -> Manager offer ->
 ##              Hustle star -> Silk shirt -> Swagger star -> Gambling intro -> [DART SHOP] -> Bridge -> Mad Dog stats
 ## Level 5 Win: Prize -> Skill star (MAX) -> Pasta -> Heft star -> Sponsor intro ->
-##              Dodgy bet -> Swagger star -> Team offer -> Hustle star -> Doctor hint -> [DART SHOP] -> Bridge -> Lars stats
+##              Dodgy bet -> Swagger star -> Team offer -> Hustle star -> Doctor hint -> [DART SHOP] -> Bridge -> Manager Lars intro -> Lars stats
 ## Level 6 Win: Prize -> All stars snapshot -> Room service -> Heft star (if <5) ->
-##              Coach dialogue -> Doctor visit -> Vinnie Gold intro -> Walk-on music (narrative only) -> [DART SHOP] -> Bridge -> Vinnie stats
+##              Coach dialogue -> Doctor visit -> Vinnie "The Gold" intro -> Walk-on music (narrative only) -> [DART SHOP] -> Bridge -> Manager Vinnie intro -> Vinnie stats
 ## Level 7 Win: Prize -> Final stars -> Ending -> New Career
 ## Loss: [Trader Profit if pending] -> Level-specific flavour text + strikes or career over
 ## Trader profit card appears after prize (win) or before loss card (loss) if merch was committed
@@ -21,6 +21,8 @@ var _cards: Array[Control] = []
 var _current_card: int = 0
 var _card_animations: Dictionary = {}
 var _retry_mode := false
+var _balance_panel: PanelContainer
+var _balance_label_overlay: Label
 
 # Big Kev's random meal offers — one picked per playthrough, all free, all dodgy
 const KEV_MEALS := [
@@ -67,11 +69,15 @@ func _build_ui() -> void:
 	elif GameState.match_won:
 		_build_win_cards()
 	else:
-		# Trader profit card before loss card (sales happen regardless of result)
-		_build_trader_profit_card()
-		_build_loss_card()
+		if CareerState.drink_death_occurred:
+			_build_drink_death_card()
+		else:
+			# Trader profit card before loss card (sales happen regardless of result)
+			_build_trader_profit_card()
+			_build_loss_card()
 
 	_show_card(0)
+	_build_balance_overlay()
 
 # ======================================================
 # WIN FLOW
@@ -505,6 +511,10 @@ func _on_enter_shop() -> void:
 
 
 func _build_dart_shop_card() -> void:
+	# Skip if player already owns the best darts (Premium Tungsten, tier 3)
+	if CareerState.dart_tier_owned >= 3:
+		return
+
 	var card := _create_card()
 	_add_spacer(card, 120)
 
@@ -597,7 +607,7 @@ func _build_post_shop_cards() -> void:
 		3:
 			_build_bridge_card("", "County Darts Club", "Lighting rig. Raised oche. Sponsor banners. Two hundred in the crowd. Regional TV cameras.\n\nWin or bust from here. No second chances.", 7500)
 			_build_pre_drink_card()
-			_build_opponent_stats_card("philip", "Philip", "The Accountant", {"SKILL": 4, "HEFT": 2, "HUSTLE": 3, "SWAGGER": 2}, "301, Best of 5")
+			_build_opponent_stats_card("philip", "Edward", "The Accountant", {"SKILL": 4, "HEFT": 2, "HUSTLE": 3, "SWAGGER": 3}, "301, Best of 5")
 		4:
 			_build_bridge_card("", "National Qualifying, Milton Keynes", "Conference centre. Harsh fluorescent lighting. Five hundred watching. Everyone thinks they're good enough.\n\nWin or bust from here. No second chances.", 20000)
 			_build_pre_drink_card()
@@ -609,7 +619,7 @@ func _build_post_shop_cards() -> void:
 		6:
 			_build_bridge_card("World Championship Final.", "The Arrow Palace, London", "Gold confetti loaded. Fireworks ready.\nTwo thousand on their feet.\n\nThis is it.", 100000)
 			_build_pre_drink_card()
-			_build_opponent_stats_card("vinnie", "Vinnie Gold", "The Gold", {"SKILL": 5, "HEFT": 4, "HUSTLE": 5, "SWAGGER": 5}, "501, Best of 7")
+			_build_opponent_stats_card("vinnie", "Vinnie", "The Gold", {"SKILL": 5, "HEFT": 4, "HUSTLE": 5, "SWAGGER": 5}, "501, Best of 7")
 
 func _build_doubles_explanation_card() -> void:
 	var card := _create_card()
@@ -722,7 +732,7 @@ func _build_l2_win_cards() -> void:
 	_build_star_flip_card("SKILL", CareerState.skill_stars, CareerState.skill_stars + 1, "Friday night champion.", func(): CareerState.skill_stars += 1)
 
 	# Card 3: Hustle star 1->2 (two tournaments won — people are paying attention)
-	_build_star_flip_card("HUSTLE", CareerState.hustle_stars, CareerState.hustle_stars + 1, "Two wins. Going places.", func(): CareerState.recalculate_hustle())
+	_build_star_flip_card("HUSTLE", CareerState.hustle_stars, CareerState.hustle_stars + 1, "Two wins.\nGoing places.", func(): CareerState.recalculate_hustle())
 
 	# Card 4: Drunken walk home — kebab shop (three choices, all +1 heft)
 	_build_kebab_card()
@@ -732,7 +742,7 @@ func _build_l2_win_cards() -> void:
 	_add_spacer(mate_card, 60)
 	var mate_panel := _build_companion_panel(
 		"ALAN",
-		"Hungover. Alan rings.\n\n\"We should celebrate properly. Tattoos and a bit of bling. I know a place.\n\nI'm going cheap obviously. You're paying.\"",
+		"Hungover. Alan rings.\n\n\"We should celebrate your emergence as a proper darts player. Tattoos and a bit of bling. I know a place.\n\nI'm going cheap obviously. You're paying.\"",
 		Color.BLACK, "", "res://Mate for Level 2 - Alan.png", UIFont.PORTRAIT_XL
 	)
 	mate_card.add_child(mate_panel)
@@ -798,6 +808,7 @@ func _build_l2_win_cards() -> void:
 			return  # Can't afford — do nothing
 		if cost_pence > 0:
 			CareerState.money -= cost_pence
+			_update_balance_overlay()
 		CareerState.shopping_spree_done = true
 		CareerState.recalculate_swagger()
 		bling_options.visible = false
@@ -832,7 +843,8 @@ func _build_l2_win_cards() -> void:
 		opt_style.content_margin_top = 12
 		opt_style.content_margin_bottom = 12
 		opt_panel.add_theme_stylebox_override("panel", opt_style)
-		opt_panel.custom_minimum_size = Vector2(580, 0)
+		opt_panel.custom_minimum_size = Vector2(500, 0)
+		opt_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		var opt_vbox := VBoxContainer.new()
 		opt_vbox.add_theme_constant_override("separation", 4)
 		var opt_title := Label.new()
@@ -844,6 +856,8 @@ func _build_l2_win_cards() -> void:
 		UIFont.apply(opt_title, UIFont.BODY)
 		opt_title.add_theme_color_override("font_color", Color.WHITE)
 		opt_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		opt_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		opt_title.custom_minimum_size = Vector2(460, 0)
 		opt_vbox.add_child(opt_title)
 		var opt_desc := Label.new()
 		opt_desc.text = tier["desc"]
@@ -853,6 +867,8 @@ func _build_l2_win_cards() -> void:
 		UIFont.apply(opt_desc, UIFont.CAPTION)
 		opt_desc.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.7))
 		opt_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		opt_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		opt_desc.custom_minimum_size = Vector2(460, 0)
 		opt_vbox.add_child(opt_desc)
 		opt_panel.add_child(opt_vbox)
 		var opt_center := CenterContainer.new()
@@ -888,6 +904,19 @@ func _build_l2_win_cards() -> void:
 	_add_continue_button(steve_intro)
 	_add_card(steve_intro, "L2 Steve Intro")
 
+	# Mates joining — Alan brings the group along
+	var mates_card := _create_card()
+	_add_spacer(mates_card, 60)
+	var mates_panel := _build_companion_panel(
+		"THE MATES",
+		"Excited by your emerging success, Alan ropes three other mates along.\n\nProper darts fans, this lot.",
+		Color.BLACK, "", "res://Group of mates for Level 3 better trimmed.png", UIFont.PORTRAIT_XL
+	)
+	mates_card.add_child(mates_panel)
+	_add_spacer(mates_card, 30)
+	_add_continue_button(mates_card)
+	_add_card(mates_card, "L2 Mates Joining")
+
 	# Dart shop
 	_build_dart_shop_card()
 
@@ -915,7 +944,10 @@ func _build_l2_win_cards() -> void:
 # ======================================================
 
 func _build_l3_win_cards() -> void:
-	# Card 2: Choose your celebration (first thing after winning)
+	# Skill star 2->3 (first — you've just won)
+	_build_star_flip_card("SKILL", CareerState.skill_stars, CareerState.skill_stars + 1, "Regional champion.\nPeople are talking.", func(): CareerState.skill_stars += 1)
+
+	# Choose your celebration
 	var celeb_card := _create_card()
 	_add_spacer(celeb_card, 80)
 	var celeb_title := Label.new()
@@ -990,7 +1022,7 @@ func _build_l3_win_cards() -> void:
 	_add_card(celeb_card, "L3 Celebration Choice")
 
 	# Swagger star flip (celebration style)
-	_build_star_flip_card("SWAGGER", CareerState.swagger_stars, CareerState.swagger_stars + 1, "Signature move unlocked.", func(): CareerState.recalculate_swagger())
+	_build_star_flip_card("SWAGGER", CareerState.swagger_stars, CareerState.swagger_stars + 1, "Signature move unlocked.\nOwn it.", func(): CareerState.recalculate_swagger())
 
 	# Steve angry about celebrating in his face
 	var steve_card := _create_card()
@@ -1005,24 +1037,8 @@ func _build_l3_win_cards() -> void:
 	_add_continue_button(steve_card)
 	_add_card(steve_card, "L3 Steve Dialogue")
 
-	# Skill star 2->3
-	_build_star_flip_card("SKILL", CareerState.skill_stars, CareerState.skill_stars + 1, "Regional champion. People are talking.", func(): CareerState.skill_stars += 1)
-
 	# Food card: Winner's buffet at the venue
-	_build_food_card("BUFFET", "The venue puts on a spread for the winner.\nSandwiches, sausage rolls, crisps.\nTuck in?", "TUCK IN", 0, "Buffet demolished. Professional fuel.", 3)
-
-	# Mates joining — Alan brings the group along
-	var mates_card := _create_card()
-	_add_spacer(mates_card, 60)
-	var mates_panel := _build_companion_panel(
-		"THE MATES",
-		"Excited by your emerging success, Alan ropes three other mates along.\n\nProper darts fans, this lot.",
-		Color.BLACK, "", "res://Group of mates for Level 3 better trimmed.png", UIFont.PORTRAIT_XL
-	)
-	mates_card.add_child(mates_panel)
-	_add_spacer(mates_card, 30)
-	_add_continue_button(mates_card)
-	_add_card(mates_card, "L3 Mates Joining")
+	_build_food_card("BUFFET", "The venue puts on a spread for the winner.\nSandwiches, sausage rolls, crisps.\nTuck in?", "TUCK IN", 0, "Buffet demolished.\nProfessional fuel.", 3)
 
 	var char_first: String = DartData.get_character_name(GameState.character)
 	var char_nick: String = DartData.get_character_nickname(GameState.character)
@@ -1198,6 +1214,7 @@ func _build_l3_win_cards() -> void:
 			cost = 0
 		if cost > 0:
 			CareerState.money -= cost
+			_update_balance_overlay()
 		CareerState.inflatables_stock += qty
 		CareerState.inflatables_total_bought += qty
 		merch_quote.visible = false
@@ -1292,6 +1309,7 @@ func _build_l3_win_cards() -> void:
 	var _do_hire_coach := func():
 		if coach_actual_cost > 0:
 			CareerState.money -= coach_actual_cost
+			_update_balance_overlay()
 		CareerState.coach_hired = true
 		var old_hustle: int = CareerState.hustle_stars
 		CareerState.recalculate_hustle()
@@ -1335,26 +1353,39 @@ func _build_l3_win_cards() -> void:
 		7500
 	)
 
+	# Coach scouting report on Edward
+	var scout_card := _create_card()
+	_add_spacer(scout_card, 60)
+	var scout_panel := _build_companion_panel(
+		"THE COACH",
+		"\"Right. Edward. They call him The Accountant.\"\n\nHe lowers his voice.\n\n\"Bit special, this lad. This chap is big in oil. Runs his own jewellery workshop. We just call him The Accountant.\"",
+		Color(0.15, 0.35, 0.2), "C", "res://Coach cropped.png", UIFont.PORTRAIT_L
+	)
+	scout_card.add_child(scout_panel)
+	_add_spacer(scout_card, 30)
+	_add_continue_button(scout_card)
+	_add_card(scout_card, "L3 Coach Scouting Edward")
+
 	# Pre-match drinking
 	_build_pre_drink_card()
 
-	# Card 10: Philip stats
+	# Card 10: Edward stats
 	_build_opponent_stats_card(
-		"philip", "Philip", "The Accountant",
+		"philip", "Edward", "The Accountant",
 		{"SKILL": 4, "HEFT": 2, "HUSTLE": 3, "SWAGGER": 2},
 		"301, Best of 5"
 	)
 
 # ======================================================
-# LEVEL 4 POST-WIN (Beat Philip "The Accountant")
+# LEVEL 4 POST-WIN (Beat Edward "The Accountant")
 # ======================================================
 
 func _build_l4_win_cards() -> void:
 	# Card 2: Skill star 3->4
-	_build_star_flip_card("SKILL", CareerState.skill_stars, CareerState.skill_stars + 1, "County champion. The phone's ringing.", func(): CareerState.skill_stars += 1)
+	_build_star_flip_card("SKILL", CareerState.skill_stars, CareerState.skill_stars + 1, "County champion.\nThe phone's ringing.", func(): CareerState.skill_stars += 1)
 
 	# Food card: Steak dinner (manager's treat — free)
-	_build_food_card("STEAK DINNER", "The manager takes you out to celebrate.\nFillet steak, chips, peppercorn sauce.\nHer treat.", "ORDER STEAK", 0, "Steak and chips. This is the life.", 4)
+	_build_food_card("STEAK DINNER", "The manager takes you out to celebrate.\nFillet steak, chips, peppercorn sauce.\nHer treat.", "ORDER STEAK", 0, "Steak and chips.\nThis is the life.", 4)
 
 	# Manager buildup — seductive typewriter reveal, no image, no header
 	var mgr_buildup := _create_card()
@@ -1414,7 +1445,7 @@ func _build_l4_win_cards() -> void:
 	_add_spacer(mgr_intro, 60)
 	var mgr_panel := _build_companion_panel(
 		"THE MANAGER",
-		"\"I manage fighters. Boxers mostly. But I know talent when I see it.\"\n\nShe says, in a deep Yorkshire accent.\n\nShe slides a card across.\n\n\"Call me when you're ready to take this seriously.\"",
+		"\"I manage fighters. Boxers mostly. Started dabbling with the greyhounds as well. But I know talent when I see it.\"\n\nShe says, in a deep Yorkshire accent.\n\nShe slides a card across.\n\n\"Call me when you're ready to take this seriously.\"",
 		Color(0.4, 0.15, 0.25), "S", "res://Manager cropped new.png", UIFont.PORTRAIT_L
 	)
 	mgr_intro.add_child(mgr_panel)
@@ -1573,40 +1604,139 @@ func _build_l4_win_cards() -> void:
 	# Swagger star flip (silk shirt)
 	_build_star_flip_card("SWAGGER", CareerState.swagger_stars, CareerState.swagger_stars + 1, "Looking the part.", func(): CareerState.recalculate_swagger())
 
-	# Card: Unknown Number — phone call (forced narrative, can't escape)
+	# Card: Unknown Number — phone call about throwing leg 4 vs Mad Dog
 	var gamble_card := _create_card()
-	_add_spacer(gamble_card, 60)
-	var gamble_panel := _build_companion_panel(
+	_add_spacer(gamble_card, 40)
+
+	# Initial state: phone ringing, two choices
+	var ring_panel := _build_companion_panel(
 		"UNKNOWN NUMBER",
-		"Your phone buzzes. Unknown number.\n\n\"County champion. Very impressive.\"\n\nA pause.\n\n\"Word is, Mad Dog's beatable. You know it. I know it. The bookmakers don't.\"\n\n\"I'll be in touch.\"",
+		"Your phone buzzes. Unknown number.",
 		Color(0.3, 0.3, 0.35), "?", "res://The Contact Unknown caller cropped.png", UIFont.PORTRAIT_ML
 	)
-	gamble_card.add_child(gamble_panel)
+	gamble_card.add_child(ring_panel)
 	_add_spacer(gamble_card, 20)
 
-	# HANG UP — but he leaves a voicemail anyway
+	var ring_btns := HBoxContainer.new()
+	ring_btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	ring_btns.add_theme_constant_override("separation", 20)
+	ring_btns.custom_minimum_size = Vector2(640, 80)
+	var take_btn := _create_button("TAKE THE CALL", Color(0.15, 0.4, 0.2), Color(0.3, 0.7, 0.4))
 	var hangup_btn := _create_button("HANG UP", Color(0.4, 0.15, 0.15), Color(0.7, 0.3, 0.3))
-	var hangup_w := CenterContainer.new()
-	hangup_w.custom_minimum_size = Vector2(640, 80)
-	hangup_w.add_child(hangup_btn)
-	gamble_card.add_child(hangup_w)
+	ring_btns.add_child(take_btn)
+	ring_btns.add_child(hangup_btn)
+	gamble_card.add_child(ring_btns)
 
-	var vm_panel := _build_companion_panel(
-		"VOICEMAIL",
-		"One new voicemail.\n\n\"...I'll be in touch.\"",
+	# ── TAKE THE CALL path ──
+	var call_group := VBoxContainer.new()
+	call_group.visible = false
+	_add_spacer(call_group, 10)
+	var call_panel := _build_companion_panel(
+		"UNKNOWN NUMBER",
+		"\"County champion. Very impressive.\"\n\nA pause.\n\n\"I've got a lot of money on you beating Mad Dog. But I need you to lose the fourth leg.\"\n\n\"Five grand. Cash.\"",
 		Color(0.3, 0.3, 0.35), "?", "res://The Contact Unknown caller cropped.png", UIFont.PORTRAIT_S
 	)
-	vm_panel.visible = false
-	gamble_card.add_child(vm_panel)
-	_add_spacer(gamble_card, 10)
+	call_group.add_child(call_panel)
+	_add_spacer(call_group, 15)
 
-	hangup_btn.pressed.connect(func():
-		gamble_panel.visible = false
-		hangup_w.visible = false
-		vm_panel.visible = true
+	var call_btns := HBoxContainer.new()
+	call_btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	call_btns.add_theme_constant_override("separation", 20)
+	call_btns.custom_minimum_size = Vector2(640, 80)
+	var accept_btn := _create_button("ACCEPT", Color(0.15, 0.4, 0.2), Color(0.3, 0.7, 0.4))
+	var decline_btn := _create_button("DECLINE", Color(0.4, 0.15, 0.15), Color(0.7, 0.3, 0.3))
+	call_btns.add_child(accept_btn)
+	call_btns.add_child(decline_btn)
+	call_group.add_child(call_btns)
+
+	# Decline → forced anyway
+	var forced_panel := _build_companion_panel(
+		"UNKNOWN NUMBER",
+		"\"I'm gonna break your legs anyway, so you might as well take my money.\"\n\nThe line goes dead.",
+		Color(0.3, 0.3, 0.35), "?", "", UIFont.PORTRAIT_S
+	)
+	forced_panel.visible = false
+	call_group.add_child(forced_panel)
+	_add_spacer(call_group, 10)
+
+	var forced_btn := _create_button("RIGHT THEN", Color(0.3, 0.3, 0.35), Color(0.5, 0.5, 0.55))
+	var forced_w := CenterContainer.new()
+	forced_w.custom_minimum_size = Vector2(640, 80)
+	forced_w.add_child(forced_btn)
+	forced_w.visible = false
+	call_group.add_child(forced_w)
+
+	gamble_card.add_child(call_group)
+
+	# ── HANG UP path ──
+	var vm_group := VBoxContainer.new()
+	vm_group.visible = false
+	_add_spacer(vm_group, 10)
+	var vm_panel := _build_companion_panel(
+		"VOICEMAIL",
+		"One new voicemail.\n\n\"I've got a lot of money on you beating Mad Dog. But I need you to lose the fourth leg. Five grand. Cash.\"\n\nA pause.\n\n\"Don't make me come find you.\"",
+		Color(0.3, 0.3, 0.35), "?", "res://The Contact Unknown caller cropped.png", UIFont.PORTRAIT_S
+	)
+	vm_group.add_child(vm_panel)
+	_add_spacer(vm_group, 10)
+	var vm_btn := _create_button("CONTINUE", Color(0.3, 0.3, 0.35), Color(0.5, 0.5, 0.55))
+	var vm_w := CenterContainer.new()
+	vm_w.custom_minimum_size = Vector2(640, 80)
+	vm_w.add_child(vm_btn)
+	vm_group.add_child(vm_w)
+	gamble_card.add_child(vm_group)
+
+	# ── Button connections ──
+
+	# TAKE THE CALL: show caller dialogue
+	take_btn.pressed.connect(func():
+		ring_panel.visible = false
+		ring_btns.visible = false
+		call_group.visible = true
 	)
 
-	_add_continue_button(gamble_card)
+	# HANG UP: show voicemail
+	hangup_btn.pressed.connect(func():
+		ring_panel.visible = false
+		ring_btns.visible = false
+		vm_group.visible = true
+	)
+
+	# ACCEPT: take the deal, advance
+	accept_btn.pressed.connect(func():
+		CareerState.throw_leg_required = true
+		CareerState.throw_leg_money = 500000
+		CareerState.money += 500000
+		_update_balance_overlay()
+		_advance_card()
+	)
+
+	# DECLINE: show forced panel
+	decline_btn.pressed.connect(func():
+		call_panel.visible = false
+		call_btns.visible = false
+		forced_panel.visible = true
+		forced_w.visible = true
+	)
+
+	# RIGHT THEN (forced): same outcome
+	forced_btn.pressed.connect(func():
+		CareerState.throw_leg_required = true
+		CareerState.throw_leg_money = 500000
+		CareerState.money += 500000
+		_update_balance_overlay()
+		_advance_card()
+	)
+
+	# VOICEMAIL CONTINUE: same outcome
+	vm_btn.pressed.connect(func():
+		CareerState.throw_leg_required = true
+		CareerState.throw_leg_money = 500000
+		CareerState.money += 500000
+		_update_balance_overlay()
+		_advance_card()
+	)
+
 	_add_card(gamble_card, "L4 Unknown Number")
 
 	# Dart shop
@@ -1636,10 +1766,10 @@ func _build_l4_win_cards() -> void:
 
 func _build_l5_win_cards() -> void:
 	# Card 2: Skill star 4->5 (MAX)
-	_build_star_flip_card("SKILL", CareerState.skill_stars, 5, "National qualifier. Five stars. Maximum.", func(): CareerState.skill_stars = 5)
+	_build_star_flip_card("SKILL", CareerState.skill_stars, 5, "National qualifier.\nFive stars. Maximum.", func(): CareerState.skill_stars = 5)
 
 	# Food card: Massive pasta / carb loading
-	_build_food_card("CARB LOADING", "The coach has a plan.\nMassive bowl of pasta. Garlic bread.\nBulking up so people think twice\nabout fighting you.", "LOAD UP", 1500, "Carb loaded. Nobody's messing with you now.", 5)
+	_build_food_card("CARB LOADING", "The coach has a plan.\nMassive bowl of pasta. Garlic bread.\nBulking up so people think twice\nabout fighting you.", "LOAD UP", 1500, "Carb loaded.\nNobody's messing with you now.", 5)
 
 	# Sponsor intro
 	var sponsor_card := _create_card()
@@ -1654,19 +1784,35 @@ func _build_l5_win_cards() -> void:
 	_add_continue_button(sponsor_card)
 	_add_card(sponsor_card, "L5 Sponsor Intro")
 
-	# Card: Unknown Number calls back — dodgy bet pays off (Swagger star 4)
+	# Card: Unknown Number reaction — depends on whether player threw leg 4
+	if not CareerState.throw_leg_honoured:
+		# Deal broken — angry phone call, then mafia death (career over)
+		var angry_card := _create_card()
+		_add_spacer(angry_card, 60)
+		var angry_panel := _build_companion_panel(
+			"UNKNOWN NUMBER",
+			"Your phone buzzes.\n\n\"You won the fourth leg.\"\n\nSilence.\n\n\"That wasn't the deal.\"\n\nThe line goes dead.",
+			Color(0.5, 0.15, 0.15), "?", "res://The Contact Unknown caller cropped.png", UIFont.PORTRAIT_L
+		)
+		angry_card.add_child(angry_panel)
+		_add_spacer(angry_card, 30)
+		_add_continue_button(angry_card)
+		_add_card(angry_card, "L5 Deal Broken")
+		_build_mafia_death_card()
+		return  # Career over — don't build remaining L5 cards
+
+	# Deal honoured — caller is happy
 	var bet_card := _create_card()
 	_add_spacer(bet_card, 60)
 	var bet_panel := _build_companion_panel(
 		"UNKNOWN NUMBER",
-		"Your phone buzzes again.\n\n\"Told you Mad Dog was beatable.\"\n\nYou hear cash being counted.\n\n\"Five hundred quid. Your cut. Check your account.\"\n\nA pause.\n\n\"Same again for the semis?\"",
-		Color(0.3, 0.3, 0.35), "?", "res://The Contact Unknown caller cropped.png", UIFont.PORTRAIT_XL
+		"Your phone buzzes again.\n\n\"Told you Mad Dog was beatable. Pleasure doing business.\"\n\nA long pause.\n\n\"You'll never hear from me again.\"",
+		Color(0.3, 0.3, 0.35), "?", "res://The Contact Unknown caller cropped.png", UIFont.PORTRAIT_L
 	)
 	bet_card.add_child(bet_panel)
 	_add_spacer(bet_card, 30)
-	var bet_btn := _create_button("TAKE THE CASH", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
+	var bet_btn := _create_button("CONTINUE", Color(0.3, 0.3, 0.35), Color(0.5, 0.5, 0.55))
 	bet_btn.pressed.connect(func():
-		CareerState.money += 50000  # +£500
 		CareerState.dodgy_bet_won = true
 		CareerState.recalculate_swagger()
 		_advance_card()
@@ -1675,7 +1821,7 @@ func _build_l5_win_cards() -> void:
 	bet_w.custom_minimum_size = Vector2(640, 100)
 	bet_w.add_child(bet_btn)
 	bet_card.add_child(bet_w)
-	_add_card(bet_card, "L5 Dodgy Bet")
+	_add_card(bet_card, "L5 Deal Honoured")
 
 	# Swagger star flip (dodgy bet)
 	_build_star_flip_card("SWAGGER", CareerState.swagger_stars, CareerState.swagger_stars + 1, "Playing both sides.", func(): CareerState.recalculate_swagger())
@@ -1709,6 +1855,7 @@ func _build_l5_win_cards() -> void:
 				CareerState.money -= penalty
 				if CareerState.money < 0:
 					CareerState.money = 0
+				_update_balance_overlay()
 				CareerState.bribe_mafia_hit = true
 				_advance_card()
 			)
@@ -1789,6 +1936,7 @@ func _build_l5_win_cards() -> void:
 	var _do_hire_team := func():
 		if team_actual_cost > 0:
 			CareerState.money -= team_actual_cost
+			_update_balance_overlay()
 		CareerState.team_hired = true
 		var old_hustle: int = CareerState.hustle_stars
 		CareerState.recalculate_hustle()
@@ -1819,14 +1967,14 @@ func _build_l5_win_cards() -> void:
 	_add_card(team_card, "L5 Team Decision")
 
 	# Card 5: Hustle star (team hire is standalone condition)
-	_build_star_flip_card("HUSTLE", CareerState.hustle_stars, CareerState.hustle_stars + 1, "Full support. No excuses.", null)
+	_build_star_flip_card("HUSTLE", CareerState.hustle_stars, CareerState.hustle_stars + 1, "Full support.\nNo excuses.", null)
 
 	# Card 6: Doctor hint
 	var doc_card := _create_card()
 	_add_spacer(doc_card, 60)
 	var doc_panel := _build_companion_panel(
 		"THE DOCTOR",
-		"A tired-looking man in a white coat catches you in the corridor.\n\n\"I see a lot of darts players come through here. Most of them in worse shape than they think.\"\n\nHe hands you a leaflet.\n\n\"Get checked out before the semis. Trust me.\"",
+		"A woman in a white coat stops you in the corridor. Smart. Professional.\n\n\"I see a lot of darts players come through here. Most of them in worse shape than they think.\"\n\nShe hands you a leaflet.\n\n\"Get checked out before the semis. Trust me.\"",
 		Color(0.3, 0.5, 0.35), "D", "", UIFont.PORTRAIT_ML
 	)
 	doc_card.add_child(doc_panel)
@@ -1848,7 +1996,20 @@ func _build_l5_win_cards() -> void:
 	# Pre-match drinking
 	_build_pre_drink_card()
 
-	# Card 8: Lars stats
+	# Card 8: Manager introduces Lars
+	var lars_intro := _create_card()
+	_add_spacer(lars_intro, 60)
+	var lars_panel := _build_companion_panel(
+		"THE MANAGER",
+		"Pathetic excuse for a man. Thinks he's got Nordic blood but I know for a fact he's from Bristol.\n\nWears an old rug round his shoulders. Calls it a \"fair shame\" he's so good at darts.\n\nImagine how good he'd be if he took those ridiculous arm guards off.\n\nBest of luck.",
+		Color(0.4, 0.15, 0.25), "S", "res://Manager cropped new.png", UIFont.PORTRAIT_L
+	)
+	lars_intro.add_child(lars_panel)
+	_add_spacer(lars_intro, 30)
+	_add_continue_button(lars_intro)
+	_add_card(lars_intro, "L5 Manager Lars Intro")
+
+	# Card 9: Lars stats
 	_build_opponent_stats_card(
 		"lars", "Lars", "The Viking",
 		{"SKILL": 5, "HEFT": 3, "HUSTLE": 3, "SWAGGER": 4},
@@ -1918,7 +2079,7 @@ func _build_l6_win_cards() -> void:
 	_add_card(snap_card, "L6 Stars Snapshot")
 
 	# Food card: Room service at the hotel
-	_build_food_card("ROOM SERVICE", "Can't sleep. Pre-final nerves.\nThe entourage orders room service.\nClub sandwich, chips, cheesecake.\nComfort eating at midnight.", "ORDER IT", 2500, "Room service at midnight. Living the dream.", 6)
+	_build_food_card("ROOM SERVICE", "Can't sleep. Pre-final nerves.\nThe entourage orders room service.\nClub sandwich, chips, cheesecake.\nComfort eating at midnight.", "ORDER IT", 2500, "Room service at midnight.\nLiving the dream.", 6)
 
 	# Coach/team dialogue
 	var coach_card := _create_card()
@@ -1927,7 +2088,7 @@ func _build_l6_win_cards() -> void:
 	var _coach_img: String = "res://Manager and full team cropped new.png" if CareerState.team_hired else "res://Coach cropped.png"
 	var coach_panel := _build_companion_panel(
 		speaker_name,
-		"The coach speaks first.\n\n\"One more. That's all that stands between you and the title.\"\n\nHe pauses.\n\n\"But the doc says you need a check-up first. No arguments.\"",
+		"The manager speaks first.\n\n\"One more. That's all that stands between you and the title.\"\n\nShe pauses.\n\n\"But the doc says you need a check-up first. No arguments.\"",
 		Color(0.15, 0.35, 0.2), "C", _coach_img, UIFont.PORTRAIT_XL
 	)
 	coach_card.add_child(coach_panel)
@@ -1955,13 +2116,13 @@ func _build_l6_win_cards() -> void:
 	_add_continue_button(doc_card)
 	_add_card(doc_card, "L6 Doctor")
 
-	# Card 5: Vinnie Gold introduction
+	# Card 5: Vinnie "The Gold" introduction
 	var vinnie_card := _create_card()
 	_add_spacer(vinnie_card, 60)
 	var vinnie_panel := _build_companion_panel(
-		"VINNIE GOLD",
-		"The cameras find you in the corridor.\n\nVinnie Gold walks past. Gold shoes. Gold watch. Gold tooth.\n\nHe doesn't look at you.\n\n\"Tell him I said good luck.\"\n\nHe doesn't mean it.",
-		Color(0.6, 0.5, 0.1), "V", "", UIFont.PORTRAIT_XL
+		"VINNIE \"THE GOLD\"",
+		"The cameras find you in the corridor.\n\nVinnie walks past. Gold shoes. Gold watch. Gold tooth.\n\nHe doesn't look at you.\n\n\"Tell him I said good luck.\"\n\nHe doesn't mean it.",
+		Color(0.6, 0.5, 0.1), "V", "res://Vinnie The Gold cropped.png", UIFont.PORTRAIT_L
 	)
 	vinnie_card.add_child(vinnie_panel)
 	_add_spacer(vinnie_card, 30)
@@ -2135,9 +2296,37 @@ func _build_l6_win_cards() -> void:
 	# Pre-match drinking
 	_build_pre_drink_card()
 
-	# Card 7: Vinnie Gold stats
+	# Card 7: Doctor's final warning — one more drink and you're dead
+	var son_or_love_doc: String = "love" if DartData.get_is_female(GameState.character) else "son"
+	var doc_final := _create_card()
+	_add_spacer(doc_final, 60)
+	var doc_final_panel := _build_companion_panel(
+		"THE DOCTOR",
+		"She catches you outside the green room.\n\n\"I've seen your blood work. Your liver is hanging on by a thread.\"\n\nShe looks you dead in the eye.\n\n\"One more drink and you're dead, " + son_or_love_doc + ". I mean it. Not tomorrow. Tonight.\"",
+		Color(0.3, 0.5, 0.35), "D", "", UIFont.PORTRAIT_ML
+	)
+	doc_final.add_child(doc_final_panel)
+	_add_spacer(doc_final, 30)
+	_add_continue_button(doc_final)
+	_add_card(doc_final, "L7 Doctor Death Warning")
+	CareerState.doctor_death_warning = true
+
+	# Card 8: Manager introduces Vinnie
+	var vinnie_intro := _create_card()
+	_add_spacer(vinnie_intro, 60)
+	var vinnie_mgr_panel := _build_companion_panel(
+		"THE MANAGER",
+		"Vincent Golding. Five world titles, I'll give him that.\n\nBut he's forty-three, he's carrying a groin injury, and he hasn't played anyone under thirty in two years.\n\nHe's got a chequered past, this one. Three of his former opponents have quietly disappeared from the circuit. One the night before the final of the world championships. Nobody asks questions. I'd advise you don't either.\n\nWhatever you do, do not wind him up.\n\nGo and take his crown.",
+		Color(0.4, 0.15, 0.25), "S", "res://Manager cropped new.png", UIFont.PORTRAIT_XS
+	)
+	vinnie_intro.add_child(vinnie_mgr_panel)
+	_add_spacer(vinnie_intro, 30)
+	_add_continue_button(vinnie_intro)
+	_add_card(vinnie_intro, "L6 Manager Vinnie Intro")
+
+	# Card 8: Vinnie "The Gold" stats
 	_build_opponent_stats_card(
-		"vinnie", "Vinnie Gold", "The Gold",
+		"vinnie", "Vinnie", "The Gold",
 		{"SKILL": 5, "HEFT": 4, "HUSTLE": 5, "SWAGGER": 5},
 		"501, Best of 7"
 	)
@@ -2149,7 +2338,13 @@ func _build_l6_win_cards() -> void:
 func _build_world_champion_cards() -> void:
 	# Card 1: Prize money already added by _build_prize_card
 
-	# Card 2: Final stars snapshot — victory crowd scene
+	# Card 2: 5th hustle star — world champion hustle
+	if CareerState.hustle_stars < 5:
+		CareerState.hustle_stars = 5
+	var victory_img := DartData.get_victory_image(GameState.character)
+	_build_star_flip_card("HUSTLE", 4, 5, "World champion.\nMaximum hustle.", null, victory_img)
+
+	# Card 3: Final stars snapshot — victory crowd scene
 	var snap_card := _create_card()
 	_add_spacer(snap_card, 15)
 
@@ -2160,12 +2355,17 @@ func _build_world_champion_cards() -> void:
 		portrait_path = DartData.get_profile_image(GameState.character)
 	var tex := load(portrait_path)
 	if tex:
+		# Full-width victory image — breaks out of card margins via offset container
+		var img_holder := Control.new()
+		img_holder.custom_minimum_size = Vector2(640, 420)
 		var img := TextureRect.new()
 		img.texture = tex
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		img.custom_minimum_size = Vector2(640, 420)
-		snap_card.add_child(img)
+		img.position = Vector2(-40, 0)
+		img.size = Vector2(720, 420)
+		img_holder.add_child(img)
+		snap_card.add_child(img_holder)
 
 	_add_spacer(snap_card, 10)
 
@@ -2204,39 +2404,573 @@ func _build_world_champion_cards() -> void:
 	_add_continue_button(snap_card)
 	_add_card(snap_card, "Champion Stars")
 
-	# Card 3: The ending
-	var end_card := _create_card()
-	_add_spacer(end_card, 150)
+	# Card 3: Cinematic credits scroll
+	_build_credits_card()
 
-	var champ_label := Label.new()
-	champ_label.text = "WORLD CHAMPION!"
-	UIFont.apply(champ_label, UIFont.SCREEN_TITLE)
-	champ_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	champ_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	champ_label.custom_minimum_size = Vector2(640, 90)
-	end_card.add_child(champ_label)
 
-	_add_spacer(end_card, 40)
+# ======================================================
+# DRINK DEATH (cinematic funeral card)
+# ======================================================
 
-	var story_label := Label.new()
-	story_label.text = "You buy your parents a house with the winnings.\n\nNot bad for a kid from the local."
-	UIFont.apply(story_label, UIFont.BODY)
-	story_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
-	story_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	story_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	story_label.custom_minimum_size = Vector2(640, 200)
-	end_card.add_child(story_label)
+var _death_tween: Tween
 
-	_add_spacer(end_card, 60)
+func _build_drink_death_card() -> void:
+	CareerState.drink_death_occurred = false  # Clear flag
 
+	var card := _create_card()
+
+	# Holder fills the VBoxContainer card; full_screen breaks out of margins
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(640, 1280)
+	card.add_child(holder)
+
+	var full_screen := Control.new()
+	full_screen.position = Vector2(-40, 0)
+	full_screen.size = Vector2(720, 1280)
+	full_screen.clip_contents = true
+	holder.add_child(full_screen)
+
+	# Very dark background with subtle red tint
+	var bg := ColorRect.new()
+	bg.color = Color(0.06, 0.03, 0.03)
+	bg.size = Vector2(720, 1280)
+	full_screen.add_child(bg)
+
+	# --- Framed portrait (age 19 — when they were healthy) ---
+
+	# Outer frame: dark wood colour
+	var frame_outer := ColorRect.new()
+	var frame_w := 280
+	var frame_h := 350
+	var frame_x := (720 - frame_w) / 2
+	var frame_y := 120
+	frame_outer.position = Vector2(frame_x, frame_y)
+	frame_outer.size = Vector2(frame_w, frame_h)
+	frame_outer.color = Color(0.22, 0.14, 0.08)
+	full_screen.add_child(frame_outer)
+
+	# Inner frame: gold border
+	var frame_inner := ColorRect.new()
+	var border := 8
+	frame_inner.position = Vector2(border, border)
+	frame_inner.size = Vector2(frame_w - border * 2, frame_h - border * 2)
+	frame_inner.color = Color(0.72, 0.58, 0.25)
+	frame_outer.add_child(frame_inner)
+
+	# Portrait image (age 19)
+	var portrait_path: String = DartData.get_profile_image_for_tier(GameState.character, 0)
+	var tex := load(portrait_path)
+	if tex:
+		var img := TextureRect.new()
+		img.texture = tex
+		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		var img_border := 4
+		img.position = Vector2(img_border, img_border)
+		img.size = Vector2(frame_inner.size.x - img_border * 2, frame_inner.size.y - img_border * 2)
+		frame_inner.add_child(img)
+
+	# --- Flowers beneath the frame ---
+
+	# Simple floral arrangement: muted coloured ovals beneath the portrait
+	var flower_y := frame_y + frame_h + 5
+	var flower_colors := [
+		Color(0.55, 0.15, 0.15),  # dark red
+		Color(0.65, 0.55, 0.65),  # dusty lilac
+		Color(0.45, 0.12, 0.12),  # deep burgundy
+		Color(0.6, 0.6, 0.55),    # muted sage
+		Color(0.55, 0.15, 0.15),  # dark red
+		Color(0.65, 0.55, 0.65),  # dusty lilac
+		Color(0.45, 0.12, 0.12),  # deep burgundy
+	]
+	var flower_start_x := frame_x - 10
+	var flower_spacing := (frame_w + 20) / flower_colors.size()
+	for i in flower_colors.size():
+		var petal := Panel.new()
+		var style := StyleBoxFlat.new()
+		style.bg_color = flower_colors[i]
+		style.corner_radius_top_left = 10
+		style.corner_radius_top_right = 10
+		style.corner_radius_bottom_left = 10
+		style.corner_radius_bottom_right = 10
+		petal.add_theme_stylebox_override("panel", style)
+		petal.position = Vector2(flower_start_x + i * flower_spacing + 5, flower_y + (i % 2) * 6)
+		petal.size = Vector2(flower_spacing - 8, 22)
+		full_screen.add_child(petal)
+
+	# Green leaves underneath
+	var leaf_bar := Panel.new()
+	var leaf_style := StyleBoxFlat.new()
+	leaf_style.bg_color = Color(0.18, 0.28, 0.15, 0.7)
+	leaf_style.corner_radius_top_left = 4
+	leaf_style.corner_radius_top_right = 4
+	leaf_style.corner_radius_bottom_left = 4
+	leaf_style.corner_radius_bottom_right = 4
+	leaf_bar.add_theme_stylebox_override("panel", leaf_style)
+	leaf_bar.position = Vector2(frame_x + 10, flower_y + 28)
+	leaf_bar.size = Vector2(frame_w - 20, 8)
+	full_screen.add_child(leaf_bar)
+
+	# --- Text elements (all start invisible, fade in with tween) ---
+
+	var text_y := flower_y + 60
+	var text_elements: Array = []
+
+	# Player name
+	var name_label := Label.new()
+	var full_name: String = DartData.get_full_name(GameState.character)
+	if CareerState.nickname_active:
+		var nickname: String = DartData.get_character_nickname(GameState.character)
+		name_label.text = full_name + '\n"' + nickname + '"'
+	else:
+		name_label.text = full_name
+	UIFont.apply(name_label, UIFont.SUBHEADING)
+	name_label.add_theme_color_override("font_color", Color(0.75, 0.65, 0.4))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.position = Vector2(60, text_y)
+	name_label.size = Vector2(600, 80)
+	name_label.modulate.a = 0.0
+	full_screen.add_child(name_label)
+	text_elements.append(name_label)
+
+	text_y += 85
+
+	# Death lines — each fades in separately
+	var son_or_love: String = "love" if DartData.get_is_female(GameState.character) else "son"
+	var death_lines := [
+		"She told you.",
+		"One more drink.",
+		"",
+		"The paramedics arrived in three minutes.",
+		"But it was already too late.",
+		"",
+		"So close to glory, " + son_or_love + ".",
+		"So close.",
+	]
+
+	for line in death_lines:
+		if line == "":
+			text_y += 25  # Beat pause
+			continue
+		var lbl := Label.new()
+		lbl.text = line
+		UIFont.apply(lbl, UIFont.BODY)
+		lbl.add_theme_color_override("font_color", Color(0.6, 0.4, 0.4))
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl.position = Vector2(60, text_y)
+		lbl.size = Vector2(600, 45)
+		lbl.modulate.a = 0.0
+		full_screen.add_child(lbl)
+		text_elements.append(lbl)
+		text_y += 45
+
+	# NEW CAREER button (also fades in)
+	text_y += 40
+	var new_btn := _create_button("NEW CAREER", Color(0.5, 0.15, 0.15), Color(0.8, 0.3, 0.3))
+	new_btn.pressed.connect(_on_new_career)
+	var btn_wrapper := CenterContainer.new()
+	btn_wrapper.position = Vector2(60, text_y)
+	btn_wrapper.size = Vector2(600, 100)
+	btn_wrapper.modulate.a = 0.0
+	btn_wrapper.add_child(new_btn)
+	full_screen.add_child(btn_wrapper)
+	text_elements.append(btn_wrapper)
+
+	# Store card index for deferred animation (must be before _add_card)
+	var card_idx: int = _cards.size()
+	_card_animations[card_idx] = _start_death_fade_in.bind(text_elements)
+	_add_card(card, "Drink Death")
+
+
+func _start_death_fade_in(elements: Array) -> void:
+	_death_tween = create_tween()
+	_death_tween.tween_interval(1.5)  # Initial pause — let the portrait sink in
+
+	for element in elements:
+		_death_tween.tween_property(element, "modulate:a", 1.0, 1.2)
+		_death_tween.tween_interval(0.8)  # Pause between each line
+
+
+# ======================================================
+# MAFIA DEATH (cinematic funeral card — deal broken)
+# ======================================================
+
+func _build_mafia_death_card() -> void:
+	var card := _create_card()
+
+	# Holder fills the VBoxContainer card; full_screen breaks out of margins
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(640, 1280)
+	card.add_child(holder)
+
+	var full_screen := Control.new()
+	full_screen.position = Vector2(-40, 0)
+	full_screen.size = Vector2(720, 1280)
+	full_screen.clip_contents = true
+	holder.add_child(full_screen)
+
+	# Very dark background with subtle red tint
+	var bg := ColorRect.new()
+	bg.color = Color(0.06, 0.03, 0.03)
+	bg.size = Vector2(720, 1280)
+	full_screen.add_child(bg)
+
+	# --- Framed portrait (age 19 — when they were healthy) ---
+
+	# Outer frame: dark wood colour
+	var frame_outer := ColorRect.new()
+	var frame_w := 280
+	var frame_h := 350
+	var frame_x := (720 - frame_w) / 2
+	var frame_y := 120
+	frame_outer.position = Vector2(frame_x, frame_y)
+	frame_outer.size = Vector2(frame_w, frame_h)
+	frame_outer.color = Color(0.22, 0.14, 0.08)
+	full_screen.add_child(frame_outer)
+
+	# Inner frame: gold border
+	var frame_inner := ColorRect.new()
+	var border := 8
+	frame_inner.position = Vector2(border, border)
+	frame_inner.size = Vector2(frame_w - border * 2, frame_h - border * 2)
+	frame_inner.color = Color(0.72, 0.58, 0.25)
+	frame_outer.add_child(frame_inner)
+
+	# Portrait image (age 19)
+	var portrait_path: String = DartData.get_profile_image_for_tier(GameState.character, 0)
+	var tex := load(portrait_path)
+	if tex:
+		var img := TextureRect.new()
+		img.texture = tex
+		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		var img_border := 4
+		img.position = Vector2(img_border, img_border)
+		img.size = Vector2(frame_inner.size.x - img_border * 2, frame_inner.size.y - img_border * 2)
+		frame_inner.add_child(img)
+
+	# --- Flowers beneath the frame ---
+
+	var flower_y := frame_y + frame_h + 5
+	var flower_colors := [
+		Color(0.55, 0.15, 0.15),  # dark red
+		Color(0.65, 0.55, 0.65),  # dusty lilac
+		Color(0.45, 0.12, 0.12),  # deep burgundy
+		Color(0.6, 0.6, 0.55),    # muted sage
+		Color(0.55, 0.15, 0.15),  # dark red
+		Color(0.65, 0.55, 0.65),  # dusty lilac
+		Color(0.45, 0.12, 0.12),  # deep burgundy
+	]
+	var flower_start_x := frame_x - 10
+	var flower_spacing := (frame_w + 20) / flower_colors.size()
+	for i in flower_colors.size():
+		var petal := Panel.new()
+		var style := StyleBoxFlat.new()
+		style.bg_color = flower_colors[i]
+		style.corner_radius_top_left = 10
+		style.corner_radius_top_right = 10
+		style.corner_radius_bottom_left = 10
+		style.corner_radius_bottom_right = 10
+		petal.add_theme_stylebox_override("panel", style)
+		petal.position = Vector2(flower_start_x + i * flower_spacing + 5, flower_y + (i % 2) * 6)
+		petal.size = Vector2(flower_spacing - 8, 22)
+		full_screen.add_child(petal)
+
+	# Green leaves underneath
+	var leaf_bar := Panel.new()
+	var leaf_style := StyleBoxFlat.new()
+	leaf_style.bg_color = Color(0.18, 0.28, 0.15, 0.7)
+	leaf_style.corner_radius_top_left = 4
+	leaf_style.corner_radius_top_right = 4
+	leaf_style.corner_radius_bottom_left = 4
+	leaf_style.corner_radius_bottom_right = 4
+	leaf_bar.add_theme_stylebox_override("panel", leaf_style)
+	leaf_bar.position = Vector2(frame_x + 10, flower_y + 28)
+	leaf_bar.size = Vector2(frame_w - 20, 8)
+	full_screen.add_child(leaf_bar)
+
+	# --- Text elements (all start invisible, fade in with tween) ---
+
+	var text_y := flower_y + 60
+	var text_elements: Array = []
+
+	# Player name
+	var name_label := Label.new()
+	var full_name: String = DartData.get_full_name(GameState.character)
+	if CareerState.nickname_active:
+		var nickname: String = DartData.get_character_nickname(GameState.character)
+		name_label.text = full_name + '\n"' + nickname + '"'
+	else:
+		name_label.text = full_name
+	UIFont.apply(name_label, UIFont.SUBHEADING)
+	name_label.add_theme_color_override("font_color", Color(0.75, 0.65, 0.4))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.position = Vector2(60, text_y)
+	name_label.size = Vector2(600, 80)
+	name_label.modulate.a = 0.0
+	full_screen.add_child(name_label)
+	text_elements.append(name_label)
+
+	text_y += 85
+
+	# Death lines — each fades in separately
+	var death_lines := [
+		"That wasn't the deal.",
+		"",
+		"A car park. Two men. No words.",
+		"",
+		"They found you the next morning.",
+		"",
+		"Five grand wasn't worth dying for.",
+		"But you took it anyway.",
+	]
+
+	for line in death_lines:
+		if line == "":
+			text_y += 25  # Beat pause
+			continue
+		var lbl := Label.new()
+		lbl.text = line
+		UIFont.apply(lbl, UIFont.BODY)
+		lbl.add_theme_color_override("font_color", Color(0.6, 0.4, 0.4))
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl.position = Vector2(60, text_y)
+		lbl.size = Vector2(600, 45)
+		lbl.modulate.a = 0.0
+		full_screen.add_child(lbl)
+		text_elements.append(lbl)
+		text_y += 45
+
+	# NEW CAREER button (also fades in)
+	text_y += 40
+	var new_btn := _create_button("NEW CAREER", Color(0.5, 0.15, 0.15), Color(0.8, 0.3, 0.3))
+	new_btn.pressed.connect(_on_new_career)
+	var btn_wrapper := CenterContainer.new()
+	btn_wrapper.position = Vector2(60, text_y)
+	btn_wrapper.size = Vector2(600, 100)
+	btn_wrapper.modulate.a = 0.0
+	btn_wrapper.add_child(new_btn)
+	full_screen.add_child(btn_wrapper)
+	text_elements.append(btn_wrapper)
+
+	# Store card index for deferred animation
+	var card_idx: int = _cards.size()
+	_card_animations[card_idx] = _start_death_fade_in.bind(text_elements)
+	_add_card(card, "Mafia Death")
+
+
+# ======================================================
+# CREDITS SCROLL (cinematic ending)
+# ======================================================
+
+var _credits_tween: Tween
+var _credits_text_column: VBoxContainer
+var _credits_skip_btn: Button
+
+func _build_credits_card() -> void:
+	var card := _create_card()
+
+	# Holder fills the VBoxContainer card; full_screen breaks out of margins
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(640, 1280)
+	card.add_child(holder)
+
+	var full_screen := Control.new()
+	full_screen.position = Vector2(-40, 0)
+	full_screen.size = Vector2(720, 1280)
+	full_screen.clip_contents = true
+	holder.add_child(full_screen)
+
+	# 1. Victory image — fills the screen as background
+	var portrait_path: String
+	if CareerState.career_mode_active:
+		portrait_path = DartData.get_victory_image(GameState.character)
+	else:
+		portrait_path = DartData.get_profile_image(GameState.character)
+	var tex := load(portrait_path)
+	if tex:
+		var img := TextureRect.new()
+		img.texture = tex
+		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		img.size = Vector2(720, 1280)
+		full_screen.add_child(img)
+
+	# 2. Gradient overlay — subtle at top (image visible), dark at bottom (text readable)
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0, 0, 0, 0.25))
+	gradient.set_offset(0, 0.0)
+	gradient.set_color(1, Color(0, 0, 0, 0.92))
+	gradient.set_offset(1, 1.0)
+	gradient.add_point(0.35, Color(0, 0, 0, 0.4))
+	gradient.add_point(0.65, Color(0, 0, 0, 0.8))
+	var grad_tex := GradientTexture2D.new()
+	grad_tex.gradient = gradient
+	grad_tex.fill_from = Vector2(0.5, 0)
+	grad_tex.fill_to = Vector2(0.5, 1)
+	grad_tex.width = 4
+	grad_tex.height = 256
+	var overlay := TextureRect.new()
+	overlay.texture = grad_tex
+	overlay.stretch_mode = TextureRect.STRETCH_SCALE
+	overlay.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	overlay.size = Vector2(720, 1280)
+	full_screen.add_child(overlay)
+
+	# 3. Scrolling text — starts below screen, scrolls upward like movie credits
+	var scroll_clip := Control.new()
+	scroll_clip.position = Vector2(0, 0)
+	scroll_clip.size = Vector2(720, 1280)
+	scroll_clip.clip_contents = true
+	full_screen.add_child(scroll_clip)
+
+	var text_column := VBoxContainer.new()
+	text_column.position = Vector2(60, 1280)
+	text_column.size = Vector2(600, 0)
+	text_column.add_theme_constant_override("separation", 0)
+	scroll_clip.add_child(text_column)
+	_credits_text_column = text_column
+
+	# --- Credits content ---
+
+	# Lead-in spacer (one full screen of black before text appears)
+	_add_spacer(text_column, 400)
+
+	# "WORLD CHAMPION" title
+	var title_label := Label.new()
+	title_label.text = "WORLD CHAMPION"
+	UIFont.apply(title_label, UIFont.HEADING)
+	title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.custom_minimum_size = Vector2(600, 70)
+	text_column.add_child(title_label)
+
+	_add_spacer(text_column, 50)
+
+	# Character name + nickname
+	var char_name := DartData.get_full_name(GameState.character)
+	var name_label := Label.new()
+	if CareerState.nickname_active:
+		var nick := DartData.get_character_nickname(GameState.character)
+		name_label.text = char_name + '\n"' + nick + '"'
+		name_label.custom_minimum_size = Vector2(600, 90)
+	else:
+		name_label.text = char_name
+		name_label.custom_minimum_size = Vector2(600, 55)
+	UIFont.apply(name_label, UIFont.SUBHEADING)
+	name_label.add_theme_color_override("font_color", Color.WHITE)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	text_column.add_child(name_label)
+
+	_add_spacer(text_column, 80)
+
+	# Thin gold divider line
+	var divider := ColorRect.new()
+	divider.color = Color(1.0, 0.85, 0.2, 0.4)
+	divider.custom_minimum_size = Vector2(200, 2)
+	var div_center := CenterContainer.new()
+	div_center.custom_minimum_size = Vector2(600, 20)
+	div_center.add_child(divider)
+	text_column.add_child(div_center)
+
+	_add_spacer(text_column, 60)
+
+	# Character-specific ending text
+	var ending := EndingsData.get_ending(GameState.character)
+	for line in ending:
+		if line == "":
+			_add_spacer(text_column, 45)
+		else:
+			var para := Label.new()
+			para.text = line
+			UIFont.apply(para, UIFont.CAPTION)
+			para.add_theme_color_override("font_color", Color(0.88, 0.88, 0.92))
+			para.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			para.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			para.custom_minimum_size = Vector2(600, 0)
+			text_column.add_child(para)
+			_add_spacer(text_column, 8)
+
+	# Trailing spacer before button
+	_add_spacer(text_column, 200)
+
+	# Second divider
+	var divider2 := ColorRect.new()
+	divider2.color = Color(1.0, 0.85, 0.2, 0.4)
+	divider2.custom_minimum_size = Vector2(200, 2)
+	var div_center2 := CenterContainer.new()
+	div_center2.custom_minimum_size = Vector2(600, 20)
+	div_center2.add_child(divider2)
+	text_column.add_child(div_center2)
+
+	_add_spacer(text_column, 80)
+
+	# NEW CAREER button (scrolls in at the very end)
 	var new_btn := _create_button("NEW CAREER", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
 	new_btn.pressed.connect(_on_new_career)
-	var new_wrapper := CenterContainer.new()
-	new_wrapper.custom_minimum_size = Vector2(640, 100)
-	new_wrapper.add_child(new_btn)
-	end_card.add_child(new_wrapper)
+	var btn_wrapper := CenterContainer.new()
+	btn_wrapper.custom_minimum_size = Vector2(600, 120)
+	btn_wrapper.add_child(new_btn)
+	text_column.add_child(btn_wrapper)
 
-	_add_card(end_card, "World Champion")
+	_add_spacer(text_column, 400)
+
+	# 4. SKIP button — fixed in bottom-right corner
+	var skip_btn := Button.new()
+	skip_btn.text = "SKIP"
+	UIFont.apply_button(skip_btn, 20)
+	skip_btn.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7, 0.6))
+	skip_btn.position = Vector2(620, 1220)
+	skip_btn.size = Vector2(80, 40)
+	var skip_style := StyleBoxEmpty.new()
+	skip_btn.add_theme_stylebox_override("normal", skip_style)
+	skip_btn.add_theme_stylebox_override("hover", skip_style)
+	skip_btn.add_theme_stylebox_override("pressed", skip_style)
+	skip_btn.add_theme_stylebox_override("focus", skip_style)
+	full_screen.add_child(skip_btn)
+	_credits_skip_btn = skip_btn
+
+	# Store card index for deferred animation
+	var card_idx: int = _cards.size()
+	skip_btn.pressed.connect(_credits_skip)
+
+	_card_animations[card_idx] = _start_credits_scroll.bind(text_column, skip_btn)
+	_add_card(card, "Credits")
+
+func _start_credits_scroll(text_column: VBoxContainer, skip_btn: Button) -> void:
+	# Wait for layout to settle so we can measure content height
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	# Measure total content height
+	var content_height: float = 0.0
+	for child in text_column.get_children():
+		content_height += child.size.y
+
+	# Scroll from below screen (y=1280) up until the NEW CAREER button
+	# reaches roughly the centre of the screen
+	var end_y: float = -(content_height - 900)
+	var total_distance: float = 1280.0 - end_y
+	var scroll_speed: float = 62.0
+	var duration: float = total_distance / scroll_speed
+
+	_credits_tween = create_tween()
+	_credits_tween.tween_property(text_column, "position:y", end_y, duration).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_LINEAR)
+	_credits_tween.finished.connect(func(): skip_btn.visible = false)
+
+func _credits_skip() -> void:
+	if _credits_tween and _credits_tween.is_running():
+		_credits_tween.kill()
+	if _credits_skip_btn:
+		_credits_skip_btn.visible = false
+	if _credits_text_column:
+		var content_height: float = 0.0
+		for child in _credits_text_column.get_children():
+			content_height += child.size.y
+		_credits_text_column.position.y = -(content_height - 900)
+
 
 # ======================================================
 # LOSS FLOW
@@ -2258,11 +2992,11 @@ const LOSS_FLAVOUR := {
 		"career_over": "Three-time champion.\nMake that four.\nSteve raises a pint. You don't.",
 		"retry": "ENTER AGAIN",
 	},
-	# Level 4 (Philip)
+	# Level 4 (Edward)
 	4: {
-		1: "Philip adjusts his glasses.\n\"Interesting match.\"\nHe doesn't mean it.",
+		1: "Edward adjusts his glasses.\n\"Interesting match.\"\nHe doesn't mean it.",
 		2: "The coach shakes her head.",
-		"career_over": "Three county finals. Three losses.\nPhilip doesn't celebrate.\nHe just packs his darts away.",
+		"career_over": "Three county finals. Three losses.\nEdward doesn't celebrate.\nHe just packs his darts away.",
 		"retry": "TRY AGAIN",
 	},
 	# Level 5 (Mad Dog) -- win or bust
@@ -2273,7 +3007,7 @@ const LOSS_FLAVOUR := {
 	6: {
 		"career_over": "Lars raises his hammer.\nThe crowd goes wild.\n\nYou watch from the wings.\nClose. So close.",
 	},
-	# Level 7 (Vinnie Gold) -- win or bust
+	# Level 7 (Vinnie "The Gold") -- win or bust
 	7: {
 		"career_over": "Gold confetti. Vinnie's confetti.\nNot yours.\n\nYou buy a kebab on the way to the station.",
 	},
@@ -2610,6 +3344,7 @@ func _build_trader_profit_card() -> void:
 
 	# Apply the sale (cost was already deducted at purchase time)
 	CareerState.money += revenue
+	_update_balance_overlay()
 	CareerState.inflatables_stock -= sold
 	# Unsold stock returns to inventory (already counted in stock minus sold)
 	CareerState.inflatables_total_sold += sold
@@ -2663,6 +3398,7 @@ func _build_companion_panel(speaker_name: String, dialogue_text: String,
 	panel_style.border_width_right = 2
 	panel_style.border_color = Color(0.85, 0.6, 0.15, 0.6)
 	panel.add_theme_stylebox_override("panel", panel_style)
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 12)
@@ -2704,13 +3440,13 @@ func _build_companion_panel(speaker_name: String, dialogue_text: String,
 	UIFont.apply(name_label, UIFont.BODY)
 	vbox.add_child(name_label)
 
-	# Dialogue text
+	# Dialogue text — CAPTION (28pt) gives breathing room on tight cards
 	var dialogue := Label.new()
 	dialogue.text = dialogue_text
 	dialogue.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dialogue.custom_minimum_size = Vector2(560, 0)
 	dialogue.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
-	UIFont.apply(dialogue, UIFont.BODY)
+	UIFont.apply(dialogue, UIFont.CAPTION)
 	vbox.add_child(dialogue)
 
 	panel.add_child(vbox)
@@ -2835,7 +3571,7 @@ func _build_kebab_card() -> void:
 
 	if can_gain_heft:
 		_build_star_flip_card("HEFT", CareerState.heft_tier,
-			CareerState.heft_tier + 1, "Kebab consumed. Professional fuel.", null)
+			CareerState.heft_tier + 1, "Kebab consumed.\nProfessional fuel.", null)
 
 ## Build a food offer card with EAT / NO THANKS buttons.
 ## If player can't afford cost, the food card AND heft star flip are both skipped.
@@ -2933,6 +3669,7 @@ func _build_food_card(title: String, description: String,
 	eat_btn.pressed.connect(func():
 		if actual_cost > 0:
 			CareerState.money -= actual_cost
+			_update_balance_overlay()
 		if can_gain_heft:
 			CareerState.heft_tier += 1
 		_advance_card()
@@ -2947,6 +3684,7 @@ func _build_food_card(title: String, description: String,
 			# Second decline — force it (companion covers cost if needed)
 			if actual_cost > 0:
 				CareerState.money -= actual_cost
+				_update_balance_overlay()
 			if can_gain_heft:
 				CareerState.heft_tier += 1
 			_advance_card()
@@ -2971,17 +3709,20 @@ func _build_food_card(title: String, description: String,
 ## Build a player stats card with one star row that flips from old_val to new_val.
 ## set_callback is called when the animation fires (to update CareerState).
 ## If set_callback is null, the caller has already updated the value.
+## portrait_override: if non-empty, uses this image path instead of the tier-based portrait.
 func _build_star_flip_card(star_name: String, old_val: int, new_val: int,
-		quip_text: String, set_callback) -> void:
+		quip_text: String, set_callback, portrait_override: String = "") -> void:
 	var card := _create_card()
 	_add_spacer(card, 15)
 
 	# Determine appearance tier BEFORE this star change for golden flash crossfade
 	var old_appearance_tier := CareerState.calculate_appearance_tier()
 
-	# Use tier-aware portrait image if in career mode
+	# Use tier-aware portrait image if in career mode (unless overridden)
 	var portrait_path: String
-	if CareerState.career_mode_active:
+	if portrait_override != "":
+		portrait_path = portrait_override
+	elif CareerState.career_mode_active:
 		portrait_path = DartData.get_profile_image_for_tier(GameState.character, old_appearance_tier)
 	else:
 		portrait_path = DartData.get_profile_image(GameState.character)
@@ -3252,7 +3993,7 @@ func _build_opponent_stats_card(opp_id: String, display_name: String,
 		nickname: String, stars: Dictionary, game_mode_text: String) -> void:
 	var card := _create_card()
 
-	_add_spacer(card, 10)
+	_add_spacer(card, 30)
 
 	# "YOUR OPPONENT" header (yellow -- standard for all opponent reveal cards)
 	var header := Label.new()
@@ -3424,6 +4165,10 @@ func _build_pre_drink_card() -> void:
 
 	_add_spacer(card, 12)
 
+	# Drinks + skip wrapper (hidden together on refusal)
+	var drinks_group := VBoxContainer.new()
+	drinks_group.add_theme_constant_override("separation", 0)
+
 	# Drink box colours — each drink gets a distinct colour
 	var box_colours := [
 		Color(0.45, 0.25, 0.1),   # warm amber / whisky
@@ -3477,12 +4222,13 @@ func _build_pre_drink_card() -> void:
 		var panel_wrapper := CenterContainer.new()
 		panel_wrapper.custom_minimum_size = Vector2(640, 0)
 		panel_wrapper.add_child(panel)
-		card.add_child(panel_wrapper)
+		drinks_group.add_child(panel_wrapper)
 
 		# Make the panel clickable via gui_input
 		var cb := func(u: int, p: int):
 			if p > 0:
 				CareerState.money -= p
+				_update_balance_overlay()
 			CareerState.pre_drink_units = u
 			_advance_card()
 		var bound_cb := cb.bind(drink["units"], session_cost)
@@ -3491,7 +4237,7 @@ func _build_pre_drink_card() -> void:
 				bound_cb.call()
 		)
 		panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		_add_spacer(card, 12)
+		_add_spacer(drinks_group, 12)
 
 	# Skip option
 	var skip_btn := _create_button("NO THANKS", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
@@ -3500,18 +4246,21 @@ func _build_pre_drink_card() -> void:
 	var skip_wrapper := CenterContainer.new()
 	skip_wrapper.custom_minimum_size = Vector2(640, 60)
 	skip_wrapper.add_child(skip_btn)
-	card.add_child(skip_wrapper)
+	drinks_group.add_child(skip_wrapper)
 
-	# Refusal reaction panel — hidden until NO THANKS is pressed
-	var refusal_panel := _build_companion_panel(
-		config["companion"].to_upper(),
-		"Fair enough, but you're on your own out there, " + ("love." if DartData.get_is_female(GameState.character) else "son."),
-		Color(0.3, 0.4, 0.6), config["companion"].substr(0, 1).to_upper(),
-		"", UIFont.PORTRAIT_S
-	)
-	refusal_panel.visible = false
-	card.add_child(refusal_panel)
-	_add_spacer(card, 10)
+	card.add_child(drinks_group)
+
+	# Refusal reaction — just text, no portrait (companion already visible at top)
+	var refusal_label := Label.new()
+	refusal_label.text = "\"Fair enough, but you're on your own out there, " + ("love" if DartData.get_is_female(GameState.character) else "mate") + ".\""
+	UIFont.apply(refusal_label, UIFont.BODY)
+	refusal_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+	refusal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	refusal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	refusal_label.custom_minimum_size = Vector2(600, 0)
+	refusal_label.visible = false
+	card.add_child(refusal_label)
+	_add_spacer(card, 30)
 	var refusal_continue := _create_button("CONTINUE", Color(0.15, 0.15, 0.25), Color(0.3, 0.3, 0.5))
 	refusal_continue.visible = false
 	var refusal_c_wrapper := CenterContainer.new()
@@ -3525,9 +4274,9 @@ func _build_pre_drink_card() -> void:
 	)
 
 	skip_btn.pressed.connect(func():
-		# Hide drink options and skip button, show refusal dialogue
-		skip_wrapper.visible = false
-		refusal_panel.visible = true
+		# Hide all drink options + skip, show refusal text + continue
+		drinks_group.visible = false
+		refusal_label.visible = true
 		refusal_continue.visible = true
 	)
 
@@ -3596,6 +4345,7 @@ func _show_card(index: int) -> void:
 	if _card_animations.has(index):
 		_card_animations[index].call()
 		_card_animations.erase(index)
+	_update_balance_overlay()
 
 func _advance_card() -> void:
 	if _current_card < _cards.size() - 1:
@@ -3652,6 +4402,48 @@ func _create_button(text: String, bg_color: Color, border_color: Color) -> Butto
 	btn.add_theme_stylebox_override("hover", hover)
 
 	return btn
+
+# ── Balance overlay (career mode — top centre) ──
+
+func _build_balance_overlay() -> void:
+	if not CareerState.career_mode_active:
+		return
+
+	_balance_panel = PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.0, 0.0, 0.0, 0.85)
+	style.border_color = Color.WHITE
+	style.border_width_top = 1
+	style.border_width_bottom = 1
+	style.border_width_left = 1
+	style.border_width_right = 1
+	style.corner_radius_top_left = 4
+	style.corner_radius_top_right = 4
+	style.corner_radius_bottom_left = 4
+	style.corner_radius_bottom_right = 4
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	_balance_panel.add_theme_stylebox_override("panel", style)
+	_balance_panel.position = Vector2(280, 2)
+	_balance_panel.size = Vector2(160, 24)
+	_balance_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	_balance_label_overlay = Label.new()
+	UIFont.apply(_balance_label_overlay, 24)
+	_balance_label_overlay.add_theme_color_override("font_color", Color.WHITE)
+	_balance_label_overlay.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_balance_label_overlay.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_balance_label_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_balance_label_overlay.text = _format_money(CareerState.money)
+
+	_balance_panel.add_child(_balance_label_overlay)
+	add_child(_balance_panel)
+
+func _update_balance_overlay() -> void:
+	if _balance_label_overlay:
+		_balance_label_overlay.text = _format_money(CareerState.money)
 
 func _format_money(pence: int) -> String:
 	var pounds_val := int(pence / 100)

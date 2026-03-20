@@ -47,6 +47,8 @@ var exhibition_mode: bool = false
 var bribe_legs_used: int = 0         # Legs bribed back during Mad Dog match
 var bribe_mafia_hit: bool = false     # Whether mafia roughed player up
 var throw_leg_money: int = 0         # Pence earned from throwing a leg
+var throw_leg_required: bool = false  # Unknown Number told player to throw leg 4
+var throw_leg_honoured: bool = false  # True if player actually lost leg 4
 
 # Swagger progression — all non-optional, forced by narrative
 var shopping_spree_done: bool = false   # Star 1 (L2) — bling + tattoos
@@ -59,6 +61,8 @@ var walkon_volume: int = -1             # 0=quiet, 1=medium, 2=loud, 3=deafening
 # Fight state — set before transitioning to fight screen
 var fight_pending: bool = false
 var fight_opponent_id: String = ""
+var doctor_death_warning: bool = false  # Doctor says one more drink = death (final match)
+var drink_death_occurred: bool = false  # Player died from drinking after doctor's warning
 
 # Hidden stats (player never sees raw numbers)
 var liver_damage: float = 0.0    # 0-100
@@ -107,6 +111,8 @@ func reset() -> void:
 	bribe_legs_used = 0
 	bribe_mafia_hit = false
 	throw_leg_money = 0
+	throw_leg_required = false
+	throw_leg_honoured = false
 	shopping_spree_done = false
 	celebration_style = -1
 	silk_shirt_received = false
@@ -115,6 +121,8 @@ func reset() -> void:
 	walkon_volume = -1
 	fight_pending = false
 	fight_opponent_id = ""
+	doctor_death_warning = false
+	drink_death_occurred = false
 	liver_damage = 0.0
 	heart_risk = 0.0
 	reputation = 50.0

@@ -9,6 +9,8 @@ extends Control
 
 var _cards: Array[Control] = []
 var _current_card: int = 0
+var _balance_panel: PanelContainer
+var _balance_label: Label
 
 func _ready() -> void:
 	_build_ui()
@@ -26,6 +28,7 @@ func _build_ui() -> void:
 	_build_card_5_darts()
 
 	_show_card(0)
+	_build_balance_overlay()
 
 # ══════════════════════════════════════════
 # Card 1: Career Stars (all at 0/5)
@@ -117,7 +120,7 @@ func _build_card_1_stars() -> void:
 func _build_card_2_barman() -> void:
 	var card := _create_card()
 
-	_add_spacer(card, 15)
+	_add_spacer(card, 30)
 
 	# Scene setting — location and time
 	var venue_text: String = OpponentData.get_venue("big_kev", GameState.character)
@@ -269,7 +272,7 @@ func _build_card_3_rules() -> void:
 func _build_card_4_opponent() -> void:
 	var card := _create_card()
 
-	_add_spacer(card, 10)
+	_add_spacer(card, 30)
 
 	# "YOUR OPPONENT" header (yellow — standard for all opponent reveal cards)
 	var header := Label.new()
@@ -432,6 +435,7 @@ func _show_card(index: int) -> void:
 	for i in range(_cards.size()):
 		_cards[i].visible = (i == index)
 	_current_card = index
+	_update_balance_overlay()
 
 func _advance_card() -> void:
 	if _current_card < _cards.size() - 1:
@@ -519,6 +523,68 @@ func _career_stars_row(cat_name: String, filled: int, _total: int) -> HBoxContai
 	row.add_child(_build_star_image(filled))
 
 	return row
+
+# ══════════════════════════════════════════
+# Balance overlay (career mode — top centre)
+# ══════════════════════════════════════════
+
+func _build_balance_overlay() -> void:
+	if not CareerState.career_mode_active:
+		return
+
+	_balance_panel = PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.0, 0.0, 0.0, 0.85)
+	style.border_color = Color.WHITE
+	style.border_width_top = 1
+	style.border_width_bottom = 1
+	style.border_width_left = 1
+	style.border_width_right = 1
+	style.corner_radius_top_left = 4
+	style.corner_radius_top_right = 4
+	style.corner_radius_bottom_left = 4
+	style.corner_radius_bottom_right = 4
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	_balance_panel.add_theme_stylebox_override("panel", style)
+	_balance_panel.position = Vector2(280, 2)
+	_balance_panel.size = Vector2(160, 24)
+	_balance_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	_balance_label = Label.new()
+	UIFont.apply(_balance_label, 24)
+	_balance_label.add_theme_color_override("font_color", Color.WHITE)
+	_balance_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_balance_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_balance_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_balance_label.text = _format_money(CareerState.money)
+
+	_balance_panel.add_child(_balance_label)
+	add_child(_balance_panel)
+
+func _update_balance_overlay() -> void:
+	if _balance_label:
+		_balance_label.text = _format_money(CareerState.money)
+
+func _format_money(pence: int) -> String:
+	var pounds_val := int(pence / 100)
+	var pence_val := pence % 100
+	if pence < 10000:
+		var p_str: String = str(pence_val) if pence_val >= 10 else "0" + str(pence_val)
+		return "£" + str(pounds_val) + "." + p_str
+	elif pence < 100000:
+		return "£" + str(pounds_val)
+	else:
+		var result := ""
+		var s := str(pounds_val)
+		var len_s := s.length()
+		for i in range(len_s):
+			if i > 0 and (len_s - i) % 3 == 0:
+				result += ","
+			result += s[i]
+		return "£" + result
 
 # ══════════════════════════════════════════
 # Navigation

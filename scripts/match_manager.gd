@@ -77,9 +77,7 @@ var _second_drink_after_visits: int = -1  # Visits until offer, -1 = inactive
 var _second_drink_pending := false
 var _re_offer_drink := false
 
-# ── Mad Dog bribe/throw system (L5 only) ──
-var _throw_leg_offer_pending: bool = false
-var _throw_leg_offered: bool = false
+# ── Mad Dog bribe system (L5 only) ──
 var _bribe_offer_pending: bool = false
 var _bribe_used: bool = false
 
@@ -122,11 +120,11 @@ var _confidence_decay_active: bool = false
 var _pre_drink_advice_shown := false
 var _pre_drink_units_at_start: int = 0
 
-# Sober nerves warning (visit 2, if refused pre-drinking)
-var _sober_nerves_warning_shown: bool = false
-
 # Drunk drinking warning (once per match, when heavy + accepting more)
 var _drunk_warning_shown: bool = false
+
+# High nerves warning — mate suggests a drink (once per match, when nerves first hit 75%+)
+var _high_nerves_warning_shown: bool = false
 
 func _ready() -> void:
 	_is_vs_ai = GameState.is_vs_ai
@@ -234,6 +232,7 @@ func _build_scene() -> void:
 			var buy_in: int = OpponentData.get_buy_in(_opponent_id)
 			if buy_in > 0:
 				CareerState.money -= buy_in
+				CareerState.money = maxi(CareerState.money, 0)
 		_score_hud.update_balance(CareerState.money)
 
 func _connect_signals() -> void:
@@ -282,8 +281,8 @@ func _init_game_mode() -> void:
 		_gameplay_anger = 0.0
 		_drinks_this_match = 0
 		_player_visit_count = 0
-		_sober_nerves_warning_shown = false
 		_drunk_warning_shown = false
+		_high_nerves_warning_shown = false
 		_round_first_decided = false
 		_player_broke_round = false
 
@@ -379,16 +378,6 @@ func _start_visit() -> void:
 		return
 
 	if _is_player_turn or not _is_vs_ai:
-		# Check for Mad Dog throw-a-leg offer
-		if _throw_leg_offer_pending and CareerState.career_mode_active:
-			_throw_leg_offer_pending = false
-			_state = MatchState.BETWEEN_DARTS
-			_throw_system.set_can_throw(false)
-			_score_hud.reset_dart_icons()
-			_score_hud.hide_summary()
-			_show_throw_leg_popup()
-			return
-
 		# Check for Mad Dog bribe offer
 		if _bribe_offer_pending and CareerState.career_mode_active:
 			_bribe_offer_pending = false
@@ -509,11 +498,6 @@ func _start_visit() -> void:
 		# Auto-zoom to 20 in 301/501 when score is high (almost always aiming at T20)
 		if _is_countdown() and GameState.starting_score >= 301 and _score_remaining >= 180 and _is_player_turn:
 			_camera_rig.zoom_to_twenty()
-
-		# Sober nerves warning — visit 2, if refused pre-drinking (career L2+)
-		if _player_visit_count == 2 and not _sober_nerves_warning_shown and CareerState.career_mode_active and CareerState.career_level >= 2 and CareerState.pre_drink_refused:
-			_sober_nerves_warning_shown = true
-			_score_hud.show_message("Those nerves are really getting to you.", 3.0)
 
 		# Zoom reminder — reset per-visit tracking and show hint
 		_camera_rig.reset_visit_zoom()
@@ -1661,6 +1645,12 @@ func _recalculate_drunk_stats() -> void:
 		_score_hud.update_stats_bars(_player_dart_quality, _player_nerves, _player_confidence, _player_anger)
 	_throw_system.career_scatter_mult = get_career_scatter_mult()
 
+	# High nerves warning — mate suggests a drink (once per match, L2+)
+	if not _high_nerves_warning_shown and _player_nerves >= 75.0 and CareerState.career_mode_active and CareerState.career_level >= 2:
+		_high_nerves_warning_shown = true
+		var player_name: String = DartData.get_character_name(GameState.character)
+		_score_hud.show_message(player_name + ", you look like a wreck up there. Get some booze in you or those darts are going everywhere.", 5.0)
+
 ## Nerve modifier: drinks suppress nerves. Floor depends on career level.
 func _get_drunk_nerve_modifier(dl: int) -> float:
 	if dl < 4:
@@ -1791,13 +1781,13 @@ func _on_leg_complete(player_won: bool) -> void:
 	# Update HUD
 	_score_hud.update_leg_score(_player_legs_won, _opponent_legs_won)
 
-	# Mad Dog bribe/throw triggers
+	# Mad Dog throw/bribe triggers
 	if _opponent_id == "mad_dog" and CareerState.career_mode_active and not CareerState.exhibition_mode:
 		var total_legs := _player_legs_won + _opponent_legs_won
-		# Throw-a-leg offer after the first completed leg
-		if total_legs == 1 and not _throw_leg_offered:
-			_throw_leg_offer_pending = true
-			_throw_leg_offered = true
+		# Track leg 4 result: did the player honour the deal?
+		# Leg 4 = the leg that just completed when total_legs reaches 4
+		if total_legs == 4 and CareerState.throw_leg_required:
+			CareerState.throw_leg_honoured = not player_won  # True if opponent won leg 4
 		# Bribe offer when Mad Dog is one leg from winning
 		if not player_won and _opponent_legs_won == _legs_to_win - 1 and not _bribe_used:
 			_bribe_offer_pending = true
@@ -1923,6 +1913,20 @@ func _fade_to_black_and_results() -> void:
 	tween.tween_property(black, "color:a", 1.0, 1.0)
 	tween.tween_callback(_goto_results)
 
+func _trigger_drink_death() -> void:
+	# Player took a drink after the doctor's death warning — cardiac arrest
+	_score_hud.show_message("You take a sip.\n\nEverything goes dark.", 4.0)
+	GameState.match_won = false
+	GameState.match_prize = 0
+	GameState.match_career_over = true
+	CareerState.doctor_death_warning = false  # Clear flag
+	CareerState.drink_death_occurred = true   # Special death ending
+	# Dramatic blackout then results
+	DrinkManager.ramp_to_blackout(3.0)
+	var tween := create_tween()
+	tween.tween_interval(4.5)
+	tween.tween_callback(_fade_to_black_and_results)
+
 func _goto_results() -> void:
 	_cancel_ai_turn()
 	DrinkManager.clear_effects()
@@ -2021,11 +2025,18 @@ func _on_companion_dialogue_finished(trigger: String) -> void:
 		_start_visit()
 
 func _on_companion_consequence(consequence_id: String) -> void:
+	# Doctor death warning — any drink in the final kills the player
+	if CareerState.doctor_death_warning:
+		var is_drink := consequence_id in ["add_half_pint", "buy_half_pint", "accept_free_pint", "buy_round"]
+		if is_drink:
+			_trigger_drink_death()
+			return
+
 	if consequence_id == "add_half_pint":
 		# Free half pint from barman — set up animated nerves decrease
 		_nerves_before_drink = _player_nerves
 		_suppress_hud_update = true
-		DrinkManager.add_drink(true, 1)  # Free half pint (visual effects)
+		DrinkManager.add_drink(true, 2)  # Free half pint = 2 units (visual effects)
 		apply_drink(false)               # Career stats: nerves -8, anger +2
 		_suppress_hud_update = false
 		_pending_nerves_anim = _player_nerves
@@ -2035,7 +2046,7 @@ func _on_companion_consequence(consequence_id: String) -> void:
 		# Paid half pint — player is paying this time
 		_nerves_before_drink = _player_nerves
 		_suppress_hud_update = true
-		DrinkManager.add_drink(true, 1)  # Visual effects (payment handled below)
+		DrinkManager.add_drink(true, 2)  # Half pint = 2 units (payment handled below)
 		apply_drink(false)               # Career stats: nerves -8, anger +2
 		_suppress_hud_update = false
 		_pending_nerves_anim = _player_nerves
@@ -2043,10 +2054,10 @@ func _on_companion_consequence(consequence_id: String) -> void:
 		CareerState.money -= DrinkManager.COST_PER_UNIT
 		_score_hud.update_balance(CareerState.money)
 	elif consequence_id == "accept_free_pint":
-		# Companion's round — free pint for the player (1 pint = 2 units)
+		# Companion's round — free pint for the player (1 pint = 4 units)
 		_nerves_before_drink = _player_nerves
 		_suppress_hud_update = true
-		DrinkManager.add_drink(true, 2)  # Free pint (visual effects)
+		DrinkManager.add_drink(true, 4)  # Free pint (visual effects)
 		apply_drink(true)                # Career stats: full pint effects
 		_suppress_hud_update = false
 		_pending_nerves_anim = _player_nerves
@@ -2055,7 +2066,7 @@ func _on_companion_consequence(consequence_id: String) -> void:
 		# Player's round — buy pints for everyone, player drinks 1 pint
 		_nerves_before_drink = _player_nerves
 		_suppress_hud_update = true
-		DrinkManager.add_drink(true, 2)  # Pint visual effects (payment below)
+		DrinkManager.add_drink(true, 4)  # Pint visual effects (payment below)
 		apply_drink(true)                # Career stats: full pint effects
 		_suppress_hud_update = false
 		_pending_nerves_anim = _player_nerves
@@ -2082,108 +2093,7 @@ func _check_drunk_warning() -> void:
 			_score_hud.show_message("Take it easy mate... if you start to think you're a state, you definitely are a state.", 4.0)
 		)
 
-# ── Mad Dog bribe/throw popups (L5 only) ─────────────────────────
-
-func _show_throw_leg_popup() -> void:
-	var overlay := Control.new()
-	overlay.size = Vector2(720, 1280)
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	overlay.z_index = 100
-	var dimmer := ColorRect.new()
-	dimmer.color = Color(0, 0, 0, 0.5)
-	dimmer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay.add_child(dimmer)
-
-	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.07, 0.12, 0.94)
-	style.corner_radius_top_left = 14
-	style.corner_radius_top_right = 14
-	style.corner_radius_bottom_left = 14
-	style.corner_radius_bottom_right = 14
-	style.content_margin_left = 20
-	style.content_margin_right = 20
-	style.content_margin_top = 18
-	style.content_margin_bottom = 18
-	style.border_width_top = 2
-	style.border_width_bottom = 2
-	style.border_width_left = 2
-	style.border_width_right = 2
-	style.border_color = Color(0.85, 0.6, 0.15, 0.6)
-	panel.add_theme_stylebox_override("panel", style)
-	panel.position = Vector2(50, 280)
-	panel.size = Vector2(620, 0)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 12)
-
-	var caller_tex := load("res://The Contact Unknown caller cropped.png")
-	if caller_tex:
-		var portrait := TextureRect.new()
-		portrait.texture = caller_tex
-		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		portrait.custom_minimum_size = Vector2(560, 120)
-		vbox.add_child(portrait)
-
-	var name_lbl := Label.new()
-	name_lbl.text = "UNKNOWN NUMBER"
-	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_lbl.add_theme_color_override("font_color", Color(0.85, 0.6, 0.15))
-	UIFont.apply(name_lbl, UIFont.BODY)
-	vbox.add_child(name_lbl)
-
-	var text_lbl := Label.new()
-	text_lbl.text = "\"Lose this next leg. On purpose.\nMake it look close.\"\n\nA pause.\n\n\"There's five hundred quid in it.\""
-	text_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text_lbl.custom_minimum_size = Vector2(560, 0)
-	text_lbl.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
-	UIFont.apply(text_lbl, UIFont.BODY)
-	vbox.add_child(text_lbl)
-
-	panel.add_child(vbox)
-	overlay.add_child(panel)
-
-	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 20)
-	btn_row.position = Vector2(0, 880)
-	btn_row.size = Vector2(720, 80)
-	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
-
-	var throw_btn := _make_popup_button("THROW IT", Color(0.5, 0.15, 0.15))
-	throw_btn.custom_minimum_size = Vector2(280, 0)
-	var no_btn := _make_popup_button("NO CHANCE", Color(0.2, 0.2, 0.3))
-	no_btn.custom_minimum_size = Vector2(280, 0)
-	btn_row.add_child(throw_btn)
-	btn_row.add_child(no_btn)
-	overlay.add_child(btn_row)
-
-	overlay.modulate = Color(1, 1, 1, 0)
-	_score_hud._popup_layer.add_child(overlay)
-	var fade := create_tween()
-	fade.tween_property(overlay, "modulate", Color(1, 1, 1, 1), 0.25)
-
-	throw_btn.pressed.connect(func():
-		overlay.queue_free()
-		_opponent_legs_won += 1
-		_score_hud.update_leg_score(_player_legs_won, _opponent_legs_won)
-		CareerState.throw_leg_money = 50000
-		CareerState.money += 50000
-		_score_hud.update_balance(CareerState.money)
-		_score_hud.show_message("You miss the double on purpose.\nShe takes the leg.", 3.0)
-		var delay := create_tween()
-		delay.tween_interval(3.5)
-		if _opponent_legs_won >= _legs_to_win:
-			delay.tween_callback(_on_player_loses)
-		else:
-			delay.tween_callback(_start_new_leg.bind(true))
-	)
-
-	no_btn.pressed.connect(func():
-		overlay.queue_free()
-		_start_visit()
-	)
+# ── Mad Dog bribe popup (L5 only) ─────────────────────────
 
 func _show_bribe_popup() -> void:
 	var max_bribe: int = _opponent_legs_won - _player_legs_won

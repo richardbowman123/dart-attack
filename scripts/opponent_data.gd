@@ -82,7 +82,7 @@ const OPPONENTS := {
 		"fight_heft": 2, "fight_swagger": 2, "fight_drunk": 3,
 	},
 	"philip": {
-		"name": "Philip",
+		"name": "Edward",
 		"nickname": "THE ACCOUNTANT",
 		"level": 4,
 		"scatter": 0.22,
@@ -91,7 +91,7 @@ const OPPONENTS := {
 		"game_mode": "countdown",
 		"starting_score": 301,
 		"venue": "County Darts Club",
-		"image": "",
+		"image": "res://Edward The Accountant cropped.png",
 		"vibe": "Civic hall. Lighting rig, raised oche, sponsor banners, two hundred in the crowd, regional TV cameras.",
 		"buy_in": 7500,
 		"prize_money": 75000,
@@ -148,7 +148,7 @@ const OPPONENTS := {
 		"fight_heft": 5, "fight_swagger": 4, "fight_drunk": 3,
 	},
 	"vinnie": {
-		"name": "Vinnie Gold",
+		"name": "Vinnie",
 		"nickname": "THE GOLD",
 		"level": 7,
 		"scatter": 0.08,
@@ -311,10 +311,10 @@ static func get_base_nerves(id: String) -> float:
 		1: return 30.0   # Big Kev — friendly local, low pressure
 		2: return 40.0   # Derek — Friday night tournament
 		3: return 45.0   # Steve — regional, some crowd
-		4: return 55.0   # Philip — county level, real pressure
+		4: return 55.0   # Edward — county level, real pressure
 		5: return 65.0   # Mad Dog — national qualifier, intense
 		6: return 75.0   # Lars — world semi-final
-		7: return 85.0   # Vinnie Gold — world final, maximum pressure
+		7: return 85.0   # Vinnie "The Gold" — world final, maximum pressure
 		_: return 50.0
 
 static func get_dart_quality(id: String) -> int:
