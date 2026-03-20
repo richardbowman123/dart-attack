@@ -72,6 +72,10 @@ var _throw_tip_overlay: Control
 # ── Doubles tip popup (one-time, first countdown game) ──
 var _doubles_tip_overlay: Control
 
+# ── Coach checkout tip popup (one-time, 301/501 when score <= 170) ──
+var _coach_checkout_overlay: Control
+var _coach_checkout_callback: Callable
+
 # ── Sweet spot tip popup (one-time, when sobering from blurry to clear) ──
 var _sweet_spot_overlay: Control
 
@@ -113,6 +117,7 @@ func _ready() -> void:
 	_build_balance_display()
 	_build_throw_tip()
 	_build_doubles_tip()
+	_build_coach_checkout_tip()
 	_build_sweet_spot_tip()
 	DrinkManager.sweet_spot_reached.connect(_on_sweet_spot_reached)
 	_build_debug_tap_zone()
@@ -562,6 +567,120 @@ func show_doubles_tip() -> void:
 func _on_doubles_tip_dismiss() -> void:
 	_doubles_tip_overlay.visible = false
 	CareerState.doubles_tip_shown = true
+
+# ── Coach checkout tip popup (one-time, 301/501 when score enters checkout range) ──
+
+func _build_coach_checkout_tip() -> void:
+	_coach_checkout_overlay = Control.new()
+	_coach_checkout_overlay.size = Vector2(720, 1280)
+	_coach_checkout_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_coach_checkout_overlay.visible = false
+	_coach_checkout_overlay.z_index = 100
+
+	var dimmer := ColorRect.new()
+	dimmer.color = Color(0, 0, 0, 0.3)
+	dimmer.size = Vector2(720, 1280)
+	dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_coach_checkout_overlay.add_child(dimmer)
+
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.07, 0.12, 0.94)
+	style.corner_radius_top_left = 14
+	style.corner_radius_top_right = 14
+	style.corner_radius_bottom_left = 14
+	style.corner_radius_bottom_right = 14
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.85, 0.6, 0.15, 0.6)
+	style.content_margin_left = 20
+	style.content_margin_right = 20
+	style.content_margin_top = 18
+	style.content_margin_bottom = 18
+	panel.add_theme_stylebox_override("panel", style)
+	panel.position = Vector2(40, 260)
+	panel.size = Vector2(640, 0)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var portrait_tex := TextureRect.new()
+	var img := load("res://Coach cropped.png")
+	if img:
+		portrait_tex.texture = img
+		portrait_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		portrait_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		portrait_tex.custom_minimum_size = Vector2(80, 123)
+		portrait_tex.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		portrait_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(portrait_tex)
+
+	var name_label := Label.new()
+	name_label.text = "The Coach"
+	UIFont.apply(name_label, UIFont.BODY)
+	name_label.add_theme_color_override("font_color", Color(0.85, 0.6, 0.15))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(name_label)
+
+	var msg := Label.new()
+	msg.text = "You can check out from here. Get it low, find your double."
+	UIFont.apply(msg, UIFont.CAPTION)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(msg)
+
+	var btn := Button.new()
+	btn.text = "Got it"
+	UIFont.apply_button(btn, UIFont.CAPTION)
+	var btn_normal := StyleBoxFlat.new()
+	btn_normal.bg_color = Color(0.18, 0.15, 0.22)
+	btn_normal.corner_radius_top_left = 10
+	btn_normal.corner_radius_top_right = 10
+	btn_normal.corner_radius_bottom_left = 10
+	btn_normal.corner_radius_bottom_right = 10
+	btn_normal.border_width_left = 2
+	btn_normal.border_width_right = 2
+	btn_normal.border_width_top = 2
+	btn_normal.border_width_bottom = 2
+	btn_normal.border_color = Color(0.85, 0.6, 0.15, 0.5)
+	btn_normal.content_margin_left = 16
+	btn_normal.content_margin_right = 16
+	btn_normal.content_margin_top = 10
+	btn_normal.content_margin_bottom = 10
+	btn.add_theme_stylebox_override("normal", btn_normal)
+	btn.add_theme_stylebox_override("hover", btn_normal)
+	btn.add_theme_stylebox_override("pressed", btn_normal)
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.8))
+	btn.add_theme_color_override("font_pressed_color", Color(0.8, 0.7, 0.5))
+	btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	btn.pressed.connect(_on_coach_checkout_dismiss)
+	vbox.add_child(btn)
+
+	panel.add_child(vbox)
+	_coach_checkout_overlay.add_child(panel)
+	_popup_layer.add_child(_coach_checkout_overlay)
+
+func show_coach_checkout_tip(callback: Callable) -> void:
+	if not _coach_checkout_overlay or _coach_checkout_overlay.visible:
+		return
+	_coach_checkout_callback = callback
+	_coach_checkout_overlay.visible = true
+	_coach_checkout_overlay.modulate = Color(1, 1, 1, 0)
+	var tween := create_tween()
+	tween.tween_property(_coach_checkout_overlay, "modulate", Color(1, 1, 1, 1), 0.2)
+
+func _on_coach_checkout_dismiss() -> void:
+	_coach_checkout_overlay.visible = false
+	if _coach_checkout_callback.is_valid():
+		_coach_checkout_callback.call()
 
 # ── Sweet spot tip popup (one-time, when vision clears after being drunk) ──
 

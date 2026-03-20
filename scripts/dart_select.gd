@@ -660,4 +660,13 @@ func _format_price(pence: int) -> String:
 	var pounds := int(pence / 100)
 	var p := pence % 100
 	var p_str: String = str(p) if p >= 10 else "0" + str(p)
+	if pounds >= 1000:
+		var result := ""
+		var s := str(pounds)
+		var len_s := s.length()
+		for i in range(len_s):
+			if i > 0 and (len_s - i) % 3 == 0:
+				result += ","
+			result += s[i]
+		return "£" + result + "." + p_str
 	return "£" + str(pounds) + "." + p_str

@@ -51,7 +51,7 @@ var throw_leg_honoured: bool = false  # True if player actually lost leg 4
 
 # Swagger progression — all non-optional, forced by narrative
 var shopping_spree_done: bool = false   # Star 1 (L2) — bling + tattoos
-var celebration_style: int = -1         # Star 2 (L3) — 0=Flex, 1=Big Fish, 2=Down a Pint
+var celebration_style: int = -1         # Star 2 (L3) — 0=Flex, 1=Reel In The Fish, 2=Down a Pint
 var silk_shirt_received: bool = false   # Star 3 (L4) — gift from coach/manager
 var dodgy_bet_won: bool = false         # Star 4 (L5) — bet on yourself and won
 var walkon_track: int = -1              # Star 5 (L6) — 0/1/2 = track choices

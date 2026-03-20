@@ -618,7 +618,7 @@ func _build_post_shop_cards() -> void:
 		5:
 			_build_bridge_card("The Arrow Palace, London.", "World Championship Semi-Final", "The cathedral of darts. Walk-on music. Pyrotechnics. Two thousand in fancy dress.", 50000)
 			_build_pre_drink_card()
-			_build_opponent_stats_card("lars", "Lars", "The Viking", {"SKILL": 5, "HEFT": 3, "HUSTLE": 3, "SWAGGER": 4}, "501, Best of 5")
+			_build_opponent_stats_card("lars", "Lars", "The Viking", {"SKILL": 4, "HEFT": 5, "HUSTLE": 3, "SWAGGER": 4}, "501, Best of 5")
 		6:
 			_build_bridge_card("World Championship Final.", "The Arrow Palace, London", "Gold confetti loaded. Fireworks ready.\nTwo thousand on their feet.\n\nThis is it.", 100000)
 			_build_pre_drink_card()
@@ -992,14 +992,16 @@ func _build_l3_win_cards() -> void:
 	celeb_card.add_child(flex_sub)
 	_add_spacer(celeb_card, 25)
 
-	var fish_btn := _create_button("THE BIG FISH", Color(0.15, 0.15, 0.4), Color(0.3, 0.3, 0.7))
+	var fish_btn := _create_button("REEL IN THE FISH", Color(0.15, 0.15, 0.4), Color(0.3, 0.3, 0.7))
+	fish_btn.custom_minimum_size = Vector2(600, 90)
+	fish_btn.add_theme_font_size_override("font_size", 40)
 	fish_btn.pressed.connect(func(): _set_celebration.call(1))
 	var fish_w := CenterContainer.new()
 	fish_w.custom_minimum_size = Vector2(640, 80)
 	fish_w.add_child(fish_btn)
 	celeb_card.add_child(fish_w)
 	var fish_sub := Label.new()
-	fish_sub.text = "Two hands wide apart. Telling a big story."
+	fish_sub.text = "Mime reeling one in. The crowd goes wild."
 	UIFont.apply(fish_sub, UIFont.CAPTION)
 	fish_sub.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 	fish_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1106,7 +1108,7 @@ func _build_l3_win_cards() -> void:
 
 	# ── Trader forced merch purchase — +/- counter UI (minimum 10) ──
 	var merch_buy_card := _create_card()
-	_add_spacer(merch_buy_card, 30)
+	_add_spacer(merch_buy_card, 420)
 	var merch_quote := Label.new()
 	merch_quote.text = "\"Right, how many " + _inflatable_item + " are you having?\""
 	UIFont.apply(merch_quote, UIFont.BODY)
@@ -1811,8 +1813,8 @@ func _build_l5_win_cards() -> void:
 	_add_continue_button(sponsor_card)
 	_add_card(sponsor_card, "L5 Sponsor Intro")
 
-	# Card: Unknown Number reaction — depends on whether player threw leg 4
-	if not CareerState.throw_leg_honoured:
+	# Card: Unknown Number reaction — only if player accepted the throw deal
+	if CareerState.throw_leg_required and not CareerState.throw_leg_honoured:
 		# Deal broken — angry phone call, then mafia death (career over)
 		var angry_card := _create_card()
 		_add_spacer(angry_card, 60)
@@ -1828,27 +1830,28 @@ func _build_l5_win_cards() -> void:
 		_build_mafia_death_card()
 		return  # Career over — don't build remaining L5 cards
 
-	# Deal honoured — caller is happy
-	var bet_card := _create_card()
-	_add_spacer(bet_card, 60)
-	var bet_panel := _build_companion_panel(
-		"UNKNOWN NUMBER",
-		"Your phone buzzes again.\n\n\"Told you Mad Dog was beatable.\"\n\nA pause.\n\n\"Five grand. Leather bag in the boot of your car. No questions asked.\"\n\nAnother pause.\n\n\"Pleasure doing business. You'll never hear from me again.\"",
-		Color(0.3, 0.3, 0.35), "?", "res://The Contact Unknown caller cropped.png", UIFont.PORTRAIT_L
-	)
-	bet_card.add_child(bet_panel)
-	_add_spacer(bet_card, 30)
-	var bet_btn := _create_button("CONTINUE", Color(0.3, 0.3, 0.35), Color(0.5, 0.5, 0.55))
-	bet_btn.pressed.connect(func():
-		CareerState.dodgy_bet_won = true
-		CareerState.recalculate_swagger()
-		_advance_card()
-	)
-	var bet_w := CenterContainer.new()
-	bet_w.custom_minimum_size = Vector2(640, 100)
-	bet_w.add_child(bet_btn)
-	bet_card.add_child(bet_w)
-	_add_card(bet_card, "L5 Deal Honoured")
+	# Deal honoured — caller is happy (only if player took the deal)
+	if CareerState.throw_leg_required and CareerState.throw_leg_honoured:
+		var bet_card := _create_card()
+		_add_spacer(bet_card, 60)
+		var bet_panel := _build_companion_panel(
+			"UNKNOWN NUMBER",
+			"Your phone buzzes again.\n\n\"Told you Mad Dog was beatable.\"\n\nA pause.\n\n\"Five grand. Leather bag in the boot of your car. No questions asked.\"\n\nAnother pause.\n\n\"Pleasure doing business. You'll never hear from me again.\"",
+			Color(0.3, 0.3, 0.35), "?", "res://The Contact Unknown caller cropped.png", UIFont.PORTRAIT_L
+		)
+		bet_card.add_child(bet_panel)
+		_add_spacer(bet_card, 30)
+		var bet_btn := _create_button("CONTINUE", Color(0.3, 0.3, 0.35), Color(0.5, 0.5, 0.55))
+		bet_btn.pressed.connect(func():
+			CareerState.dodgy_bet_won = true
+			CareerState.recalculate_swagger()
+			_advance_card()
+		)
+		var bet_w := CenterContainer.new()
+		bet_w.custom_minimum_size = Vector2(640, 100)
+		bet_w.add_child(bet_btn)
+		bet_card.add_child(bet_w)
+		_add_card(bet_card, "L5 Deal Honoured")
 
 	# Swagger star flip (dodgy bet)
 	_build_star_flip_card("SWAGGER", CareerState.swagger_stars, CareerState.swagger_stars + 1, "Playing both sides.", func(): CareerState.recalculate_swagger())
@@ -1974,11 +1977,11 @@ func _build_l5_win_cards() -> void:
 	# Pre-match drinking
 	_build_pre_drink_card()
 
-	# Card 8: Lars stats — show his intimidating image first
+	# Card 8: Lars stats — show his intimidating image first (CONTINUE, not NEXT MATCH — manager card follows)
 	_build_opponent_stats_card(
 		"lars", "Lars", "The Viking",
-		{"SKILL": 5, "HEFT": 3, "HUSTLE": 3, "SWAGGER": 4},
-		"501, Best of 5"
+		{"SKILL": 4, "HEFT": 5, "HUSTLE": 3, "SWAGGER": 4},
+		"501, Best of 5", true
 	)
 
 	# Card 9: Manager cuts him down
@@ -1991,7 +1994,12 @@ func _build_l5_win_cards() -> void:
 	)
 	lars_intro.add_child(lars_panel)
 	_add_spacer(lars_intro, 30)
-	_add_continue_button(lars_intro)
+	var lars_next := _create_button("NEXT MATCH", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
+	lars_next.pressed.connect(_on_next_match)
+	var lars_next_w := CenterContainer.new()
+	lars_next_w.custom_minimum_size = Vector2(640, 100)
+	lars_next_w.add_child(lars_next)
+	lars_intro.add_child(lars_next_w)
 	_add_card(lars_intro, "L5 Manager Lars Intro")
 
 # ======================================================
@@ -2288,22 +2296,39 @@ func _build_l6_win_cards() -> void:
 	# Pre-match drinking
 	_build_pre_drink_card()
 
-	# Card 7: Doctor's final warning — one more drink and you're dead
+	# Card 7: Doctor's pre-final check — severity depends on liver/heart damage
 	var son_or_love_doc: String = "love" if DartData.get_is_female(GameState.character) else "son"
 	var doc_final := _create_card()
 	_add_spacer(doc_final, 60)
+	var doc_final_text: String
+	if CareerState.liver_damage >= 60 or CareerState.heart_risk >= 60:
+		# High damage — one more drink and you're dead
+		doc_final_text = "She catches you outside the green room.\n\n\"I've seen your blood work. Your liver is hanging on by a thread.\"\n\nShe looks you dead in the eye.\n\n\"One more drink and you're dead, " + son_or_love_doc + ". I mean it. Not tomorrow. Tonight.\""
+		CareerState.doctor_death_warning = true
+	elif CareerState.liver_damage >= 30 or CareerState.heart_risk >= 30:
+		# Medium damage — warning but no death risk
+		doc_final_text = "She catches you outside the green room.\n\n\"Your body's taken a battering this tournament. Liver's not great. Heart's working harder than it should.\"\n\nShe sighs.\n\n\"You'll survive the final. But maybe ease off the pints, " + son_or_love_doc + ".\""
+	else:
+		# Low damage — clean bill of health
+		doc_final_text = "She catches you outside the green room.\n\n\"I've had a look at your results.\"\n\nShe smiles.\n\n\"You're in good shape, " + son_or_love_doc + ". Go win that final.\""
 	var doc_final_panel := _build_companion_panel(
 		"THE DOCTOR",
-		"She catches you outside the green room.\n\n\"I've seen your blood work. Your liver is hanging on by a thread.\"\n\nShe looks you dead in the eye.\n\n\"One more drink and you're dead, " + son_or_love_doc + ". I mean it. Not tomorrow. Tonight.\"",
+		doc_final_text,
 		Color(0.3, 0.5, 0.35), "D", "res://Doctor cropped.png", UIFont.PORTRAIT_ML
 	)
 	doc_final.add_child(doc_final_panel)
 	_add_spacer(doc_final, 30)
 	_add_continue_button(doc_final)
-	_add_card(doc_final, "L7 Doctor Death Warning")
-	CareerState.doctor_death_warning = true
+	_add_card(doc_final, "L7 Doctor Check")
 
-	# Card 8: Manager introduces Vinnie
+	# Card 8: Vinnie "The Gold" stats (CONTINUE, not NEXT MATCH — manager card follows)
+	_build_opponent_stats_card(
+		"vinnie", "Vinnie", "The Gold",
+		{"SKILL": 5, "HEFT": 4, "HUSTLE": 5, "SWAGGER": 5},
+		"501, Best of 7", true
+	)
+
+	# Card 9: Manager cuts Vinnie down
 	var vinnie_intro := _create_card()
 	_add_spacer(vinnie_intro, 60)
 	var vinnie_mgr_panel := _build_companion_panel(
@@ -2313,15 +2338,13 @@ func _build_l6_win_cards() -> void:
 	)
 	vinnie_intro.add_child(vinnie_mgr_panel)
 	_add_spacer(vinnie_intro, 30)
-	_add_continue_button(vinnie_intro)
+	var vinnie_next := _create_button("NEXT MATCH", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
+	vinnie_next.pressed.connect(_on_next_match)
+	var vinnie_next_w := CenterContainer.new()
+	vinnie_next_w.custom_minimum_size = Vector2(640, 100)
+	vinnie_next_w.add_child(vinnie_next)
+	vinnie_intro.add_child(vinnie_next_w)
 	_add_card(vinnie_intro, "L6 Manager Vinnie Intro")
-
-	# Card 8: Vinnie "The Gold" stats
-	_build_opponent_stats_card(
-		"vinnie", "Vinnie", "The Gold",
-		{"SKILL": 5, "HEFT": 4, "HUSTLE": 5, "SWAGGER": 5},
-		"501, Best of 7"
-	)
 
 # ======================================================
 # WORLD CHAMPION (Level 7 win — expanded)
@@ -2525,7 +2548,7 @@ func _build_drink_death_card() -> void:
 	full_screen.add_child(name_label)
 	text_elements.append(name_label)
 
-	text_y += 80
+	text_y += 100
 
 	# Death lines — each fades in separately
 	var son_or_love: String = "love" if DartData.get_is_female(GameState.character) else "son"
@@ -2708,7 +2731,7 @@ func _build_mafia_death_card() -> void:
 	full_screen.add_child(name_label)
 	text_elements.append(name_label)
 
-	text_y += 80
+	text_y += 100
 
 	# Death lines — each fades in separately
 	var first_name: String = DartData.get_character_name(GameState.character)
@@ -2864,7 +2887,7 @@ func _build_lars_death_card() -> void:
 	full_screen.add_child(name_label)
 	text_elements.append(name_label)
 
-	text_y += 80
+	text_y += 100
 
 	var first_name: String = DartData.get_character_name(GameState.character)
 	var death_lines := [
@@ -2986,9 +3009,15 @@ func _build_credits_card() -> void:
 	_credits_text_column = text_column
 
 	# --- Credits content ---
+	# NOTE: spacers in credits use 600px width (not _add_spacer's 640px)
+	# to keep VBoxContainer at exactly 600px and centred on screen.
 
-	# Lead-in spacer (one full screen of black before text appears)
-	_add_spacer(text_column, 400)
+	# Lead-in spacer (brief pause before text scrolls in)
+	var _cs := func(h: int):
+		var s := Control.new()
+		s.custom_minimum_size = Vector2(600, h)
+		text_column.add_child(s)
+	_cs.call(40)
 
 	# "WORLD CHAMPION" title
 	var title_label := Label.new()
@@ -2999,7 +3028,7 @@ func _build_credits_card() -> void:
 	title_label.custom_minimum_size = Vector2(600, 70)
 	text_column.add_child(title_label)
 
-	_add_spacer(text_column, 50)
+	_cs.call(50)
 
 	# Character name + nickname
 	var char_name := DartData.get_full_name(GameState.character)
@@ -3016,7 +3045,7 @@ func _build_credits_card() -> void:
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	text_column.add_child(name_label)
 
-	_add_spacer(text_column, 80)
+	_cs.call(80)
 
 	# Thin gold divider line
 	var divider := ColorRect.new()
@@ -3027,13 +3056,13 @@ func _build_credits_card() -> void:
 	div_center.add_child(divider)
 	text_column.add_child(div_center)
 
-	_add_spacer(text_column, 60)
+	_cs.call(60)
 
 	# Character-specific ending text
 	var ending := EndingsData.get_ending(GameState.character)
 	for line in ending:
 		if line == "":
-			_add_spacer(text_column, 45)
+			_cs.call(45)
 		else:
 			var para := Label.new()
 			para.text = line
@@ -3043,10 +3072,10 @@ func _build_credits_card() -> void:
 			para.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			para.custom_minimum_size = Vector2(600, 0)
 			text_column.add_child(para)
-			_add_spacer(text_column, 8)
+			_cs.call(8)
 
 	# Trailing spacer before button
-	_add_spacer(text_column, 200)
+	_cs.call(200)
 
 	# Second divider
 	var divider2 := ColorRect.new()
@@ -3057,7 +3086,7 @@ func _build_credits_card() -> void:
 	div_center2.add_child(divider2)
 	text_column.add_child(div_center2)
 
-	_add_spacer(text_column, 80)
+	_cs.call(80)
 
 	# NEW CAREER button (scrolls in at the very end)
 	var new_btn := _create_button("NEW CAREER", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
@@ -3067,7 +3096,7 @@ func _build_credits_card() -> void:
 	btn_wrapper.add_child(new_btn)
 	text_column.add_child(btn_wrapper)
 
-	_add_spacer(text_column, 400)
+	_cs.call(400)
 
 	# 4. SKIP button — fixed in bottom-right corner
 	var skip_btn := Button.new()
@@ -4097,7 +4126,7 @@ func _build_celebration_reaction_card(opponent_name: String, reaction_text: Stri
 	if CareerState.celebration_style < 0:
 		return  # No celebration chosen yet
 
-	var celeb_names := ["THE FLEX", "THE BIG FISH", "DOWN A PINT"]
+	var celeb_names := ["THE FLEX", "REEL IN THE FISH", "DOWN A PINT"]
 	var style_idx: int = clampi(CareerState.celebration_style, 0, 2)
 
 	# Celebration text progresses across levels
@@ -4107,33 +4136,41 @@ func _build_celebration_reaction_card(opponent_name: String, reaction_text: Stri
 		# First celebration — introduce the move
 		celeb_text = [
 			"You step forward. Arms out. Muscles tense.\n\nThe crowd erupts.",
-			"You step forward. Two hands wide apart. Telling the biggest story in darts.\n\nThe crowd erupts.",
+			"You step forward. Mime casting the rod. Wind the reel. Heave it in.\n\nThe crowd erupts.",
 			"You grab a pint off the oche. Skull it in one.\n\nThe crowd erupts.",
 		][style_idx]
 	elif level == 5:
 		# Second time — becoming a habit
 		celeb_text = [
 			"The Flex is back. You're making this a habit.\n\nThe crowd knows what's coming.",
-			"The Big Fish is back. It's becoming your thing.\n\nThe crowd sees it coming before you've even started.",
+			"Reel In The Fish is back. It's becoming your thing.\n\nThe crowd sees it coming before you've even started.",
 			"Down a Pint is back. It's becoming a tradition.\n\nThe crowd are cheering before you've even picked up the glass.",
 		][style_idx]
 	else:
 		# Third time onwards — it's the signature move now
 		celeb_text = [
 			"The customary Flex. Arms out. Muscles tense.\n\nHalf the crowd are doing it with you now.",
-			"The customary Big Fish. Two hands wide.\n\nHalf the crowd are doing it with you now.",
+			"The customary Reel In The Fish. Cast, wind, heave.\n\nHalf the crowd are doing it with you now.",
 			"The customary pint. You skull it on the oche.\n\nHalf the crowd are raising their glasses with you.",
 		][style_idx]
 
 	# Card 1: The celebration itself
 	var celeb_card := _create_card()
-	_add_spacer(celeb_card, 200)
+	_add_spacer(celeb_card, 160)
+	var celeb_header := Label.new()
+	celeb_header.text = "You celebrate..."
+	UIFont.apply(celeb_header, UIFont.BODY)
+	celeb_header.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
+	celeb_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	celeb_header.custom_minimum_size = Vector2(640, 40)
+	celeb_card.add_child(celeb_header)
+	_add_spacer(celeb_card, 10)
 	var celeb_title := Label.new()
 	celeb_title.text = celeb_names[style_idx]
-	UIFont.apply(celeb_title, UIFont.HEADING)
+	UIFont.apply(celeb_title, UIFont.SUBHEADING)
 	celeb_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	celeb_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	celeb_title.custom_minimum_size = Vector2(640, 80)
+	celeb_title.custom_minimum_size = Vector2(640, 60)
 	celeb_card.add_child(celeb_title)
 	_add_spacer(celeb_card, 30)
 	var celeb_desc := Label.new()
@@ -4230,7 +4267,7 @@ func _build_bridge_card(time_text: String, venue_name: String,
 # ======================================================
 
 func _build_opponent_stats_card(opp_id: String, display_name: String,
-		nickname: String, stars: Dictionary, game_mode_text: String) -> void:
+		nickname: String, stars: Dictionary, game_mode_text: String, continue_only: bool = false) -> void:
 	var card := _create_card()
 
 	_add_spacer(card, 30)
@@ -4313,12 +4350,15 @@ func _build_opponent_stats_card(opp_id: String, display_name: String,
 
 	_add_spacer(card, 10)
 
-	var next_btn := _create_button("NEXT MATCH", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
-	next_btn.pressed.connect(_on_next_match)
-	var next_wrapper := CenterContainer.new()
-	next_wrapper.custom_minimum_size = Vector2(640, 100)
-	next_wrapper.add_child(next_btn)
-	card.add_child(next_wrapper)
+	if continue_only:
+		_add_continue_button(card)
+	else:
+		var next_btn := _create_button("NEXT MATCH", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
+		next_btn.pressed.connect(_on_next_match)
+		var next_wrapper := CenterContainer.new()
+		next_wrapper.custom_minimum_size = Vector2(640, 100)
+		next_wrapper.add_child(next_btn)
+		card.add_child(next_wrapper)
 
 	_add_card(card, display_name + " Stats")
 

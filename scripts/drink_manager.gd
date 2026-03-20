@@ -347,9 +347,18 @@ func get_level_config(level: int) -> Variant:
 func format_price(pence: int) -> String:
 	var pounds := pence / 100
 	var remainder := pence % 100
+	var pounds_str := str(pounds)
+	if pounds >= 1000:
+		var result := ""
+		var len_s := pounds_str.length()
+		for i in range(len_s):
+			if i > 0 and (len_s - i) % 3 == 0:
+				result += ","
+			result += pounds_str[i]
+		pounds_str = result
 	if remainder == 0:
-		return "£" + str(pounds)
-	return "£" + str(pounds) + "." + str(remainder).pad_zeros(2)
+		return "£" + pounds_str
+	return "£" + pounds_str + "." + str(remainder).pad_zeros(2)
 
 
 # ── Alcohol decay (called each player visit to the oche) ─────────────────────

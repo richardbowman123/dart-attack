@@ -468,6 +468,9 @@ func _start_visit() -> void:
 		_score_hud.reset_dart_icons()
 		_score_hud.hide_summary()
 
+		# One-time coach checkout tip — at start of visit when score first enters 3-dart range
+		_check_coach_checkout_tip()
+
 		# Ensure raw confidence is at least the floor at the start of each visit
 		if CareerState.career_mode_active:
 			if _raw_confidence < CONFIDENCE_FLOOR:
@@ -685,9 +688,6 @@ func _handle_countdown_hit(score_data: Dictionary) -> void:
 	# One-time doubles tip — fires when score first reaches a single-dart checkout value
 	_check_doubles_tip()
 
-	# One-time coach checkout tip — fires when score first enters 3-dart checkout range
-	_check_coach_checkout_tip()
-
 	# Near checkout pressure
 	if _score_remaining > 0 and _score_remaining <= 40:
 		_update_stats_on_near_checkout()
@@ -706,6 +706,11 @@ func _handle_countdown_hit(score_data: Dictionary) -> void:
 	if _visit_score == 180:
 		_score_hud.show_message("ONE HUNDRED AND EIGHTY!", 3.0)
 		_flash_180()
+		# Delay visit summary until 180 celebration finishes
+		var delay_tween := create_tween()
+		delay_tween.tween_interval(2.5)
+		delay_tween.tween_callback(_advance_turn)
+		return
 	elif _visit_score >= 140:
 		_score_hud.show_message(str(_visit_score) + "!", 2.0)
 		_flash_high_score()
@@ -1744,15 +1749,20 @@ func _check_doubles_tip() -> void:
 		_score_hud.show_doubles_tip()
 
 ## One-time coach checkout tip — when player first enters 3-dart checkout range (<=170).
-## Only fires if coach is hired (L3+). Non-blocking message, doesn't interrupt play.
+## Only fires in 301/501 career matches with a coach hired. Dismissible popup.
 func _check_coach_checkout_tip() -> void:
 	if not CareerState.career_mode_active or CareerState.coach_checkout_tip_shown:
 		return
 	if not CareerState.coach_hired:
 		return
+	if not _is_countdown() or GameState.starting_score < 301:
+		return
 	if _score_remaining >= 2 and _score_remaining <= 170:
 		CareerState.coach_checkout_tip_shown = true
-		_score_hud.show_message("You can check out from here. Get it low, find your double.", 4.0)
+		_throw_system.set_can_throw(false)
+		_score_hud.show_coach_checkout_tip(func():
+			_throw_system.set_can_throw(true)
+		)
 
 ## Nerves cap by career level — keeps early levels forgiving
 func _get_nerves_cap() -> float:
@@ -1826,11 +1836,6 @@ func _recalculate_drunk_stats() -> void:
 		_score_hud.update_stats_bars(_player_dart_quality, _player_nerves, _player_confidence, _player_anger)
 	_throw_system.career_scatter_mult = get_career_scatter_mult()
 
-	# High nerves warning — mate suggests a drink (once per match, L2+)
-	if not _high_nerves_warning_shown and _player_nerves >= 75.0 and CareerState.career_mode_active and CareerState.career_level >= 2:
-		_high_nerves_warning_shown = true
-		var player_name: String = DartData.get_character_name(GameState.character)
-		_score_hud.show_message(player_name + ", you look like a wreck up there. Get some booze in you or those darts are going everywhere.", 5.0)
 
 ## Nerve modifier: drinks suppress nerves. Floor depends on career level.
 func _get_drunk_nerve_modifier(dl: int) -> float:
@@ -1951,7 +1956,7 @@ func _show_lars_celebration_popup() -> void:
 	UIFont.apply(title_lbl, UIFont.SUBHEADING)
 	vbox.add_child(title_lbl)
 
-	var celeb_names := ["THE FLEX", "THE BIG FISH", "DOWN A PINT"]
+	var celeb_names := ["THE FLEX", "REEL IN THE FISH", "DOWN A PINT"]
 	var style_idx: int = clampi(CareerState.celebration_style, 0, 2)
 
 	var desc_lbl := Label.new()
@@ -2273,8 +2278,10 @@ func _show_debug_menu() -> void:
 		_debug_overlay.queue_free()
 		_debug_overlay = null
 		_state = MatchState.FINISHED
-		# Mad Dog: honour the throw-a-leg deal so auto-win doesn't trigger mafia death
-		if _opponent_id == "mad_dog" and CareerState.throw_leg_required:
+		# Mad Dog: simulate winning 4 legs but losing leg 4 (honouring the throw deal)
+		if _opponent_id == "mad_dog":
+			_player_legs_won = _legs_to_win
+			_opponent_legs_won = 1
 			CareerState.throw_leg_honoured = true
 		_on_player_wins()
 	)
