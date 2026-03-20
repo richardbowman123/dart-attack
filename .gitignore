@@ -10,3 +10,6 @@ desktop.ini
 *.apk
 *.aab
 *.ipa
+
+# Large files (over GitHub's 100MB limit)
+Dart Attack players.pptx

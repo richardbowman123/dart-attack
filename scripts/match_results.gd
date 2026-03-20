@@ -3649,7 +3649,7 @@ func _build_kebab_card() -> void:
 	]
 
 	# Label ref for the star flip quip — set after star flip card is built
-	var heft_quip_ref := [null as Label]
+	var heft_quip_ref: Array = [null]
 
 	for i in food_options.size():
 		var opt: Array = food_options[i]
