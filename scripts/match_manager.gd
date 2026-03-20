@@ -1694,9 +1694,9 @@ func _update_opponent_stats(nerves_d: float, confidence_d: float, anger_d: float
 	# Refresh HUD if it's the opponent's turn
 	if not _is_player_turn:
 		_score_hud.update_stats_bars(_opp_dart_quality, _opp_nerves, _opp_confidence, _opp_anger)
-	# Check anger threshold
-	if _opp_anger >= 100.0:
-		_trigger_fight_scene()
+	# Check anger threshold — fight scene disabled for now (car_park_fight.gd preserved for later, likely vs Lars)
+	#if _opp_anger >= 100.0:
+	#	_trigger_fight_scene()
 
 ## Opponent anger has hit 100% — car park fight! Winner wins the whole match.
 func _trigger_fight_scene() -> void:
@@ -2163,13 +2163,13 @@ func _show_bribe_popup() -> void:
 
 	var btn_col := VBoxContainer.new()
 	btn_col.add_theme_constant_override("separation", 12)
-	btn_col.position = Vector2(110, 740)
-	btn_col.size = Vector2(500, 0)
+	btn_col.position = Vector2(60, 740)
+	btn_col.size = Vector2(600, 0)
 
 	for i in range(1, max_bribe + 1):
 		var leg_word: String = "LEG" if i == 1 else "LEGS"
 		var btn := _make_popup_button(str(i) + " " + leg_word, Color(0.5, 0.15, 0.15))
-		btn.custom_minimum_size = Vector2(480, 0)
+		btn.custom_minimum_size = Vector2(580, 0)
 		var legs_to_bribe: int = i
 		btn.pressed.connect(func():
 			overlay.queue_free()
@@ -2186,7 +2186,7 @@ func _show_bribe_popup() -> void:
 		btn_col.add_child(btn)
 
 	var no_btn := _make_popup_button("NO THANKS", Color(0.2, 0.2, 0.3))
-	no_btn.custom_minimum_size = Vector2(480, 0)
+	no_btn.custom_minimum_size = Vector2(580, 0)
 	no_btn.pressed.connect(func():
 		overlay.queue_free()
 		_bribe_used = true

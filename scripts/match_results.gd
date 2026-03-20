@@ -1086,7 +1086,7 @@ func _build_l3_win_cards() -> void:
 	var trader_panel := _build_companion_panel(
 		"THE TRADER",
 		"A bloke in a hi-vis catches you in the car park.\n\n\"I hear they're calling you '" + char_nick + "' now. Love it.\"\n\nHe opens the back of a van. Giant inflatable " + _inflatable_item + ".\n\n\"Quid each, minimum ten. The more you shift, the cheaper they get.\"",
-		Color(0.7, 0.7, 0.1), "T", "", UIFont.PORTRAIT_ML
+		Color(0.7, 0.7, 0.1), "T", "res://The Trader cropped.png", UIFont.PORTRAIT_ML
 	)
 	trader_card.add_child(trader_panel)
 	_add_spacer(trader_card, 30)
@@ -1617,14 +1617,19 @@ func _build_l4_win_cards() -> void:
 	gamble_card.add_child(ring_panel)
 	_add_spacer(gamble_card, 20)
 
-	var ring_btns := HBoxContainer.new()
+	var ring_btns := VBoxContainer.new()
 	ring_btns.alignment = BoxContainer.ALIGNMENT_CENTER
-	ring_btns.add_theme_constant_override("separation", 20)
-	ring_btns.custom_minimum_size = Vector2(640, 80)
+	ring_btns.add_theme_constant_override("separation", 12)
 	var take_btn := _create_button("TAKE THE CALL", Color(0.15, 0.4, 0.2), Color(0.3, 0.7, 0.4))
 	var hangup_btn := _create_button("HANG UP", Color(0.4, 0.15, 0.15), Color(0.7, 0.3, 0.3))
-	ring_btns.add_child(take_btn)
-	ring_btns.add_child(hangup_btn)
+	var take_w := CenterContainer.new()
+	take_w.custom_minimum_size = Vector2(640, 0)
+	take_w.add_child(take_btn)
+	ring_btns.add_child(take_w)
+	var hangup_w := CenterContainer.new()
+	hangup_w.custom_minimum_size = Vector2(640, 0)
+	hangup_w.add_child(hangup_btn)
+	ring_btns.add_child(hangup_w)
 	gamble_card.add_child(ring_btns)
 
 	# ── TAKE THE CALL path ──
@@ -1639,14 +1644,19 @@ func _build_l4_win_cards() -> void:
 	call_group.add_child(call_panel)
 	_add_spacer(call_group, 15)
 
-	var call_btns := HBoxContainer.new()
+	var call_btns := VBoxContainer.new()
 	call_btns.alignment = BoxContainer.ALIGNMENT_CENTER
-	call_btns.add_theme_constant_override("separation", 20)
-	call_btns.custom_minimum_size = Vector2(640, 80)
+	call_btns.add_theme_constant_override("separation", 12)
 	var accept_btn := _create_button("ACCEPT", Color(0.15, 0.4, 0.2), Color(0.3, 0.7, 0.4))
 	var decline_btn := _create_button("DECLINE", Color(0.4, 0.15, 0.15), Color(0.7, 0.3, 0.3))
-	call_btns.add_child(accept_btn)
-	call_btns.add_child(decline_btn)
+	var accept_w := CenterContainer.new()
+	accept_w.custom_minimum_size = Vector2(640, 0)
+	accept_w.add_child(accept_btn)
+	call_btns.add_child(accept_w)
+	var decline_w := CenterContainer.new()
+	decline_w.custom_minimum_size = Vector2(640, 0)
+	decline_w.add_child(decline_btn)
+	call_btns.add_child(decline_w)
 	call_group.add_child(call_btns)
 
 	# Decline → forced anyway
@@ -1777,7 +1787,7 @@ func _build_l5_win_cards() -> void:
 	var sponsor_panel := _build_companion_panel(
 		"THE SPONSOR REP",
 		"After the match, a man with a clipboard and a lanyard corners you.\n\n\"Sponsorship opportunity. Big money.\"\n\nHe hands you a card.\n\n\"We'll talk.\"",
-		Color(0.1, 0.15, 0.35), "S", "", UIFont.PORTRAIT_L
+		Color(0.1, 0.15, 0.35), "S", "res://Sponsorship Man cropped.png", UIFont.PORTRAIT_L
 	)
 	sponsor_card.add_child(sponsor_panel)
 	_add_spacer(sponsor_card, 30)
@@ -3326,7 +3336,7 @@ func _build_trader_profit_card() -> void:
 	var trader_panel := _build_companion_panel(
 		"THE TRADER",
 		dialogue,
-		Color(0.7, 0.7, 0.1), "T", "", UIFont.PORTRAIT_XL
+		Color(0.7, 0.7, 0.1), "T", "res://The Trader cropped.png", UIFont.PORTRAIT_XL
 	)
 	card.add_child(trader_panel)
 	_add_spacer(card, 20)
