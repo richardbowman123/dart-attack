@@ -14,6 +14,7 @@ var hustle_stars: int = 1
 var swagger_stars: int = 0
 var career_intro_seen: bool = false
 var doubles_tip_shown: bool = false
+var coach_checkout_tip_shown: bool = false
 var sweet_spot_tip_shown: bool = false
 var dart_tier_owned: int = -1  # -1 = no owned darts (pub darts only)
 
@@ -43,9 +44,7 @@ var nickname_active: bool = false
 # Exhibition mode — one-off matches, no career progression
 var exhibition_mode: bool = false
 
-# Mad Dog bribe/throw system (L5)
-var bribe_legs_used: int = 0         # Legs bribed back during Mad Dog match
-var bribe_mafia_hit: bool = false     # Whether mafia roughed player up
+# Mad Dog throw system (L5) — Unknown Number tells player to lose leg 4
 var throw_leg_money: int = 0         # Pence earned from throwing a leg
 var throw_leg_required: bool = false  # Unknown Number told player to throw leg 4
 var throw_leg_honoured: bool = false  # True if player actually lost leg 4
@@ -61,6 +60,7 @@ var walkon_volume: int = -1             # 0=quiet, 1=medium, 2=loud, 3=deafening
 # Fight state — set before transitioning to fight screen
 var fight_pending: bool = false
 var fight_opponent_id: String = ""
+var fight_decided_match: bool = false  # True if match result came from a fight (Lars celebration anger)
 var doctor_death_warning: bool = false  # Doctor says one more drink = death (final match)
 var drink_death_occurred: bool = false  # Player died from drinking after doctor's warning
 
@@ -88,6 +88,7 @@ func reset() -> void:
 	swagger_stars = 0
 	career_intro_seen = false
 	doubles_tip_shown = false
+	coach_checkout_tip_shown = false
 	sweet_spot_tip_shown = false
 	dart_tier_owned = -1
 	dart_shop_return = ""
@@ -108,8 +109,6 @@ func reset() -> void:
 	pre_drink_refused = false
 	nickname_active = false
 	exhibition_mode = false
-	bribe_legs_used = 0
-	bribe_mafia_hit = false
 	throw_leg_money = 0
 	throw_leg_required = false
 	throw_leg_honoured = false
@@ -121,6 +120,7 @@ func reset() -> void:
 	walkon_volume = -1
 	fight_pending = false
 	fight_opponent_id = ""
+	fight_decided_match = false
 	doctor_death_warning = false
 	drink_death_occurred = false
 	liver_damage = 0.0

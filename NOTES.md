@@ -211,9 +211,9 @@ Potential factors that could increase max zoom:
 
 ## Outstanding — 20 March 2026
 
-1. **Fight scene** — Need to design and build the fight mechanic. Think about what happens when anger hits 100. Who is the unknown caller? Will we lose the fourth leg?
+1. ~~**Fight scene**~~ **PARTIALLY BUILT.** Fight scene (`car_park_fight.gd`) preserved but disabled for most matches. Now wired into Lars (L6) only via the per-leg celebration system. Anger-triggered: each celebration adds 25% anger. At 100% → fight. Fight winner = match winner. **TODO: Fight scene visuals need major rework** — current car_park_fight.gd is functional but not polished. Richard flagged "needs improving massively". Post-fight result cards built for both win and loss.
 
-2. **Over-celebrating** — After L3 (where you learn to celebrate), L4 should have a consequence for celebrating too hard. Getting in a fight or getting knocked out. Steve already squares up at L3 — this should escalate.
+2. ~~**Over-celebrating**~~ **BUILT.** Post-match celebration cards added for L4 (Edward laughs it off, calls you pathetic) and L5 (Mad Dog lunges, has to be held back by stewards, growling). L6 (Lars) has per-leg in-match celebrations that feed into anger/fight system. L3 Steve reaction unchanged (squares up but no fight).
 
 3. **Menu usability pass** — Some menus are pushed over to the right. The "take it easy, mate" drunk warning is popping up in places it shouldn't. Need a thorough check across all screens.
 

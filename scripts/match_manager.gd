@@ -77,10 +77,6 @@ var _second_drink_after_visits: int = -1  # Visits until offer, -1 = inactive
 var _second_drink_pending := false
 var _re_offer_drink := false
 
-# ── Mad Dog bribe system (L5 only) ──
-var _bribe_offer_pending: bool = false
-var _bribe_used: bool = false
-
 # ── Animated nerves bar (slow decrease visible at the oche) ──
 var _pending_nerves_anim: float = -1.0  # Target nerves value, -1 = no pending anim
 var _nerves_before_drink: float = 0.0
@@ -123,6 +119,9 @@ var _pre_drink_units_at_start: int = 0
 # Drunk drinking warning (once per match, when heavy + accepting more)
 var _drunk_warning_shown: bool = false
 
+# ── Lars celebration / fight system (L6 only) ──
+var _lars_celebration_count: int = 0
+
 # High nerves warning — mate suggests a drink (once per match, when nerves first hit 75%+)
 var _high_nerves_warning_shown: bool = false
 
@@ -133,7 +132,11 @@ func _ready() -> void:
 	_build_scene()
 	_connect_signals()
 	_init_game_mode()
-	_start_visit()
+	# L6/L7 career matches: umpire intro before first visit
+	if _should_show_umpire_intro():
+		_show_umpire_intro()
+	else:
+		_start_visit()
 	# Doubles tip is now triggered per-dart when score first reaches a checkout value
 	# (see _check_doubles_tip in _handle_countdown_hit)
 
@@ -283,6 +286,7 @@ func _init_game_mode() -> void:
 		_player_visit_count = 0
 		_drunk_warning_shown = false
 		_high_nerves_warning_shown = false
+		_lars_celebration_count = 0
 		_round_first_decided = false
 		_player_broke_round = false
 
@@ -378,16 +382,6 @@ func _start_visit() -> void:
 		return
 
 	if _is_player_turn or not _is_vs_ai:
-		# Check for Mad Dog bribe offer
-		if _bribe_offer_pending and CareerState.career_mode_active:
-			_bribe_offer_pending = false
-			_state = MatchState.BETWEEN_DARTS
-			_throw_system.set_can_throw(false)
-			_score_hud.reset_dart_icons()
-			_score_hud.hide_summary()
-			_show_bribe_popup()
-			return
-
 		# Check for barman drink offer (career RTC only, once per match)
 		if _drink_offer_pending and _is_rtc() and CareerState.career_mode_active:
 			_drink_offer_pending = false
@@ -609,6 +603,16 @@ func _on_dart_thrown(dart: Dart) -> void:
 		dart.dart_hit.connect(_on_dart_hit.bind(dart))
 
 func _on_dart_hit(score_data: Dictionary, hit_pos: Vector2, dart: Dart) -> void:
+	# Dart-on-dart bounce — if this dart landed on/near a previous dart, it may bounce out
+	if not score_data.get("bounce_out", false) and _check_dart_on_dart_bounce(hit_pos, dart):
+		_active_darts.append(dart)  # Still track for cleanup
+		_darts_this_visit += 1
+		_visit_dart_labels.append("BOUNCE OUT")
+		var screen_pos := Vector2(360 + hit_pos.x * 40, 400 - hit_pos.y * 40)
+		_score_hud.show_impact("BOUNCE OUT", screen_pos)
+		_advance_turn()
+		return
+
 	_active_darts.append(dart)
 
 	_darts_this_visit += 1
@@ -681,6 +685,9 @@ func _handle_countdown_hit(score_data: Dictionary) -> void:
 	# One-time doubles tip — fires when score first reaches a single-dart checkout value
 	_check_doubles_tip()
 
+	# One-time coach checkout tip — fires when score first enters 3-dart checkout range
+	_check_coach_checkout_tip()
+
 	# Near checkout pressure
 	if _score_remaining > 0 and _score_remaining <= 40:
 		_update_stats_on_near_checkout()
@@ -699,6 +706,9 @@ func _handle_countdown_hit(score_data: Dictionary) -> void:
 	if _visit_score == 180:
 		_score_hud.show_message("ONE HUNDRED AND EIGHTY!", 3.0)
 		_flash_180()
+	elif _visit_score >= 140:
+		_score_hud.show_message(str(_visit_score) + "!", 2.0)
+		_flash_high_score()
 
 	_advance_turn()
 
@@ -1449,19 +1459,179 @@ func _clear_and_next_visit() -> void:
 
 	_start_visit()
 
-# ── 180 flash effect ──
+# ── Umpire intro — "LET'S PLAY DARTS" (L6/L7 career, first leg only) ──
+
+func _should_show_umpire_intro() -> bool:
+	if not CareerState.career_mode_active:
+		return false
+	if CareerState.exhibition_mode:
+		return false
+	return CareerState.career_level >= 6
+
+func _show_umpire_intro() -> void:
+	_throw_system.set_can_throw(false)
+
+	var layer := CanvasLayer.new()
+	layer.layer = 25
+
+	# Dark overlay
+	var bg := ColorRect.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.02, 0.02, 0.04, 0.95)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(bg)
+
+	# Three word labels — one per line, stacked vertically
+	var words := ["LET'S", "PLAY", "DARTS"]
+	var y_positions := [340, 520, 700]
+	var labels: Array = []
+
+	for i in words.size():
+		var lbl := Label.new()
+		lbl.text = words[i]
+		UIFont.apply(lbl, UIFont.HEADING)
+		lbl.add_theme_font_size_override("font_size", 100)
+		lbl.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lbl.size = Vector2(720, 160)
+		lbl.position = Vector2(0, y_positions[i])
+		lbl.pivot_offset = Vector2(360, 80)
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lbl.modulate.a = 0.0
+		lbl.scale = Vector2(1.5, 1.5)
+		layer.add_child(lbl)
+		labels.append(lbl)
+
+	add_child(layer)
+
+	# Animate: each word slams in with a flash, then shifts white-to-gold
+	var t := create_tween()
+	t.tween_interval(0.5)
+
+	# Word 1: LET'S
+	t.tween_property(labels[0], "modulate:a", 1.0, 0.01)
+	t.tween_property(labels[0], "scale", Vector2(1.0, 1.0), 0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_callback(_flash_word_impact.bind(layer))
+	t.tween_property(labels[0], "theme_override_colors/font_color", Color(1.0, 0.85, 0.0), 0.3)
+	t.tween_interval(0.6)
+
+	# Word 2: PLAY
+	t.tween_property(labels[1], "modulate:a", 1.0, 0.01)
+	t.tween_property(labels[1], "scale", Vector2(1.0, 1.0), 0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_callback(_flash_word_impact.bind(layer))
+	t.tween_property(labels[1], "theme_override_colors/font_color", Color(1.0, 0.85, 0.0), 0.3)
+	t.tween_interval(0.6)
+
+	# Word 3: DARTS
+	t.tween_property(labels[2], "modulate:a", 1.0, 0.01)
+	t.tween_property(labels[2], "scale", Vector2(1.0, 1.0), 0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_callback(_flash_word_impact.bind(layer))
+	t.tween_property(labels[2], "theme_override_colors/font_color", Color(1.0, 0.85, 0.0), 0.3)
+
+	# Hold the full phrase, then fade out and start the match
+	t.tween_interval(1.2)
+	t.tween_property(layer, "modulate:a", 0.0, 0.5)
+	t.tween_callback(layer.queue_free)
+	t.tween_callback(_start_visit)
+
+func _flash_word_impact(parent: CanvasLayer) -> void:
+	var flash := ColorRect.new()
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	flash.color = Color(1.0, 1.0, 1.0, 0.4)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(flash)
+	var ft := create_tween()
+	ft.tween_property(flash, "color:a", 0.0, 0.15)
+	ft.tween_callback(flash.queue_free)
+
+# ── Dart-on-dart bounce ──
+# If a newly landed dart is very close to a previously landed dart this visit,
+# it may bounce out. Cheaper darts bounce more easily.
+
+const DART_ON_DART_PROXIMITY := 0.06  # Board units — tight grouping threshold
+const DART_ON_DART_RATES := [0.50, 0.30, 0.15, 0.05]  # Brass, NS, Tungsten, PT
+
+func _check_dart_on_dart_bounce(hit_pos: Vector2, dart: Dart) -> bool:
+	if _active_darts.is_empty():
+		return false
+	var tier: int = clampi(GameState.dart_tier, 0, 3)
+	for existing in _active_darts:
+		if not is_instance_valid(existing):
+			continue
+		var existing_pos := Vector2(existing.global_position.x, existing.global_position.y)
+		var dist := hit_pos.distance_to(existing_pos)
+		if dist < DART_ON_DART_PROXIMITY:
+			# Closer = more likely to bounce
+			var proximity_factor: float = 1.0 - (dist / DART_ON_DART_PROXIMITY)
+			var chance: float = DART_ON_DART_RATES[tier] * proximity_factor
+			if randf() < chance:
+				dart.force_bounce_out()
+				return true
+	return false
+
+# ── 180 flash effect — gold pop with sweep ──
 
 func _flash_180() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 20
+
+	# Gold flash overlay
 	var flash := ColorRect.new()
 	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
-	flash.color = Color(1, 1, 1, 0.8)
+	flash.color = Color(1.0, 0.85, 0.0, 0.6)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(flash)
+
+	# Big "180" text — pops from small to large, white-to-gold sweep
+	var label := Label.new()
+	label.text = "180"
+	label.add_theme_font_size_override("font_size", 120)
+	label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.size = Vector2(720, 200)
+	label.position = Vector2(0, 500)
+	label.pivot_offset = Vector2(360, 100)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UIFont.apply(label, UIFont.HEADING)
+	label.add_theme_font_size_override("font_size", 120)
+	label.scale = Vector2(0.5, 0.5)
+	label.modulate.a = 1.0
+	layer.add_child(label)
+
+	add_child(layer)
+
+	# Animate: flash fades, label pops and sweeps white→gold, then fades out
+	var t := create_tween()
+	t.tween_property(flash, "color:a", 0.0, 0.6)
+
+	var t2 := create_tween()
+	# Pop up from small
+	t2.tween_property(label, "scale", Vector2(1.1, 1.1), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# Settle to normal
+	t2.tween_property(label, "scale", Vector2(1.0, 1.0), 0.15)
+	# White-to-gold color sweep
+	t2.parallel().tween_property(label, "theme_override_colors/font_color", Color(1.0, 0.85, 0.0), 0.5)
+	# Hold
+	t2.tween_interval(1.5)
+	# Fade out
+	t2.tween_property(label, "modulate:a", 0.0, 0.4)
+	t2.tween_callback(layer.queue_free)
+
+# ── High score flash (140-179) — subtle gold pulse, no big text ──
+
+func _flash_high_score() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	var flash := ColorRect.new()
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	flash.color = Color(1.0, 0.85, 0.0, 0.35)
 	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(flash)
 	add_child(layer)
 	var tween := create_tween()
-	tween.tween_property(flash, "color:a", 0.0, 0.5)
+	tween.tween_property(flash, "color:a", 0.0, 0.4)
 	tween.tween_callback(layer.queue_free)
 
 # ── Career stats helpers ──
@@ -1572,6 +1742,17 @@ func _check_doubles_tip() -> void:
 		return
 	if _score_remaining == 50 or (_score_remaining >= 2 and _score_remaining <= 40 and _score_remaining % 2 == 0):
 		_score_hud.show_doubles_tip()
+
+## One-time coach checkout tip — when player first enters 3-dart checkout range (<=170).
+## Only fires if coach is hired (L3+). Non-blocking message, doesn't interrupt play.
+func _check_coach_checkout_tip() -> void:
+	if not CareerState.career_mode_active or CareerState.coach_checkout_tip_shown:
+		return
+	if not CareerState.coach_hired:
+		return
+	if _score_remaining >= 2 and _score_remaining <= 170:
+		CareerState.coach_checkout_tip_shown = true
+		_score_hud.show_message("You can check out from here. Get it low, find your double.", 4.0)
 
 ## Nerves cap by career level — keeps early levels forgiving
 func _get_nerves_cap() -> float:
@@ -1698,39 +1879,144 @@ func _update_opponent_stats(nerves_d: float, confidence_d: float, anger_d: float
 	#if _opp_anger >= 100.0:
 	#	_trigger_fight_scene()
 
-## Opponent anger has hit 100% — car park fight! Winner wins the whole match.
+## Lars anger hit 100% from celebrations — fight breaks out, Lars kills you.
+## car_park_fight.gd is preserved but NOT used. Death card handles it.
 func _trigger_fight_scene() -> void:
 	_cancel_ai_turn()
 	_throw_system.set_can_throw(false)
 	_state = MatchState.FINISHED
 	_score_hud.show_message("FIGHT!", 2.0)
 
-	# Store fight context so fight screen can set up
-	CareerState.fight_pending = true
-	CareerState.fight_opponent_id = _opponent_id
+	CareerState.fight_decided_match = true
 
-	# Brief pause to show "FIGHT!" then transition
+	# Brief pause, then straight to results as a career-ending loss
 	var tween := create_tween()
 	tween.tween_interval(2.5)
-	tween.tween_callback(_goto_fight_screen)
-
-func _goto_fight_screen() -> void:
-	var fight := CarParkFight.create_from_match(
-		CareerState.fight_opponent_id,
-		DrinkManager.drinks_level
+	tween.tween_callback(func():
+		GameState.match_won = false
+		GameState.match_prize = 0
+		GameState.match_career_over = true
+		_goto_results()
 	)
-	fight.fight_finished.connect(_on_fight_finished)
-	get_tree().root.add_child(fight)
-	# Hide the match scene — fight takes over
-	visible = false
-	_score_hud.visible = false
 
-func _on_fight_finished(result: int) -> void:
-	CareerState.fight_pending = false
-	if result == CarParkFight.RESULT_WIN or result == CarParkFight.RESULT_SCRAPE:
-		_on_player_wins()
+# ── Lars celebration system (L6) ──────────────────────────────
+
+const LARS_REACTIONS := [
+	"Lars stares at you. His jaw tightens.\n\nHe says nothing.",
+	"Lars slams his darts on the table.\n\n\"You think this is funny?\"",
+	"Lars is pacing. The crowd are loving it.\n\nHe's not.",
+	"Lars kicks a chair.\n\nSecurity move closer.\n\n\"ONE MORE TIME. I DARE YOU.\"",
+]
+
+const LARS_ANGER_PER_CELEBRATION := 25.0
+
+func _show_lars_celebration_popup() -> void:
+	var overlay := Control.new()
+	overlay.size = Vector2(720, 1280)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.z_index = 100
+	var dimmer := ColorRect.new()
+	dimmer.color = Color(0, 0, 0, 0.5)
+	dimmer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(dimmer)
+
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.07, 0.12, 0.94)
+	style.corner_radius_top_left = 14
+	style.corner_radius_top_right = 14
+	style.corner_radius_bottom_left = 14
+	style.corner_radius_bottom_right = 14
+	style.content_margin_left = 20
+	style.content_margin_right = 20
+	style.content_margin_top = 18
+	style.content_margin_bottom = 18
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_color = Color(0.85, 0.6, 0.15, 0.6)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.position = Vector2(50, 350)
+	panel.size = Vector2(620, 0)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+
+	var title_lbl := Label.new()
+	title_lbl.text = "YOU WON THE LEG"
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	UIFont.apply(title_lbl, UIFont.SUBHEADING)
+	vbox.add_child(title_lbl)
+
+	var celeb_names := ["THE FLEX", "THE BIG FISH", "DOWN A PINT"]
+	var style_idx: int = clampi(CareerState.celebration_style, 0, 2)
+
+	var desc_lbl := Label.new()
+	desc_lbl.text = "Time to celebrate?"
+	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc_lbl.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+	UIFont.apply(desc_lbl, UIFont.BODY)
+	vbox.add_child(desc_lbl)
+
+	panel.add_child(vbox)
+	overlay.add_child(panel)
+
+	var btn_col := VBoxContainer.new()
+	btn_col.add_theme_constant_override("separation", 12)
+	btn_col.position = Vector2(60, 600)
+	btn_col.size = Vector2(600, 0)
+
+	var celeb_btn := _make_popup_button(celeb_names[style_idx], Color(0.5, 0.15, 0.15))
+	celeb_btn.custom_minimum_size = Vector2(580, 0)
+	celeb_btn.pressed.connect(func():
+		overlay.queue_free()
+		_on_lars_celebration()
+	)
+	btn_col.add_child(celeb_btn)
+
+	var walk_btn := _make_popup_button("WALK AWAY", Color(0.2, 0.2, 0.3))
+	walk_btn.custom_minimum_size = Vector2(580, 0)
+	walk_btn.pressed.connect(func():
+		overlay.queue_free()
+		# Loser throws first next leg
+		_start_new_leg(false)
+	)
+	btn_col.add_child(walk_btn)
+
+	overlay.add_child(btn_col)
+
+	overlay.modulate = Color(1, 1, 1, 0)
+	_score_hud._popup_layer.add_child(overlay)
+	var fade := create_tween()
+	fade.tween_property(overlay, "modulate", Color(1, 1, 1, 1), 0.25)
+
+func _on_lars_celebration() -> void:
+	_lars_celebration_count += 1
+
+	# Boost Lars's anger
+	_opp_anger = clampf(_opp_anger + LARS_ANGER_PER_CELEBRATION, 0.0, 100.0)
+	_score_hud.update_stats_bars(_opp_dart_quality, _opp_nerves, _opp_confidence, _opp_anger)
+
+	# Pick reaction text (escalates, caps at last entry)
+	var reaction_idx: int = mini(_lars_celebration_count - 1, LARS_REACTIONS.size() - 1)
+	var reaction_text: String = LARS_REACTIONS[reaction_idx]
+
+	# Show reaction as a timed message
+	_score_hud.show_message(reaction_text, 4.0)
+
+	# Check if anger has hit 100 — fight time
+	if _opp_anger >= 100.0:
+		var delay := create_tween()
+		delay.tween_interval(4.5)
+		delay.tween_callback(_trigger_fight_scene)
 	else:
-		_on_player_loses()
+		# Continue match — loser throws first
+		var delay := create_tween()
+		delay.tween_interval(4.5)
+		delay.tween_callback(_start_new_leg.bind(false))
 
 # ── Multi-leg match handling ──
 
@@ -1781,16 +2067,13 @@ func _on_leg_complete(player_won: bool) -> void:
 	# Update HUD
 	_score_hud.update_leg_score(_player_legs_won, _opponent_legs_won)
 
-	# Mad Dog throw/bribe triggers
+	# Mad Dog throw-leg trigger
 	if _opponent_id == "mad_dog" and CareerState.career_mode_active and not CareerState.exhibition_mode:
 		var total_legs := _player_legs_won + _opponent_legs_won
 		# Track leg 4 result: did the player honour the deal?
 		# Leg 4 = the leg that just completed when total_legs reaches 4
 		if total_legs == 4 and CareerState.throw_leg_required:
 			CareerState.throw_leg_honoured = not player_won  # True if opponent won leg 4
-		# Bribe offer when Mad Dog is one leg from winning
-		if not player_won and _opponent_legs_won == _legs_to_win - 1 and not _bribe_used:
-			_bribe_offer_pending = true
 
 	# Check for match win/loss
 	if _player_legs_won >= _legs_to_win:
@@ -1798,6 +2081,13 @@ func _on_leg_complete(player_won: bool) -> void:
 		return
 	if _opponent_legs_won >= _legs_to_win:
 		_on_player_loses()
+		return
+
+	# Lars (L6): offer celebration after each player leg win (not match-deciding)
+	if player_won and _opponent_id == "lars" and CareerState.career_mode_active and not CareerState.exhibition_mode:
+		var delay := create_tween()
+		delay.tween_interval(1.5)
+		delay.tween_callback(_show_lars_celebration_popup)
 		return
 
 	# More legs to play — brief pause then start new leg
@@ -1983,6 +2273,9 @@ func _show_debug_menu() -> void:
 		_debug_overlay.queue_free()
 		_debug_overlay = null
 		_state = MatchState.FINISHED
+		# Mad Dog: honour the throw-a-leg deal so auto-win doesn't trigger mafia death
+		if _opponent_id == "mad_dog" and CareerState.throw_leg_required:
+			CareerState.throw_leg_honoured = true
 		_on_player_wins()
 	)
 	vbox.add_child(win_btn)
@@ -2086,31 +2379,17 @@ func _check_drunk_warning() -> void:
 		return
 	if DrinkManager.drinks_level >= 7:
 		_drunk_warning_shown = true
-		var char_first: String = DartData.get_character_name(GameState.character)
 		var tween := create_tween()
 		tween.tween_interval(1.0)
-		tween.tween_callback(func():
-			_score_hud.show_message("Take it easy mate... if you start to think you're a state, you definitely are a state.", 4.0)
-		)
+		tween.tween_callback(_show_drunk_warning_popup)
 
-# ── Mad Dog bribe popup (L5 only) ─────────────────────────
-
-func _show_bribe_popup() -> void:
-	var max_bribe: int = _opponent_legs_won - _player_legs_won
-	if max_bribe <= 0:
-		_start_visit()
-		return
-
+func _show_drunk_warning_popup() -> void:
+	# Companion panel style — non-blocking, auto-dismisses after 5s
 	var overlay := Control.new()
 	overlay.size = Vector2(720, 1280)
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	overlay.z_index = 100
-	var dimmer := ColorRect.new()
-	dimmer.color = Color(0, 0, 0, 0.5)
-	dimmer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay.add_child(dimmer)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE  # Non-blocking — player can still throw
 
+	# Panel with amber border, curved corners
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.08, 0.07, 0.12, 0.94)
@@ -2128,78 +2407,44 @@ func _show_bribe_popup() -> void:
 	style.border_width_right = 2
 	style.border_color = Color(0.85, 0.6, 0.15, 0.6)
 	panel.add_theme_stylebox_override("panel", style)
-	panel.position = Vector2(50, 200)
+	panel.position = Vector2(50, 900)
 	panel.size = Vector2(620, 0)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 12)
+	vbox.add_theme_constant_override("separation", 8)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var caller_tex := load("res://The Contact Unknown caller cropped.png")
-	if caller_tex:
-		var portrait := TextureRect.new()
-		portrait.texture = caller_tex
-		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		portrait.custom_minimum_size = Vector2(560, 120)
-		vbox.add_child(portrait)
+	# Speaker name
+	var name_label := Label.new()
+	name_label.text = "YOUR MATE"
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.add_theme_color_override("font_color", Color(0.85, 0.6, 0.15))
+	UIFont.apply(name_label, UIFont.CAPTION)
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(name_label)
 
-	var name_lbl := Label.new()
-	name_lbl.text = "UNKNOWN NUMBER"
-	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_lbl.add_theme_color_override("font_color", Color(0.85, 0.6, 0.15))
-	UIFont.apply(name_lbl, UIFont.BODY)
-	vbox.add_child(name_lbl)
-
-	var text_lbl := Label.new()
-	text_lbl.text = "\"She's one leg away from finishing you.\"\n\nA long pause.\n\n\"I can make a call. Fix a few legs.\nHow many do you want back?\""
-	text_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text_lbl.custom_minimum_size = Vector2(560, 0)
-	text_lbl.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
-	UIFont.apply(text_lbl, UIFont.BODY)
-	vbox.add_child(text_lbl)
+	# Warning text
+	var text_label := Label.new()
+	text_label.text = "\"Take it easy... if you start to think you're a state, you definitely are a state.\""
+	text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text_label.custom_minimum_size = Vector2(560, 0)
+	text_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+	UIFont.apply(text_label, UIFont.CAPTION)
+	text_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(text_label)
 
 	panel.add_child(vbox)
 	overlay.add_child(panel)
 
-	var btn_col := VBoxContainer.new()
-	btn_col.add_theme_constant_override("separation", 12)
-	btn_col.position = Vector2(60, 740)
-	btn_col.size = Vector2(600, 0)
-
-	for i in range(1, max_bribe + 1):
-		var leg_word: String = "LEG" if i == 1 else "LEGS"
-		var btn := _make_popup_button(str(i) + " " + leg_word, Color(0.5, 0.15, 0.15))
-		btn.custom_minimum_size = Vector2(580, 0)
-		var legs_to_bribe: int = i
-		btn.pressed.connect(func():
-			overlay.queue_free()
-			_bribe_used = true
-			CareerState.bribe_legs_used = legs_to_bribe
-			_opponent_legs_won -= legs_to_bribe
-			_score_hud.update_leg_score(_player_legs_won, _opponent_legs_won)
-			var new_score := str(_player_legs_won) + " - " + str(_opponent_legs_won)
-			_score_hud.show_message("The fix is in.\nLegs: " + new_score, 3.0)
-			var delay := create_tween()
-			delay.tween_interval(3.5)
-			delay.tween_callback(_start_visit)
-		)
-		btn_col.add_child(btn)
-
-	var no_btn := _make_popup_button("NO THANKS", Color(0.2, 0.2, 0.3))
-	no_btn.custom_minimum_size = Vector2(580, 0)
-	no_btn.pressed.connect(func():
-		overlay.queue_free()
-		_bribe_used = true
-		_start_visit()
-	)
-	btn_col.add_child(no_btn)
-
-	overlay.add_child(btn_col)
-
+	# Fade in, hold, fade out
 	overlay.modulate = Color(1, 1, 1, 0)
 	_score_hud._popup_layer.add_child(overlay)
-	var fade := create_tween()
-	fade.tween_property(overlay, "modulate", Color(1, 1, 1, 1), 0.25)
+	var ft := create_tween()
+	ft.tween_property(overlay, "modulate:a", 1.0, 0.3)
+	ft.tween_interval(5.0)
+	ft.tween_property(overlay, "modulate:a", 0.0, 0.5)
+	ft.tween_callback(overlay.queue_free)
 
 # ── Pre-drink advice popup (first visit, career L2+) ─────────────────────────
 

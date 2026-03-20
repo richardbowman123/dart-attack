@@ -480,6 +480,14 @@ func _do_bounce_out() -> void:
 		freeze = true
 	)
 
+## Called externally when a dart-on-dart bounce is triggered after landing.
+## Un-sticks the dart and sends it bouncing back.
+func force_bounce_out() -> void:
+	_stuck = false
+	_bouncing = true
+	freeze = false
+	_do_bounce_out()
+
 func is_stuck() -> bool:
 	return _stuck
 

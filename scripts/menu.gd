@@ -371,6 +371,12 @@ func _on_practise_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/practise_menu.tscn")
 
 func _on_vs_selected(opponent_id: String) -> void:
+	# First career match — show the full intro sequence (barman, rules, opponent reveal)
+	if CareerState.career_level == 1 and not CareerState.career_intro_seen:
+		CareerState.career_mode_active = true
+		get_tree().change_scene_to_file("res://scenes/career_intro.tscn")
+		return
+
 	var opp: Dictionary = OpponentData.get_opponent(opponent_id)
 	GameState.is_vs_ai = true
 	GameState.opponent_id = opponent_id

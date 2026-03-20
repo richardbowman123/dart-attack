@@ -183,8 +183,8 @@ func _build_instruction_label() -> void:
 	# Dark background so text is readable over the board
 	_instruction_bg = ColorRect.new()
 	_instruction_bg.color = Color(0.0, 0.0, 0.0, 0.8)
-	_instruction_bg.size = Vector2(620, 40)
-	_instruction_bg.position = Vector2(50, _viewport_size.y * THROW_ZONE_TOP + 6)
+	_instruction_bg.size = Vector2(720, 80)
+	_instruction_bg.position = Vector2(0, _viewport_size.y * THROW_ZONE_TOP + 6)
 	_instruction_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_instruction_bg.visible = false
 	add_child(_instruction_bg)
@@ -194,8 +194,9 @@ func _build_instruction_label() -> void:
 	_instruction_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
 	_instruction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_instruction_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_instruction_label.size = Vector2(720, 40)
-	_instruction_label.position = Vector2(0, _viewport_size.y * THROW_ZONE_TOP + 6)
+	_instruction_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_instruction_label.size = Vector2(700, 80)
+	_instruction_label.position = Vector2(10, _viewport_size.y * THROW_ZONE_TOP + 6)
 	_instruction_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_instruction_label.visible = false
 	add_child(_instruction_label)
@@ -269,7 +270,7 @@ func _begin_aiming() -> void:
 	_showed_throw_hint = false
 	_update_board_target()
 
-	_instruction_label.text = "Pinch to zoom in, then swipe from GREEN up to RED"
+	_instruction_label.text = "Use two fingers to zoom in, then swipe GREEN to RED"
 	_instruction_label.visible = true
 	_instruction_bg.visible = true
 	_guide_canvas.visible = true
@@ -294,7 +295,7 @@ func _process(_delta: float) -> void:
 		# Once the player zooms in, update the instruction to focus on throwing
 		if _camera_rig and _camera_rig.get_zoom() > 0.15 and not _showed_throw_hint:
 			_showed_throw_hint = true
-			_instruction_label.text = "Touch GREEN dot, swipe up to RED"
+			_instruction_label.text = "Swipe from GREEN up to RED"
 
 func _recalculate_guide_positions() -> void:
 	if not _camera:

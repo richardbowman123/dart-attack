@@ -28,7 +28,7 @@ var _balance_label_overlay: Label
 const KEV_MEALS := [
 	"I've got a voucher for the Golden Dragon. Two-for-one, expires tomorrow. The sweet and sour is... an experience. Go on, fill your boots.",
 	"My mate runs a burger van round the back. Failed the last inspection but it's still open. Tell him I sent you, he'll sort you out.",
-	"The kebab shop bloke owes me twenty quid. He's not getting twenty quid. But he'll give you a large donner and chips.",
+	"The kebab shop bloke owes me twenty quid. I'm not seeing that money again. But he'll give you a large donner and chips if you tell him Big Kev sent you.",
 	"My cousin does a chippy tea on Fridays. Family discount. Which means free. The batter's an inch thick.",
 	"My nan makes pies for the social club. She always makes too many. Nobody asks what's in them. Nobody wants to know.",
 	"The pub does an all-day breakfast. I've got a loyalty card, tenth one's free. I've got about forty of these.",
@@ -71,6 +71,9 @@ func _build_ui() -> void:
 	else:
 		if CareerState.drink_death_occurred:
 			_build_drink_death_card()
+		elif CareerState.fight_decided_match:
+			# Lars killed you — death card (same format as drink/mafia death)
+			_build_lars_death_card()
 		else:
 			# Trader profit card before loss card (sales happen regardless of result)
 			_build_trader_profit_card()
@@ -987,7 +990,7 @@ func _build_l3_win_cards() -> void:
 	flex_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	flex_sub.custom_minimum_size = Vector2(640, 30)
 	celeb_card.add_child(flex_sub)
-	_add_spacer(celeb_card, 10)
+	_add_spacer(celeb_card, 25)
 
 	var fish_btn := _create_button("THE BIG FISH", Color(0.15, 0.15, 0.4), Color(0.3, 0.3, 0.7))
 	fish_btn.pressed.connect(func(): _set_celebration.call(1))
@@ -1003,7 +1006,7 @@ func _build_l3_win_cards() -> void:
 	fish_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	fish_sub.custom_minimum_size = Vector2(640, 30)
 	celeb_card.add_child(fish_sub)
-	_add_spacer(celeb_card, 10)
+	_add_spacer(celeb_card, 25)
 
 	var pint_btn := _create_button("DOWN A PINT", Color(0.35, 0.25, 0.1), Color(0.6, 0.45, 0.2))
 	pint_btn.pressed.connect(func(): _set_celebration.call(2))
@@ -1381,6 +1384,13 @@ func _build_l3_win_cards() -> void:
 # ======================================================
 
 func _build_l4_win_cards() -> void:
+	# Post-match celebration — Edward laughs it off
+	_build_celebration_reaction_card(
+		"EDWARD",
+		"Edward watches your celebration.\n\nHe laughs.\n\n\"Pathetic.\"\n\nHe shakes his head, packs his darts away, and leaves without another word.",
+		"res://Edward The Accountant cropped.png"
+	)
+
 	# Card 2: Skill star 3->4
 	_build_star_flip_card("SKILL", CareerState.skill_stars, CareerState.skill_stars + 1, "County champion.\nThe phone's ringing.", func(): CareerState.skill_stars += 1)
 
@@ -1775,6 +1785,13 @@ func _build_l4_win_cards() -> void:
 # ======================================================
 
 func _build_l5_win_cards() -> void:
+	# Post-match celebration — Mad Dog has to be held back
+	_build_celebration_reaction_card(
+		"MAD DOG",
+		"You celebrate.\n\nMad Dog lunges.\n\nTwo stewards grab her arms. She's growling. Actually growling.\n\n\"I'LL FIND YOU IN THE CAR PARK.\"\n\nThey drag her away. She's still growling.",
+		"res://Lisa Mad Dog cropped.jpg"
+	)
+
 	# Card 2: Skill star 4->5 (MAX)
 	_build_star_flip_card("SKILL", CareerState.skill_stars, 5, "National qualifier.\nFive stars. Maximum.", func(): CareerState.skill_stars = 5)
 
@@ -1816,7 +1833,7 @@ func _build_l5_win_cards() -> void:
 	_add_spacer(bet_card, 60)
 	var bet_panel := _build_companion_panel(
 		"UNKNOWN NUMBER",
-		"Your phone buzzes again.\n\n\"Told you Mad Dog was beatable. Pleasure doing business.\"\n\nA long pause.\n\n\"You'll never hear from me again.\"",
+		"Your phone buzzes again.\n\n\"Told you Mad Dog was beatable.\"\n\nA pause.\n\n\"Five grand. Leather bag in the boot of your car. No questions asked.\"\n\nAnother pause.\n\n\"Pleasure doing business. You'll never hear from me again.\"",
 		Color(0.3, 0.3, 0.35), "?", "res://The Contact Unknown caller cropped.png", UIFont.PORTRAIT_L
 	)
 	bet_card.add_child(bet_panel)
@@ -1835,55 +1852,6 @@ func _build_l5_win_cards() -> void:
 
 	# Swagger star flip (dodgy bet)
 	_build_star_flip_card("SWAGGER", CareerState.swagger_stars, CareerState.swagger_stars + 1, "Playing both sides.", func(): CareerState.recalculate_swagger())
-
-	# Card: Mafia consequence (if bribe was used during match)
-	if CareerState.bribe_legs_used > 0:
-		var mafia_roll: float = randf()
-		var mafia_threshold: float = 0.2 * CareerState.bribe_legs_used
-		var mafia_card := _create_card()
-		_add_spacer(mafia_card, 60)
-		if mafia_roll < mafia_threshold:
-			# Mafia hit — roughed up in the car park
-			var mafia_panel := _build_companion_panel(
-				"UNKNOWN NUMBER",
-				"A text arrives.\n\n\"About those legs I fixed. The bosses want their cut.\"\n\nTwo hours later, in the car park.\n\nThree men. Long coats. No words.\nJust a message.\n\nYou wake up on the tarmac.",
-				Color(0.5, 0.15, 0.15), "?", "res://The Contact Unknown caller cropped.png", UIFont.PORTRAIT_XL
-			)
-			mafia_card.add_child(mafia_panel)
-			_add_spacer(mafia_card, 20)
-			var penalty: int = 100000  # £1,000
-			var penalty_label := Label.new()
-			penalty_label.text = "-" + _format_money(penalty)
-			UIFont.apply(penalty_label, UIFont.HEADING)
-			penalty_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
-			penalty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			penalty_label.custom_minimum_size = Vector2(640, 60)
-			mafia_card.add_child(penalty_label)
-			_add_spacer(mafia_card, 20)
-			var mafia_btn := _create_button("GET UP", Color(0.3, 0.15, 0.15), Color(0.5, 0.3, 0.3))
-			mafia_btn.pressed.connect(func():
-				CareerState.money -= penalty
-				if CareerState.money < 0:
-					CareerState.money = 0
-				_update_balance_overlay()
-				CareerState.bribe_mafia_hit = true
-				_advance_card()
-			)
-			var mafia_w := CenterContainer.new()
-			mafia_w.custom_minimum_size = Vector2(640, 100)
-			mafia_w.add_child(mafia_btn)
-			mafia_card.add_child(mafia_w)
-		else:
-			# Got away clean
-			var clean_panel := _build_companion_panel(
-				"UNKNOWN NUMBER",
-				"A text arrives.\n\n\"Clean result. Nobody suspects a thing.\"\n\nA pause.\n\n\"Until next time.\"",
-				Color(0.3, 0.3, 0.35), "?", "res://The Contact Unknown caller cropped.png", UIFont.PORTRAIT_L
-			)
-			mafia_card.add_child(clean_panel)
-			_add_spacer(mafia_card, 30)
-			_add_continue_button(mafia_card)
-		_add_card(mafia_card, "L5 Mafia Consequence")
 
 	# Card: Team decision (forced — player cannot skip)
 	var team_card := _create_card()
@@ -1977,7 +1945,7 @@ func _build_l5_win_cards() -> void:
 	_add_card(team_card, "L5 Team Decision")
 
 	# Card 5: Hustle star (team hire is standalone condition)
-	_build_star_flip_card("HUSTLE", CareerState.hustle_stars, CareerState.hustle_stars + 1, "Full support.\nNo excuses.", null)
+	_build_star_flip_card("HUSTLE", CareerState.hustle_stars, CareerState.hustle_stars + 1, "Full support.\nNo excuses.\nA true athlete.", null)
 
 	# Card 6: Doctor hint
 	var doc_card := _create_card()
@@ -1985,7 +1953,7 @@ func _build_l5_win_cards() -> void:
 	var doc_panel := _build_companion_panel(
 		"THE DOCTOR",
 		"A woman in a white coat stops you in the corridor. Smart. Professional.\n\n\"I see a lot of darts players come through here. Most of them in worse shape than they think.\"\n\nShe hands you a leaflet.\n\n\"Get checked out before the semis. Trust me.\"",
-		Color(0.3, 0.5, 0.35), "D", "", UIFont.PORTRAIT_ML
+		Color(0.3, 0.5, 0.35), "D", "res://Doctor cropped.png", UIFont.PORTRAIT_ML
 	)
 	doc_card.add_child(doc_panel)
 	_add_spacer(doc_card, 30)
@@ -2006,12 +1974,19 @@ func _build_l5_win_cards() -> void:
 	# Pre-match drinking
 	_build_pre_drink_card()
 
-	# Card 8: Manager introduces Lars
+	# Card 8: Lars stats — show his intimidating image first
+	_build_opponent_stats_card(
+		"lars", "Lars", "The Viking",
+		{"SKILL": 5, "HEFT": 3, "HUSTLE": 3, "SWAGGER": 4},
+		"501, Best of 5"
+	)
+
+	# Card 9: Manager cuts him down
 	var lars_intro := _create_card()
 	_add_spacer(lars_intro, 60)
 	var lars_panel := _build_companion_panel(
 		"THE MANAGER",
-		"Pathetic excuse for a man. Thinks he's got Nordic blood but I know for a fact he's from Bristol.\n\nWears an old rug round his shoulders. Calls it a \"fair shame\" he's so good at darts.\n\nImagine how good he'd be if he took those ridiculous arm guards off.\n\nBest of luck.",
+		"Lars the Viking is a pathetic excuse for a man. Thinks he's got Nordic blood but I know for a fact he's from Bristol.\n\nWears an old rug round his shoulders. Calls it a \"fair shame\" he's so good at darts.\n\nImagine how good he'd be if he took those ridiculous arm guards off.\n\nBest of luck.",
 		Color(0.4, 0.15, 0.25), "S", "res://Manager cropped new.png", UIFont.PORTRAIT_L
 	)
 	lars_intro.add_child(lars_panel)
@@ -2019,18 +1994,19 @@ func _build_l5_win_cards() -> void:
 	_add_continue_button(lars_intro)
 	_add_card(lars_intro, "L5 Manager Lars Intro")
 
-	# Card 9: Lars stats
-	_build_opponent_stats_card(
-		"lars", "Lars", "The Viking",
-		{"SKILL": 5, "HEFT": 3, "HUSTLE": 3, "SWAGGER": 4},
-		"501, Best of 5"
-	)
-
 # ======================================================
 # LEVEL 6 POST-WIN (Beat Lars "The Viking")
 # ======================================================
 
 func _build_l6_win_cards() -> void:
+	# Post-match celebration — Lars takes it stoically
+	# (fight = death, so if we're here the player won cleanly on darts)
+	_build_celebration_reaction_card(
+		"LARS",
+		"Lars stares at you across the oche.\n\nHe nods. Once.\n\n\"Good match.\"\n\nHe walks off. No handshake.",
+		"res://Lars The Viking cropped.png"
+	)
+
 	# Card 2: All stars snapshot (no SKILL increase, already at 5)
 	var snap_card := _create_card()
 	_add_spacer(snap_card, 15)
@@ -2119,19 +2095,25 @@ func _build_l6_win_cards() -> void:
 	var doc_panel := _build_companion_panel(
 		"THE DOCTOR",
 		doc_text,
-		Color(0.3, 0.5, 0.35), "D", "", UIFont.PORTRAIT_XL
+		Color(0.3, 0.5, 0.35), "D", "res://Doctor cropped.png", UIFont.PORTRAIT_XL
 	)
 	doc_card.add_child(doc_panel)
 	_add_spacer(doc_card, 30)
 	_add_continue_button(doc_card)
 	_add_card(doc_card, "L6 Doctor")
 
-	# Card 5: Vinnie "The Gold" introduction
+	# Card 5: Vinnie "The Gold" introduction (two variants, random)
 	var vinnie_card := _create_card()
 	_add_spacer(vinnie_card, 60)
+	var vinnie_text: String
+	if randi() % 2 == 0:
+		vinnie_text = "The cameras find you in the corridor.\n\nVinnie walks past. Gold shoes. Gold watch. Gold tooth.\n\nHe brushes past. Close enough to smell the aftershave.\n\nHe doesn't say a word. He doesn't need to."
+	else:
+		var _sol: String = "love" if DartData.get_is_female(GameState.character) else "son"
+		vinnie_text = "The cameras find you in the corridor.\n\nVinnie walks past. Gold shoes. Gold watch. Gold tooth.\n\nHe stops. Looks you up and down.\n\n\"Enjoy tonight, " + _sol + ". It's as close as you'll get.\"\n\nHe walks on."
 	var vinnie_panel := _build_companion_panel(
 		"VINNIE \"THE GOLD\"",
-		"The cameras find you in the corridor.\n\nVinnie walks past. Gold shoes. Gold watch. Gold tooth.\n\nHe doesn't look at you.\n\n\"Tell him I said good luck.\"\n\nHe doesn't mean it.",
+		vinnie_text,
 		Color(0.6, 0.5, 0.1), "V", "res://Vinnie The Gold cropped.png", UIFont.PORTRAIT_L
 	)
 	vinnie_card.add_child(vinnie_panel)
@@ -2197,14 +2179,14 @@ func _build_l6_win_cards() -> void:
 	walkon_card.add_child(track2_sub)
 	_add_spacer(walkon_card, 10)
 
-	var track3_btn := _create_button("CHASE THE SUN", Color(0.35, 0.25, 0.1), Color(0.6, 0.45, 0.2))
+	var track3_btn := _create_button("PAUL YOUNG", Color(0.35, 0.25, 0.1), Color(0.6, 0.45, 0.2))
 	track3_btn.pressed.connect(func(): _set_walkon.call(2))
 	var track3_w := CenterContainer.new()
 	track3_w.custom_minimum_size = Vector2(640, 80)
 	track3_w.add_child(track3_btn)
 	walkon_card.add_child(track3_w)
 	var track3_sub := Label.new()
-	track3_sub.text = "Planet Funk.\nDarts classic. On their feet."
+	track3_sub.text = "Bold choice. The crowd won't know what to do."
 	UIFont.apply(track3_sub, UIFont.CAPTION)
 	track3_sub.add_theme_color_override("font_color", Color(0.5, 0.5, 0.55))
 	track3_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -2313,7 +2295,7 @@ func _build_l6_win_cards() -> void:
 	var doc_final_panel := _build_companion_panel(
 		"THE DOCTOR",
 		"She catches you outside the green room.\n\n\"I've seen your blood work. Your liver is hanging on by a thread.\"\n\nShe looks you dead in the eye.\n\n\"One more drink and you're dead, " + son_or_love_doc + ". I mean it. Not tomorrow. Tonight.\"",
-		Color(0.3, 0.5, 0.35), "D", "", UIFont.PORTRAIT_ML
+		Color(0.3, 0.5, 0.35), "D", "res://Doctor cropped.png", UIFont.PORTRAIT_ML
 	)
 	doc_final.add_child(doc_final_panel)
 	_add_spacer(doc_final, 30)
@@ -2450,10 +2432,10 @@ func _build_drink_death_card() -> void:
 
 	# Outer frame: dark wood colour
 	var frame_outer := ColorRect.new()
-	var frame_w := 280
-	var frame_h := 350
+	var frame_w := 260
+	var frame_h := 280
 	var frame_x := (720 - frame_w) / 2
-	var frame_y := 120
+	var frame_y := 80
 	frame_outer.position = Vector2(frame_x, frame_y)
 	frame_outer.size = Vector2(frame_w, frame_h)
 	frame_outer.color = Color(0.22, 0.14, 0.08)
@@ -2523,7 +2505,7 @@ func _build_drink_death_card() -> void:
 
 	# --- Text elements (all start invisible, fade in with tween) ---
 
-	var text_y := flower_y + 60
+	var text_y := flower_y + 45
 	var text_elements: Array = []
 
 	# Player name
@@ -2538,24 +2520,28 @@ func _build_drink_death_card() -> void:
 	name_label.add_theme_color_override("font_color", Color(0.75, 0.65, 0.4))
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.position = Vector2(60, text_y)
-	name_label.size = Vector2(600, 80)
+	name_label.size = Vector2(600, 90)
 	name_label.modulate.a = 0.0
 	full_screen.add_child(name_label)
 	text_elements.append(name_label)
 
-	text_y += 85
+	text_y += 80
 
 	# Death lines — each fades in separately
 	var son_or_love: String = "love" if DartData.get_is_female(GameState.character) else "son"
+	var first_name: String = DartData.get_character_name(GameState.character)
 	var death_lines := [
 		"She told you.",
 		"One more drink.",
 		"",
-		"The paramedics arrived in three minutes.",
-		"But it was already too late.",
+		"The paramedics arrived",
+		"in three minutes.",
+		"It was already too late.",
 		"",
 		"So close to glory, " + son_or_love + ".",
 		"So close.",
+		"",
+		"RIP " + first_name + ".",
 	]
 
 	for line in death_lines:
@@ -2569,14 +2555,14 @@ func _build_drink_death_card() -> void:
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl.position = Vector2(60, text_y)
-		lbl.size = Vector2(600, 45)
+		lbl.size = Vector2(600, 48)
 		lbl.modulate.a = 0.0
 		full_screen.add_child(lbl)
 		text_elements.append(lbl)
-		text_y += 45
+		text_y += 48
 
 	# NEW CAREER button (also fades in)
-	text_y += 40
+	text_y += 25
 	var new_btn := _create_button("NEW CAREER", Color(0.5, 0.15, 0.15), Color(0.8, 0.3, 0.3))
 	new_btn.pressed.connect(_on_new_career)
 	var btn_wrapper := CenterContainer.new()
@@ -2630,10 +2616,10 @@ func _build_mafia_death_card() -> void:
 
 	# Outer frame: dark wood colour
 	var frame_outer := ColorRect.new()
-	var frame_w := 280
-	var frame_h := 350
+	var frame_w := 260
+	var frame_h := 280
 	var frame_x := (720 - frame_w) / 2
-	var frame_y := 120
+	var frame_y := 80
 	frame_outer.position = Vector2(frame_x, frame_y)
 	frame_outer.size = Vector2(frame_w, frame_h)
 	frame_outer.color = Color(0.22, 0.14, 0.08)
@@ -2702,7 +2688,7 @@ func _build_mafia_death_card() -> void:
 
 	# --- Text elements (all start invisible, fade in with tween) ---
 
-	var text_y := flower_y + 60
+	var text_y := flower_y + 45
 	var text_elements: Array = []
 
 	# Player name
@@ -2717,23 +2703,25 @@ func _build_mafia_death_card() -> void:
 	name_label.add_theme_color_override("font_color", Color(0.75, 0.65, 0.4))
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.position = Vector2(60, text_y)
-	name_label.size = Vector2(600, 80)
+	name_label.size = Vector2(600, 90)
 	name_label.modulate.a = 0.0
 	full_screen.add_child(name_label)
 	text_elements.append(name_label)
 
-	text_y += 85
+	text_y += 80
 
 	# Death lines — each fades in separately
+	var first_name: String = DartData.get_character_name(GameState.character)
 	var death_lines := [
 		"That wasn't the deal.",
 		"",
-		"A car park. Two men. No words.",
+		"A car park.",
+		"Two men. No words.",
 		"",
-		"They found you the next morning.",
+		"They found you",
+		"the next morning.",
 		"",
-		"Five grand wasn't worth dying for.",
-		"But you took it anyway.",
+		"RIP " + first_name + ".",
 	]
 
 	for line in death_lines:
@@ -2747,14 +2735,14 @@ func _build_mafia_death_card() -> void:
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl.position = Vector2(60, text_y)
-		lbl.size = Vector2(600, 45)
+		lbl.size = Vector2(600, 48)
 		lbl.modulate.a = 0.0
 		full_screen.add_child(lbl)
 		text_elements.append(lbl)
-		text_y += 45
+		text_y += 48
 
 	# NEW CAREER button (also fades in)
-	text_y += 40
+	text_y += 25
 	var new_btn := _create_button("NEW CAREER", Color(0.5, 0.15, 0.15), Color(0.8, 0.3, 0.3))
 	new_btn.pressed.connect(_on_new_career)
 	var btn_wrapper := CenterContainer.new()
@@ -2769,6 +2757,160 @@ func _build_mafia_death_card() -> void:
 	var card_idx: int = _cards.size()
 	_card_animations[card_idx] = _start_death_fade_in.bind(text_elements)
 	_add_card(card, "Mafia Death")
+
+
+## Lars fight death — celebrated too hard, Lars killed you.
+## Same funeral visual format as drink/mafia death.
+func _build_lars_death_card() -> void:
+	var card := _create_card()
+
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(640, 1280)
+	card.add_child(holder)
+
+	var full_screen := Control.new()
+	full_screen.position = Vector2(-40, 0)
+	full_screen.size = Vector2(720, 1280)
+	full_screen.clip_contents = true
+	holder.add_child(full_screen)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.06, 0.03, 0.03)
+	bg.size = Vector2(720, 1280)
+	full_screen.add_child(bg)
+
+	# --- Framed portrait (age 19) ---
+	var frame_outer := ColorRect.new()
+	var frame_w := 260
+	var frame_h := 280
+	var frame_x := (720 - frame_w) / 2
+	var frame_y := 80
+	frame_outer.position = Vector2(frame_x, frame_y)
+	frame_outer.size = Vector2(frame_w, frame_h)
+	frame_outer.color = Color(0.22, 0.14, 0.08)
+	full_screen.add_child(frame_outer)
+
+	var frame_inner := ColorRect.new()
+	var border := 8
+	frame_inner.position = Vector2(border, border)
+	frame_inner.size = Vector2(frame_w - border * 2, frame_h - border * 2)
+	frame_inner.color = Color(0.72, 0.58, 0.25)
+	frame_outer.add_child(frame_inner)
+
+	var portrait_path: String = DartData.get_profile_image_for_tier(GameState.character, 0)
+	var tex := load(portrait_path)
+	if tex:
+		var img := TextureRect.new()
+		img.texture = tex
+		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		var img_border := 4
+		img.position = Vector2(img_border, img_border)
+		img.size = Vector2(frame_inner.size.x - img_border * 2, frame_inner.size.y - img_border * 2)
+		frame_inner.add_child(img)
+
+	# --- Flowers ---
+	var flower_y := frame_y + frame_h + 5
+	var flower_colors := [
+		Color(0.55, 0.15, 0.15), Color(0.65, 0.55, 0.65),
+		Color(0.45, 0.12, 0.12), Color(0.6, 0.6, 0.55),
+		Color(0.55, 0.15, 0.15), Color(0.65, 0.55, 0.65),
+		Color(0.45, 0.12, 0.12),
+	]
+	var flower_start_x := frame_x - 10
+	var flower_spacing := (frame_w + 20) / flower_colors.size()
+	for i in flower_colors.size():
+		var petal := Panel.new()
+		var pstyle := StyleBoxFlat.new()
+		pstyle.bg_color = flower_colors[i]
+		pstyle.corner_radius_top_left = 10
+		pstyle.corner_radius_top_right = 10
+		pstyle.corner_radius_bottom_left = 10
+		pstyle.corner_radius_bottom_right = 10
+		petal.add_theme_stylebox_override("panel", pstyle)
+		petal.position = Vector2(flower_start_x + i * flower_spacing + 5, flower_y + (i % 2) * 6)
+		petal.size = Vector2(flower_spacing - 8, 22)
+		full_screen.add_child(petal)
+
+	var leaf_bar := Panel.new()
+	var leaf_style := StyleBoxFlat.new()
+	leaf_style.bg_color = Color(0.18, 0.28, 0.15, 0.7)
+	leaf_style.corner_radius_top_left = 4
+	leaf_style.corner_radius_top_right = 4
+	leaf_style.corner_radius_bottom_left = 4
+	leaf_style.corner_radius_bottom_right = 4
+	leaf_bar.add_theme_stylebox_override("panel", leaf_style)
+	leaf_bar.position = Vector2(frame_x + 10, flower_y + 28)
+	leaf_bar.size = Vector2(frame_w - 20, 8)
+	full_screen.add_child(leaf_bar)
+
+	# --- Text ---
+	var text_y := flower_y + 45
+	var text_elements: Array = []
+
+	var name_label := Label.new()
+	var full_name: String = DartData.get_full_name(GameState.character)
+	if CareerState.nickname_active:
+		var nickname: String = DartData.get_character_nickname(GameState.character)
+		name_label.text = full_name + '\n"' + nickname + '"'
+	else:
+		name_label.text = full_name
+	UIFont.apply(name_label, UIFont.SUBHEADING)
+	name_label.add_theme_color_override("font_color", Color(0.75, 0.65, 0.4))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.position = Vector2(60, text_y)
+	name_label.size = Vector2(600, 90)
+	name_label.modulate.a = 0.0
+	full_screen.add_child(name_label)
+	text_elements.append(name_label)
+
+	text_y += 80
+
+	var first_name: String = DartData.get_character_name(GameState.character)
+	var death_lines := [
+		"You celebrated",
+		"one time too many.",
+		"",
+		"Lars didn't wait",
+		"for security.",
+		"",
+		"They found you",
+		"behind the stage.",
+		"",
+		"RIP " + first_name + ".",
+	]
+
+	for line in death_lines:
+		if line == "":
+			text_y += 25
+			continue
+		var lbl := Label.new()
+		lbl.text = line
+		UIFont.apply(lbl, UIFont.BODY)
+		lbl.add_theme_color_override("font_color", Color(0.6, 0.4, 0.4))
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl.position = Vector2(60, text_y)
+		lbl.size = Vector2(600, 48)
+		lbl.modulate.a = 0.0
+		full_screen.add_child(lbl)
+		text_elements.append(lbl)
+		text_y += 48
+
+	text_y += 25
+	var new_btn := _create_button("NEW CAREER", Color(0.5, 0.15, 0.15), Color(0.8, 0.3, 0.3))
+	new_btn.pressed.connect(_on_new_career)
+	var btn_wrapper := CenterContainer.new()
+	btn_wrapper.position = Vector2(60, text_y)
+	btn_wrapper.size = Vector2(600, 100)
+	btn_wrapper.modulate.a = 0.0
+	btn_wrapper.add_child(new_btn)
+	full_screen.add_child(btn_wrapper)
+	text_elements.append(btn_wrapper)
+
+	var card_idx: int = _cards.size()
+	_card_animations[card_idx] = _start_death_fade_in.bind(text_elements)
+	_add_card(card, "Lars Fight Death")
 
 
 # ======================================================
@@ -3015,7 +3157,7 @@ const LOSS_FLAVOUR := {
 	},
 	# Level 6 (Lars) -- win or bust
 	6: {
-		"career_over": "Lars raises his hammer.\nThe crowd goes wild.\n\nYou watch from the wings.\nClose. So close.",
+		"career_over": "So close.\nSo close.",
 	},
 	# Level 7 (Vinnie "The Gold") -- win or bust
 	7: {
@@ -3506,16 +3648,23 @@ func _build_kebab_card() -> void:
 		["CHICKEN SHISH", Color(0.15, 0.4, 0.15), Color(0.3, 0.65, 0.3)],
 	]
 
-	var eat_action := func():
-		if can_gain_heft:
-			CareerState.heft_tier += 1
-		_advance_card()
+	# Label ref for the star flip quip — set after star flip card is built
+	var heft_quip_ref := [null as Label]
 
-	for opt in food_options:
+	for i in food_options.size():
+		var opt: Array = food_options[i]
 		var btn := _create_button(opt[0], opt[1], opt[2])
 		btn.custom_minimum_size = Vector2(620, 70)
 		UIFont.apply_button(btn, UIFont.BODY)
-		btn.pressed.connect(eat_action)
+		var idx: int = i
+		btn.pressed.connect(func():
+			# Cheesy chips aren't a kebab
+			if heft_quip_ref[0] and idx == 1:
+				heft_quip_ref[0].text = "Chips consumed.\nProfessional fuel."
+			if can_gain_heft:
+				CareerState.heft_tier += 1
+			_advance_card()
+		)
 		var wrapper := CenterContainer.new()
 		wrapper.custom_minimum_size = Vector2(640, 80)
 		wrapper.add_child(btn)
@@ -3582,6 +3731,12 @@ func _build_kebab_card() -> void:
 	if can_gain_heft:
 		_build_star_flip_card("HEFT", CareerState.heft_tier,
 			CareerState.heft_tier + 1, "Kebab consumed.\nProfessional fuel.", null)
+		# Find the quip label on the star flip card so buttons can update it
+		var star_card: Control = _cards[_cards.size() - 1]
+		for child in star_card.get_children():
+			if child is Label and child.text == "Kebab consumed.\nProfessional fuel.":
+				heft_quip_ref[0] = child
+				break
 
 ## Build a food offer card with EAT / NO THANKS buttons.
 ## If player can't afford cost, the food card AND heft star flip are both skipped.
@@ -3930,6 +4085,81 @@ func _build_star_flip_card(star_name: String, old_val: int, new_val: int,
 		else:
 			tween.tween_property(quip, "modulate:a", 1.0, 0.3).set_delay(0.3)
 			tween.tween_property(cont_wrapper, "modulate:a", 1.0, 0.3).set_delay(0.2)
+
+# ======================================================
+# REUSABLE HELPERS — Celebration Reaction Card
+# ======================================================
+
+## Build a post-match celebration card. Uses the player's chosen celebration style.
+## Shows the celebration, then the opponent's reaction.
+## Skipped if player hasn't chosen a celebration yet (pre-L3).
+func _build_celebration_reaction_card(opponent_name: String, reaction_text: String, opponent_image: String) -> void:
+	if CareerState.celebration_style < 0:
+		return  # No celebration chosen yet
+
+	var celeb_names := ["THE FLEX", "THE BIG FISH", "DOWN A PINT"]
+	var style_idx: int = clampi(CareerState.celebration_style, 0, 2)
+
+	# Celebration text progresses across levels
+	var level: int = CareerState.career_level
+	var celeb_text: String
+	if level <= 4:
+		# First celebration — introduce the move
+		celeb_text = [
+			"You step forward. Arms out. Muscles tense.\n\nThe crowd erupts.",
+			"You step forward. Two hands wide apart. Telling the biggest story in darts.\n\nThe crowd erupts.",
+			"You grab a pint off the oche. Skull it in one.\n\nThe crowd erupts.",
+		][style_idx]
+	elif level == 5:
+		# Second time — becoming a habit
+		celeb_text = [
+			"The Flex is back. You're making this a habit.\n\nThe crowd knows what's coming.",
+			"The Big Fish is back. It's becoming your thing.\n\nThe crowd sees it coming before you've even started.",
+			"Down a Pint is back. It's becoming a tradition.\n\nThe crowd are cheering before you've even picked up the glass.",
+		][style_idx]
+	else:
+		# Third time onwards — it's the signature move now
+		celeb_text = [
+			"The customary Flex. Arms out. Muscles tense.\n\nHalf the crowd are doing it with you now.",
+			"The customary Big Fish. Two hands wide.\n\nHalf the crowd are doing it with you now.",
+			"The customary pint. You skull it on the oche.\n\nHalf the crowd are raising their glasses with you.",
+		][style_idx]
+
+	# Card 1: The celebration itself
+	var celeb_card := _create_card()
+	_add_spacer(celeb_card, 200)
+	var celeb_title := Label.new()
+	celeb_title.text = celeb_names[style_idx]
+	UIFont.apply(celeb_title, UIFont.HEADING)
+	celeb_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	celeb_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	celeb_title.custom_minimum_size = Vector2(640, 80)
+	celeb_card.add_child(celeb_title)
+	_add_spacer(celeb_card, 30)
+	var celeb_desc := Label.new()
+	celeb_desc.text = celeb_text
+	UIFont.apply(celeb_desc, UIFont.BODY)
+	celeb_desc.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+	celeb_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	celeb_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	celeb_desc.custom_minimum_size = Vector2(640, 80)
+	celeb_card.add_child(celeb_desc)
+	_add_spacer(celeb_card, 40)
+	_add_continue_button(celeb_card)
+	_add_card(celeb_card, opponent_name + " Celebration")
+
+	# Card 2: Opponent reaction
+	var react_card := _create_card()
+	_add_spacer(react_card, 60)
+	var react_panel := _build_companion_panel(
+		opponent_name,
+		reaction_text,
+		Color.BLACK, "", opponent_image, UIFont.PORTRAIT_XL
+	)
+	react_card.add_child(react_panel)
+	_add_spacer(react_card, 30)
+	_add_continue_button(react_card)
+	_add_card(react_card, opponent_name + " Reaction")
 
 # ======================================================
 # REUSABLE HELPERS — Bridge Card
