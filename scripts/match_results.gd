@@ -1843,6 +1843,7 @@ func _build_l5_win_cards() -> void:
 		_add_spacer(bet_card, 30)
 		var bet_btn := _create_button("CONTINUE", Color(0.3, 0.3, 0.35), Color(0.5, 0.5, 0.55))
 		bet_btn.pressed.connect(func():
+			CareerState.money += CareerState.throw_leg_money
 			CareerState.dodgy_bet_won = true
 			CareerState.recalculate_swagger()
 			_advance_card()

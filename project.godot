@@ -23,6 +23,7 @@ CareerState="*res://scripts/career_state.gd"
 PlayerStats="*res://scripts/player_stats.gd"
 DrinkManager="*res://scripts/drink_manager.gd"
 CompanionManager="*res://scripts/companion_manager.gd"
+Analytics="*res://scripts/analytics.gd"
 
 [display]
 

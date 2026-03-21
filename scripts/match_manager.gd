@@ -67,6 +67,8 @@ var _round_offer_pending: bool = false
 var _round_is_player_paying: bool = false
 var _round_first_decided: bool = false  # False until first coin flip
 var _player_broke_round: bool = false   # True when it's player's round but they can't afford it
+var _rounds_offered: int = 0
+var _rounds_accepted: int = 0
 
 # ── Barman drink offer at 18 (career RTC only) ──
 var _drink_offered_at_18 := false
@@ -420,6 +422,7 @@ func _start_visit() -> void:
 		# Check for round offer (every 3rd visit, career L2+)
 		if _round_offer_pending and CareerState.career_mode_active:
 			_round_offer_pending = false
+			_rounds_offered += 1
 			_state = MatchState.BETWEEN_DARTS
 			_throw_system.set_can_throw(false)
 			_score_hud.reset_dart_icons()
@@ -2261,6 +2264,7 @@ func _on_player_wins() -> void:
 			var prize: int = OpponentData.get_prize_money(_opponent_id)
 			CareerState.money += prize
 			CareerState.career_level += 1
+			Analytics.track("level_up", {"new_level": CareerState.career_level})
 			GameState.match_won = true
 			GameState.match_prize = prize
 			GameState.match_career_over = false
@@ -2329,6 +2333,25 @@ func _trigger_drink_death() -> void:
 	tween.tween_callback(_fade_to_black_and_results)
 
 func _goto_results() -> void:
+	# Track match completion before cleanup
+	if CareerState.career_mode_active:
+		var match_level: int = CareerState.career_level
+		if GameState.match_won and not CareerState.exhibition_mode:
+			match_level -= 1  # career_level was already incremented
+		var mode_str: String = "rtc"
+		if GameState.game_mode == GameState.GameMode.COUNTDOWN:
+			mode_str = str(GameState.starting_score)
+		Analytics.track("match_complete", {
+			"level": match_level,
+			"result": "win" if GameState.match_won else "loss",
+			"opponent": _opponent_id,
+			"game_mode": mode_str,
+			"pre_drink_units": CareerState.pre_drink_units,
+			"rounds_offered": _rounds_offered,
+			"rounds_accepted": _rounds_accepted,
+			"drinks_total": DrinkManager.drinks_level,
+			"money": CareerState.money,
+		})
 	_cancel_ai_turn()
 	DrinkManager.clear_effects()
 	for dart in _active_darts:
@@ -2464,6 +2487,7 @@ func _on_companion_consequence(consequence_id: String) -> void:
 		_score_hud.update_balance(CareerState.money)
 	elif consequence_id == "accept_free_pint":
 		# Companion's round — free pint for the player (1 pint = 4 units)
+		_rounds_accepted += 1
 		_nerves_before_drink = _player_nerves
 		_suppress_hud_update = true
 		DrinkManager.add_drink(true, 4)  # Free pint (visual effects)
@@ -2473,6 +2497,7 @@ func _on_companion_consequence(consequence_id: String) -> void:
 		_check_drunk_warning()
 	elif consequence_id == "buy_round":
 		# Player's round — buy pints for everyone, player drinks 1 pint
+		_rounds_accepted += 1
 		_nerves_before_drink = _player_nerves
 		_suppress_hud_update = true
 		DrinkManager.add_drink(true, 4)  # Pint visual effects (payment below)
@@ -2542,7 +2567,7 @@ func _show_drunk_warning_popup() -> void:
 
 	# Warning text
 	var text_label := Label.new()
-	text_label.text = "\"Take it easy... if you start to think you're a state, you definitely are a state.\""
+	text_label.text = "\"Take it easy, mate. If you start to think you're a state, you definitely are a state.\""
 	text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	text_label.custom_minimum_size = Vector2(560, 0)
 	text_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
