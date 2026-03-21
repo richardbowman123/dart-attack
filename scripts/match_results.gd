@@ -2352,6 +2352,7 @@ func _build_l6_win_cards() -> void:
 # ======================================================
 
 func _build_world_champion_cards() -> void:
+	Analytics.track("career_complete", {"character": DartData.get_full_name(GameState.character)})
 	# Card 1: Prize money already added by _build_prize_card
 
 	# Card 2: 5th hustle star — world champion hustle
@@ -2432,6 +2433,7 @@ var _death_tween: Tween
 
 func _build_drink_death_card() -> void:
 	CareerState.drink_death_occurred = false  # Clear flag
+	Analytics.track("death", {"cause": "drink", "level": CareerState.career_level})
 
 	var card := _create_card()
 
@@ -2617,6 +2619,7 @@ func _start_death_fade_in(elements: Array) -> void:
 # ======================================================
 
 func _build_mafia_death_card() -> void:
+	Analytics.track("death", {"cause": "mafia", "level": CareerState.career_level})
 	var card := _create_card()
 
 	# Holder fills the VBoxContainer card; full_screen breaks out of margins
@@ -2786,6 +2789,7 @@ func _build_mafia_death_card() -> void:
 ## Lars fight death — celebrated too hard, Lars killed you.
 ## Same funeral visual format as drink/mafia death.
 func _build_lars_death_card() -> void:
+	Analytics.track("death", {"cause": "lars_fight", "level": CareerState.career_level})
 	var card := _create_card()
 
 	var holder := Control.new()

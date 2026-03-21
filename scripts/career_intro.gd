@@ -605,4 +605,5 @@ func _on_lets_go() -> void:
 	GameState.starting_score = 0
 	CareerState.career_mode_active = true
 	CareerState.career_intro_seen = true
+	Analytics.track("career_start", {"character": DartData.get_full_name(GameState.character)})
 	get_tree().change_scene_to_file("res://scenes/match.tscn")

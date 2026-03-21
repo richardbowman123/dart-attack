@@ -1849,6 +1849,9 @@ func _check_doubles_tip() -> void:
 
 ## One-time coach checkout tip — when player first enters 3-dart checkout range (<=170).
 ## Only fires in 301/501 career matches with a coach hired. Dismissible popup.
+## Excludes 159, 162, 163, 165, 166, 168, 169 — impossible 3-dart checkouts.
+const IMPOSSIBLE_CHECKOUTS := [159, 162, 163, 165, 166, 168, 169]
+
 func _check_coach_checkout_tip() -> void:
 	if not CareerState.career_mode_active or CareerState.coach_checkout_tip_shown:
 		return
@@ -1856,7 +1859,7 @@ func _check_coach_checkout_tip() -> void:
 		return
 	if not _is_countdown() or GameState.starting_score < 301:
 		return
-	if _score_remaining >= 2 and _score_remaining <= 170:
+	if _score_remaining >= 2 and _score_remaining <= 170 and _score_remaining not in IMPOSSIBLE_CHECKOUTS:
 		CareerState.coach_checkout_tip_shown = true
 		_throw_system.set_can_throw(false)
 		_score_hud.show_coach_checkout_tip(func():
