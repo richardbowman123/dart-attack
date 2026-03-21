@@ -1935,9 +1935,19 @@ func _recalculate_drunk_stats() -> void:
 
 ## Nerve modifier: drinks suppress nerves. Floor depends on career level.
 func _get_drunk_nerve_modifier(dl: int) -> float:
+	# L1 special handling: barman's drinks settle nerves for beginners.
+	# 1 drink (2 units) = low nerves (25%). Both drinks (4 units) = zero nerves.
+	# Once suppressed, nerves stay locked for the rest of the match.
+	if CareerState.career_level == 1:
+		if dl >= 4:
+			return 0.0   # Pint and a half — nerves gone, stays zero
+		elif dl >= 2:
+			return 0.25   # Half pint from barman — low nerves
+		else:
+			return 1.0   # No drinks — normal nerves
 	if dl < 4:
 		return 1.0
-	# Level-based floor: L1-4 = 0.0 (full suppression), L5+ gets partial
+	# Level-based floor: L2-4 = 0.0 (full suppression), L5+ gets partial
 	var level: int = CareerState.career_level
 	var floor_mod: float
 	if level <= 4:
