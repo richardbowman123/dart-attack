@@ -2487,8 +2487,8 @@ func _on_companion_consequence(consequence_id: String) -> void:
 			_score_hud.update_balance(CareerState.money)
 		_check_drunk_warning()
 	elif consequence_id == "reject_full_pint":
-		# Full pint rejected — loop back to the choice screen
-		_re_offer_drink = true
+		# Full pint — can't afford it. No second chance, opportunity gone.
+		pass
 
 func _check_drunk_warning() -> void:
 	if _drunk_warning_shown:
