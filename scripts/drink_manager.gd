@@ -48,7 +48,7 @@ const PRE_DRINKS := [
 	{"name": "Own-Brand Gin", "desc": "Supermarket own-brand gin. Decanted into a Hendrick's bottle. Nobody fooled.", "units": 9},
 	{"name": "Alcopops", "desc": "6 alcopops of uncertain vintage. Provenance unclear.", "units": 5},
 	{"name": "Box of Rosé", "desc": "3-litre bag-in-box rosé. Been open since Tuesday.", "units": 8},
-	{"name": "Green Liqueur", "desc": "Unidentifiable green liqueur. Label entirely in Catalan.", "units": 7},
+	{"name": "Crème de Menthe", "desc": "Crème de menthe. Bright green. Tastes like mouthwash, hits like a lorry.", "units": 7},
 	{"name": "Mid-Tier Lager", "desc": "4 warm cans of mid-tier lager. Brand nobody recognises.", "units": 5},
 	{"name": "Cheap Champagne", "desc": "Warm cheap champagne. One ceremonial sip, then on to the real stuff.", "units": 7},
 	{"name": "Bowl Punch", "desc": "Washing-up bowl punch. Discount cider, tropical juice, one tinned peach, the blue stuff.", "units": 10},
@@ -59,6 +59,7 @@ const PRE_DRINKS := [
 	{"name": "Mexican Lager", "desc": "10-pack of Mexican lager. No limes, no opener, no regrets.", "units": 10},
 	{"name": "Irish Stout", "desc": "Eight cans of Irish stout. Treated like vintage Burgundy.", "units": 8},
 	{"name": "Irish Cream", "desc": "A bottle of Irish cream liqueur. Warm. Ownership disputed.", "units": 6},
+	{"name": "Three Lady Boys", "desc": "Baileys, G&T and a pint of lager. Sip of each. Repeat.", "units": 8},
 ]
 
 # ── Per-level drinking config ────────────────────────────────────────────────

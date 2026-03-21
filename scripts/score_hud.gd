@@ -129,7 +129,7 @@ func _ready() -> void:
 
 func _build_remaining_display() -> void:
 	_remaining_label = Label.new()
-	_remaining_label.text = "501"
+	_remaining_label.text = ""
 	UIFont.apply(_remaining_label, 38)
 	_remaining_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 0.7))
 	_remaining_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -1093,7 +1093,11 @@ func _build_bottom_card(opponent_id: String) -> void:
 func _build_player_portrait() -> Control:
 	var sz := CARD_PORTRAIT_SIZE
 	# Load image directly (no ResourceLoader.exists check — it fails on spaced paths)
-	var image_path := DartData.get_profile_image(GameState.character)
+	var image_path: String
+	if CareerState.career_mode_active:
+		image_path = DartData.get_profile_image_for_tier(GameState.character, CareerState.calculate_appearance_tier())
+	else:
+		image_path = DartData.get_profile_image(GameState.character)
 	var tex: Texture2D = load(image_path)
 	if not tex:
 		push_warning("Player portrait failed to load: " + image_path + " — try deleting .godot folder")

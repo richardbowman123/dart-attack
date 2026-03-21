@@ -13,19 +13,13 @@ func _build_menu() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
-	# Scrollable container for all content
-	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(0, 0)
-	scroll.size = Vector2(720, 1280)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	add_child(scroll)
-
+	# Main content — 40px side margins for consistency with card system
 	var content := VBoxContainer.new()
-	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.position = Vector2(40, 0)
+	content.size = Vector2(640, 1280)
 	content.add_theme_constant_override("separation", 0)
-	scroll.add_child(content)
+	add_child(content)
 
-	# Spacer at top
 	_add_spacer(content, 50)
 
 	# Title
@@ -34,12 +28,12 @@ func _build_menu() -> void:
 	UIFont.apply(title, UIFont.SCREEN_TITLE)
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.custom_minimum_size = Vector2(720, 80)
+	title.custom_minimum_size = Vector2(640, 80)
 	content.add_child(title)
 
 	_add_spacer(content, 8)
 
-	# Show selected character name (nickname only if earned)
+	# Character name
 	var char_index: int = GameState.character
 	var display_name: String = DartData.get_full_name(char_index)
 	if CareerState.nickname_active:
@@ -51,203 +45,83 @@ func _build_menu() -> void:
 	player_label.add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
 	player_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	player_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	player_label.custom_minimum_size = Vector2(720, 40)
+	player_label.custom_minimum_size = Vector2(640, 40)
 	content.add_child(player_label)
 
-	# ── Tutorial (green, top of page) ──
-	_add_spacer(content, 30)
+	_add_spacer(content, 40)
 
-	var tut_btn := _create_menu_button("Tutorial", 640, 80, UIFont.HEADING)
-	tut_btn.pressed.connect(_on_tutorial_pressed)
-	var tut_wrapper := CenterContainer.new()
-	tut_wrapper.custom_minimum_size = Vector2(720, 90)
-	tut_wrapper.add_child(tut_btn)
-	content.add_child(tut_wrapper)
+	# Barman portrait — centred
+	var tex := load("res://Barman.jpg")
+	if tex:
+		var portrait_wrapper := CenterContainer.new()
+		portrait_wrapper.custom_minimum_size = Vector2(640, 240)
+		var portrait := TextureRect.new()
+		portrait.texture = tex
+		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		portrait.custom_minimum_size = Vector2(240, 240)
+		portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		portrait_wrapper.add_child(portrait)
+		content.add_child(portrait_wrapper)
 
-	# ── Practise (green, goes to submenu) ──
-	_add_spacer(content, 5)
+	_add_spacer(content, 16)
 
-	var practise_btn := _create_menu_button("Practise", 640, 80, UIFont.HEADING)
-	practise_btn.pressed.connect(_on_practise_pressed)
-	var practise_wrapper := CenterContainer.new()
-	practise_wrapper.custom_minimum_size = Vector2(720, 90)
-	practise_wrapper.add_child(practise_btn)
-	content.add_child(practise_wrapper)
+	# "What will it be?"
+	var quote := Label.new()
+	quote.text = "\"What will it be?\""
+	UIFont.apply(quote, UIFont.BODY)
+	quote.add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
+	quote.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	quote.custom_minimum_size = Vector2(640, 44)
+	content.add_child(quote)
 
-	# ── Career Mode section ──
-	_add_spacer(content, 30)
+	_add_spacer(content, 50)
 
-	var career_label := Label.new()
-	career_label.text = "Career Mode"
-	UIFont.apply(career_label, UIFont.SUBHEADING)
-	career_label.add_theme_color_override("font_color", Color(0.3, 0.85, 0.4))
-	career_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	career_label.custom_minimum_size = Vector2(720, 44)
-	content.add_child(career_label)
-
-	_add_spacer(content, 10)
-
-	var career_level: int = CareerState.career_level
-
-	if career_level > 7:
-		# Player has completed all levels — show all as beaten
-		for i in range(7):
-			_add_beaten_opponent(content, OpponentData.OPPONENT_ORDER[i])
-		_add_spacer(content, 20)
+	# ── I'll Play button (green — career mode) ──
+	if CareerState.career_level > 7:
 		var champ_label := Label.new()
 		champ_label.text = "WORLD CHAMPION!"
 		UIFont.apply(champ_label, UIFont.HEADING)
 		champ_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 		champ_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		champ_label.custom_minimum_size = Vector2(720, 60)
+		champ_label.custom_minimum_size = Vector2(640, 80)
 		content.add_child(champ_label)
 	else:
-		# Show beaten opponents (greyed out, strikethrough)
-		for i in range(career_level - 1):
-			_add_beaten_opponent(content, OpponentData.OPPONENT_ORDER[i])
+		var career_btn := _create_green_button("I'LL PLAY", 500, 80, UIFont.SUBHEADING)
+		career_btn.pressed.connect(_on_career_pressed)
+		var career_wrapper := CenterContainer.new()
+		career_wrapper.custom_minimum_size = Vector2(640, 90)
+		career_wrapper.add_child(career_btn)
+		content.add_child(career_wrapper)
 
-		# Current opponent — green, bigger, clickable
-		var opp_id: String = OpponentData.OPPONENT_ORDER[career_level - 1]
-		var label_text: String = OpponentData.get_menu_label(opp_id)
-		var btn := _create_career_button(label_text, true)
-		btn.pressed.connect(_on_vs_selected.bind(opp_id))
-		var wrapper := CenterContainer.new()
-		wrapper.custom_minimum_size = Vector2(720, 100)
-		wrapper.add_child(btn)
-		content.add_child(wrapper)
+	_add_spacer(content, 15)
 
-		# Next opponent — locked, recessed
-		if career_level < 7:
-			_add_spacer(content, 5)
-			var next_opp_id: String = OpponentData.OPPONENT_ORDER[career_level]
-			var next_label: String = OpponentData.get_menu_label(next_opp_id)
-			var locked_btn := _create_career_button(next_label, false)
-			locked_btn.disabled = true
-			var locked_wrapper := CenterContainer.new()
-			locked_wrapper.custom_minimum_size = Vector2(720, 70)
-			locked_wrapper.add_child(locked_btn)
-			content.add_child(locked_wrapper)
+	# ── Teach Me button (blue — tutorial) ──
+	var tut_btn := _create_blue_button("TEACH ME HOW TO PLAY!", 500, 80, UIFont.BODY)
+	tut_btn.pressed.connect(_on_tutorial_pressed)
+	var tut_wrapper := CenterContainer.new()
+	tut_wrapper.custom_minimum_size = Vector2(640, 90)
+	tut_wrapper.add_child(tut_btn)
+	content.add_child(tut_wrapper)
 
-	# Big gap for future levels
-	_add_spacer(content, 200)
+	_add_spacer(content, 50)
 
-	# ── Back button ──
-	var back_btn := _create_menu_button("BACK", 640, 80, UIFont.SUBHEADING)
-	var back_style := StyleBoxFlat.new()
-	back_style.bg_color = Color(0.1, 0.1, 0.13)
-	back_style.corner_radius_top_left = 12
-	back_style.corner_radius_top_right = 12
-	back_style.corner_radius_bottom_left = 12
-	back_style.corner_radius_bottom_right = 12
-	back_style.border_width_left = 3
-	back_style.border_width_right = 3
-	back_style.border_width_top = 3
-	back_style.border_width_bottom = 3
-	back_style.border_color = Color(0.25, 0.25, 0.3)
-	back_btn.add_theme_stylebox_override("normal", back_style)
-	var back_hover := back_style.duplicate()
-	back_hover.bg_color = Color(0.15, 0.15, 0.2)
-	back_btn.add_theme_stylebox_override("hover", back_hover)
-	back_btn.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
-	back_btn.add_theme_color_override("font_hover_color", Color.WHITE)
+	# ── Back button (muted) ──
+	var back_btn := _create_back_button("BACK", 500, 70)
 	back_btn.pressed.connect(_on_back_pressed)
 	var back_wrapper := CenterContainer.new()
-	back_wrapper.custom_minimum_size = Vector2(720, 90)
+	back_wrapper.custom_minimum_size = Vector2(640, 80)
 	back_wrapper.add_child(back_btn)
 	content.add_child(back_wrapper)
 
-	# ── Test modes (suppressed at very bottom) ──
-	_add_spacer(content, 60)
-
-	# Game Shot cinematic test
-	var gs_test_btn := _create_menu_button("Game Shot", 400, 60, UIFont.CAPTION)
-	var gs_style := StyleBoxFlat.new()
-	gs_style.bg_color = Color(0.08, 0.08, 0.1)
-	gs_style.corner_radius_top_left = 8
-	gs_style.corner_radius_top_right = 8
-	gs_style.corner_radius_bottom_left = 8
-	gs_style.corner_radius_bottom_right = 8
-	gs_style.border_width_left = 1
-	gs_style.border_width_right = 1
-	gs_style.border_width_top = 1
-	gs_style.border_width_bottom = 1
-	gs_style.border_color = Color(0.15, 0.15, 0.18)
-	gs_test_btn.add_theme_stylebox_override("normal", gs_style)
-	var gs_hover := gs_style.duplicate()
-	gs_hover.bg_color = Color(0.12, 0.12, 0.15)
-	gs_test_btn.add_theme_stylebox_override("hover", gs_hover)
-	gs_test_btn.add_theme_color_override("font_color", Color(0.3, 0.3, 0.35))
-	gs_test_btn.add_theme_color_override("font_hover_color", Color(0.4, 0.4, 0.45))
-	gs_test_btn.pressed.connect(_on_game_shot_test_pressed)
-	var gs_wrapper := CenterContainer.new()
-	gs_wrapper.custom_minimum_size = Vector2(720, 70)
-	gs_wrapper.add_child(gs_test_btn)
-	content.add_child(gs_wrapper)
-
-	_add_spacer(content, 10)
-
-	# Drink Effects test
-	var drink_test_btn := _create_menu_button("Drink Effects", 400, 60, UIFont.CAPTION)
-	var dt_style := StyleBoxFlat.new()
-	dt_style.bg_color = Color(0.08, 0.08, 0.1)
-	dt_style.corner_radius_top_left = 8
-	dt_style.corner_radius_top_right = 8
-	dt_style.corner_radius_bottom_left = 8
-	dt_style.corner_radius_bottom_right = 8
-	dt_style.border_width_left = 1
-	dt_style.border_width_right = 1
-	dt_style.border_width_top = 1
-	dt_style.border_width_bottom = 1
-	dt_style.border_color = Color(0.15, 0.15, 0.18)
-	drink_test_btn.add_theme_stylebox_override("normal", dt_style)
-	var dt_hover := dt_style.duplicate()
-	dt_hover.bg_color = Color(0.12, 0.12, 0.15)
-	drink_test_btn.add_theme_stylebox_override("hover", dt_hover)
-	drink_test_btn.add_theme_color_override("font_color", Color(0.3, 0.3, 0.35))
-	drink_test_btn.add_theme_color_override("font_hover_color", Color(0.4, 0.4, 0.45))
-	drink_test_btn.pressed.connect(_on_drink_test_pressed)
-	var dt_wrapper := CenterContainer.new()
-	dt_wrapper.custom_minimum_size = Vector2(720, 70)
-	dt_wrapper.add_child(drink_test_btn)
-	content.add_child(dt_wrapper)
-
-	# Bottom padding
 	_add_spacer(content, 40)
 
-# ── Beaten opponent row (greyed out with strikethrough) ──
 
-func _add_beaten_opponent(parent: Control, opp_id: String) -> void:
-	var label_text: String = OpponentData.get_menu_label(opp_id)
-
-	var row := Control.new()
-	row.custom_minimum_size = Vector2(720, 50)
-
-	# Greyed-out text
-	var lbl := Label.new()
-	lbl.text = label_text
-	UIFont.apply(lbl, UIFont.BODY)
-	lbl.add_theme_color_override("font_color", Color(0.3, 0.3, 0.33))
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.position = Vector2(0, 0)
-	lbl.size = Vector2(720, 50)
-	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(lbl)
-
-	# Strikethrough line
-	var line := ColorRect.new()
-	line.color = Color(0.3, 0.3, 0.33)
-	var line_w := 300
-	line.position = Vector2((720 - line_w) / 2.0, 24)
-	line.size = Vector2(line_w, 2)
-	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(line)
-
-	parent.add_child(row)
+# ── Helpers ──
 
 func _add_spacer(parent: Control, height: int) -> void:
 	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(720, height)
+	spacer.custom_minimum_size = Vector2(640, height)
 	parent.add_child(spacer)
 
 func _create_green_button(text: String, w: int, h: int, font_size: int) -> Button:
@@ -257,7 +131,7 @@ func _create_green_button(text: String, w: int, h: int, font_size: int) -> Butto
 	UIFont.apply_button(btn, font_size)
 
 	var normal_style := StyleBoxFlat.new()
-	normal_style.bg_color = Color(0.15, 0.55, 0.2)
+	normal_style.bg_color = Color(0.1, 0.35, 0.12)
 	normal_style.corner_radius_top_left = 12
 	normal_style.corner_radius_top_right = 12
 	normal_style.corner_radius_bottom_left = 12
@@ -266,31 +140,31 @@ func _create_green_button(text: String, w: int, h: int, font_size: int) -> Butto
 	normal_style.border_width_right = 3
 	normal_style.border_width_top = 3
 	normal_style.border_width_bottom = 3
-	normal_style.border_color = Color(0.3, 0.85, 0.4)
+	normal_style.border_color = Color(0.2, 0.6, 0.25)
 	btn.add_theme_stylebox_override("normal", normal_style)
 
 	var hover_style := normal_style.duplicate()
-	hover_style.bg_color = Color(0.2, 0.65, 0.25)
-	hover_style.border_color = Color(0.4, 0.9, 0.5)
+	hover_style.bg_color = Color(0.15, 0.45, 0.18)
+	hover_style.border_color = Color(0.3, 0.75, 0.35)
 	btn.add_theme_stylebox_override("hover", hover_style)
 
 	var pressed_style := normal_style.duplicate()
-	pressed_style.bg_color = Color(0.1, 0.45, 0.15)
+	pressed_style.bg_color = Color(0.08, 0.28, 0.1)
 	btn.add_theme_stylebox_override("pressed", pressed_style)
 
 	btn.add_theme_color_override("font_color", Color.WHITE)
-	btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+	btn.add_theme_color_override("font_hover_color", Color(0.8, 1.0, 0.8))
 
 	return btn
 
-func _create_menu_button(text: String, w: int, h: int, font_size: int) -> Button:
+func _create_blue_button(text: String, w: int, h: int, font_size: int) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.custom_minimum_size = Vector2(w, h)
 	UIFont.apply_button(btn, font_size)
 
 	var normal_style := StyleBoxFlat.new()
-	normal_style.bg_color = Color(0.15, 0.15, 0.2)
+	normal_style.bg_color = Color(0.1, 0.2, 0.45)
 	normal_style.corner_radius_top_left = 12
 	normal_style.corner_radius_top_right = 12
 	normal_style.corner_radius_bottom_left = 12
@@ -299,65 +173,53 @@ func _create_menu_button(text: String, w: int, h: int, font_size: int) -> Button
 	normal_style.border_width_right = 3
 	normal_style.border_width_top = 3
 	normal_style.border_width_bottom = 3
-	normal_style.border_color = Color(0.3, 0.3, 0.35)
+	normal_style.border_color = Color(0.2, 0.4, 0.7)
 	btn.add_theme_stylebox_override("normal", normal_style)
 
 	var hover_style := normal_style.duplicate()
-	hover_style.bg_color = Color(0.2, 0.2, 0.28)
-	hover_style.border_color = Color(0.5, 0.5, 0.6)
+	hover_style.bg_color = Color(0.15, 0.3, 0.55)
+	hover_style.border_color = Color(0.3, 0.5, 0.8)
 	btn.add_theme_stylebox_override("hover", hover_style)
 
 	var pressed_style := normal_style.duplicate()
-	pressed_style.bg_color = Color(0.25, 0.25, 0.35)
+	pressed_style.bg_color = Color(0.08, 0.15, 0.35)
 	btn.add_theme_stylebox_override("pressed", pressed_style)
 
 	btn.add_theme_color_override("font_color", Color.WHITE)
-	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.9, 0.3))
+	btn.add_theme_color_override("font_hover_color", Color(0.8, 0.9, 1.0))
 
 	return btn
 
-## Career opponent button — active (green, clickable) or locked (dark, disabled)
-func _create_career_button(text: String, active: bool) -> Button:
+func _create_back_button(text: String, w: int, h: int) -> Button:
 	var btn := Button.new()
 	btn.text = text
-	UIFont.apply_button(btn, UIFont.HEADING)
+	btn.custom_minimum_size = Vector2(w, h)
+	UIFont.apply_button(btn, UIFont.BODY)
 
 	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.1, 0.1, 0.13)
 	style.corner_radius_top_left = 12
 	style.corner_radius_top_right = 12
 	style.corner_radius_bottom_left = 12
 	style.corner_radius_bottom_right = 12
-	style.border_width_left = 3
-	style.border_width_right = 3
-	style.border_width_top = 3
-	style.border_width_bottom = 3
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.25, 0.25, 0.3)
+	btn.add_theme_stylebox_override("normal", style)
 
-	if active:
-		# Green, bigger — the main call to action
-		btn.custom_minimum_size = Vector2(640, 90)
-		style.bg_color = Color(0.1, 0.35, 0.12)
-		style.border_color = Color(0.2, 0.6, 0.25)
-		btn.add_theme_stylebox_override("normal", style)
-		var hover := style.duplicate()
-		hover.bg_color = Color(0.15, 0.45, 0.18)
-		hover.border_color = Color(0.3, 0.75, 0.35)
-		btn.add_theme_stylebox_override("hover", hover)
-		var pressed := style.duplicate()
-		pressed.bg_color = Color(0.08, 0.28, 0.1)
-		btn.add_theme_stylebox_override("pressed", pressed)
-		btn.add_theme_color_override("font_color", Color.WHITE)
-		btn.add_theme_color_override("font_hover_color", Color(0.8, 1.0, 0.8))
-	else:
-		# Locked — dark, muted, not interactive
-		btn.custom_minimum_size = Vector2(640, 65)
-		style.bg_color = Color(0.1, 0.07, 0.08)
-		style.border_color = Color(0.2, 0.12, 0.12)
-		btn.add_theme_stylebox_override("normal", style)
-		btn.add_theme_stylebox_override("disabled", style)
-		btn.add_theme_color_override("font_color", Color(0.3, 0.2, 0.2))
-		btn.add_theme_color_override("font_disabled_color", Color(0.3, 0.2, 0.2))
+	var hover := style.duplicate()
+	hover.bg_color = Color(0.15, 0.15, 0.2)
+	btn.add_theme_stylebox_override("hover", hover)
+
+	btn.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+	btn.add_theme_color_override("font_hover_color", Color.WHITE)
 
 	return btn
+
+
+# ── Actions ──
 
 func _on_tutorial_pressed() -> void:
 	GameState.game_mode = GameState.GameMode.TUTORIAL
@@ -367,19 +229,18 @@ func _on_tutorial_pressed() -> void:
 	CareerState.career_mode_active = false
 	get_tree().change_scene_to_file("res://scenes/match.tscn")
 
-func _on_practise_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/practise_menu.tscn")
-
-func _on_vs_selected(opponent_id: String) -> void:
+func _on_career_pressed() -> void:
 	# First career match — show the full intro sequence (barman, rules, opponent reveal)
 	if CareerState.career_level == 1 and not CareerState.career_intro_seen:
 		CareerState.career_mode_active = true
 		get_tree().change_scene_to_file("res://scenes/career_intro.tscn")
 		return
 
-	var opp: Dictionary = OpponentData.get_opponent(opponent_id)
+	# Resume career — set up current opponent and go
+	var opp_id: String = OpponentData.OPPONENT_ORDER[CareerState.career_level - 1]
+	var opp: Dictionary = OpponentData.get_opponent(opp_id)
 	GameState.is_vs_ai = true
-	GameState.opponent_id = opponent_id
+	GameState.opponent_id = opp_id
 	CareerState.career_mode_active = true
 	if opp["game_mode"] == "rtc":
 		GameState.game_mode = GameState.GameMode.ROUND_THE_CLOCK
@@ -389,12 +250,6 @@ func _on_vs_selected(opponent_id: String) -> void:
 		GameState.starting_score = opp["starting_score"]
 	GameState.dart_tier = max(0, CareerState.dart_tier_owned)
 	get_tree().change_scene_to_file("res://scenes/match.tscn")
-
-func _on_game_shot_test_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/game_shot_test.tscn")
-
-func _on_drink_test_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/drink_test.tscn")
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file("res://scenes/character_select.tscn")

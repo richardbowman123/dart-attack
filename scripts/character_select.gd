@@ -242,4 +242,17 @@ func _on_next_pressed() -> void:
 	if CareerState.career_level == 1 and not CareerState.career_intro_seen:
 		get_tree().change_scene_to_file("res://scenes/career_intro.tscn")
 	else:
-		get_tree().change_scene_to_file("res://scenes/menu.tscn")
+		# Resume career — set up current opponent and go straight to match
+		var opp_id: String = OpponentData.OPPONENT_ORDER[CareerState.career_level - 1]
+		var opp: Dictionary = OpponentData.get_opponent(opp_id)
+		GameState.is_vs_ai = true
+		GameState.opponent_id = opp_id
+		CareerState.career_mode_active = true
+		if opp["game_mode"] == "rtc":
+			GameState.game_mode = GameState.GameMode.ROUND_THE_CLOCK
+			GameState.starting_score = 0
+		else:
+			GameState.game_mode = GameState.GameMode.COUNTDOWN
+			GameState.starting_score = opp["starting_score"]
+		GameState.dart_tier = max(0, CareerState.dart_tier_owned)
+		get_tree().change_scene_to_file("res://scenes/match.tscn")

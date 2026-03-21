@@ -159,20 +159,8 @@ func _build_card_2_barman() -> void:
 
 	_add_spacer(card, 20)
 
-	# I'LL PLAY button (green, primary action)
-	var play_btn := _create_button("I'LL PLAY", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
-	UIFont.apply_button(play_btn, UIFont.BODY)
-	play_btn.custom_minimum_size = Vector2(500, 65)
-	play_btn.pressed.connect(_advance_card)
-	var play_wrapper := CenterContainer.new()
-	play_wrapper.custom_minimum_size = Vector2(640, 70)
-	play_wrapper.add_child(play_btn)
-	card.add_child(play_wrapper)
-
-	_add_spacer(card, 10)
-
-	# NAH button (grey, secondary — same width as PLAY)
-	var nah_btn := _create_button("NAH, I NEED TO LEARN\nTO PLAY FIRST", Color(0.2, 0.2, 0.25), Color(0.4, 0.4, 0.45))
+	# TEACH ME button (blue, secondary — shown first)
+	var nah_btn := _create_button("TEACH ME HOW TO PLAY!!", Color(0.1, 0.2, 0.45), Color(0.2, 0.4, 0.7))
 	UIFont.apply_button(nah_btn, UIFont.CAPTION)
 	nah_btn.custom_minimum_size = Vector2(500, 65)
 	nah_btn.pressed.connect(_on_nah)
@@ -180,6 +168,18 @@ func _build_card_2_barman() -> void:
 	nah_wrapper.custom_minimum_size = Vector2(640, 70)
 	nah_wrapper.add_child(nah_btn)
 	card.add_child(nah_wrapper)
+
+	_add_spacer(card, 10)
+
+	# I'LL PLAY button (green, primary action — bigger text)
+	var play_btn := _create_button("I'LL PLAY", Color(0.15, 0.5, 0.2), Color(0.3, 0.8, 0.4))
+	UIFont.apply_button(play_btn, UIFont.SUBHEADING)
+	play_btn.custom_minimum_size = Vector2(500, 70)
+	play_btn.pressed.connect(_advance_card)
+	var play_wrapper := CenterContainer.new()
+	play_wrapper.custom_minimum_size = Vector2(640, 75)
+	play_wrapper.add_child(play_btn)
+	card.add_child(play_wrapper)
 
 	_add_card(card, "Barman")
 
@@ -591,7 +591,12 @@ func _format_money(pence: int) -> String:
 # ══════════════════════════════════════════
 
 func _on_nah() -> void:
-	get_tree().change_scene_to_file("res://scenes/menu.tscn")
+	GameState.game_mode = GameState.GameMode.TUTORIAL
+	GameState.dart_tier = 0
+	GameState.is_vs_ai = false
+	GameState.opponent_id = ""
+	CareerState.career_mode_active = false
+	get_tree().change_scene_to_file("res://scenes/match.tscn")
 
 func _on_lets_go() -> void:
 	GameState.is_vs_ai = true

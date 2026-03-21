@@ -47,7 +47,6 @@ var _instruction_label: Label
 var _feedback_label: Label
 var _feedback_bg: ColorRect
 var _guide_canvas: Control
-var _speed_indicator: Label
 var _instruction_bg: ColorRect
 var _intro_panel: PanelContainer
 var _intro_label: Label
@@ -99,11 +98,9 @@ func on_swipe_update(speed: float) -> void:
 	if _phase != Phase.AIMING:
 		return
 	_current_swipe_speed = speed
-	_update_speed_display()
 
 func on_swipe_end() -> void:
-	if _speed_indicator:
-		_speed_indicator.visible = false
+	pass
 
 # Called by match_manager after the feedback pause to move on
 func advance(was_hit: bool) -> void:
@@ -126,51 +123,68 @@ func _ready() -> void:
 	_build_intro_panel()
 	_build_instruction_label()
 	_build_feedback_elements()
-	_build_speed_indicator()
 	_build_guide_canvas()
 
 func _build_intro_panel() -> void:
 	_intro_panel = PanelContainer.new()
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.0, 0.0, 0.0, 0.85)
-	style.corner_radius_top_left = 16
-	style.corner_radius_top_right = 16
-	style.corner_radius_bottom_left = 16
-	style.corner_radius_bottom_right = 16
-	style.content_margin_left = 40
-	style.content_margin_right = 40
-	style.content_margin_top = 30
-	style.content_margin_bottom = 30
+	style.bg_color = Color(0.08, 0.07, 0.12, 0.94)
+	style.corner_radius_top_left = 14
+	style.corner_radius_top_right = 14
+	style.corner_radius_bottom_left = 14
+	style.corner_radius_bottom_right = 14
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_top = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(0.85, 0.6, 0.15, 0.6)
+	style.content_margin_left = 30
+	style.content_margin_right = 30
+	style.content_margin_top = 20
+	style.content_margin_bottom = 20
 	_intro_panel.add_theme_stylebox_override("panel", style)
-	_intro_panel.position = Vector2(80, 400)
-	_intro_panel.size = Vector2(560, 220)
+	_intro_panel.position = Vector2(60, 380)
+	_intro_panel.size = Vector2(600, 280)
 	_intro_panel.visible = false
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 20)
+	vbox.add_theme_constant_override("separation", 12)
+
+	# BARMAN header
+	var header := Label.new()
+	header.text = "BARMAN"
+	UIFont.apply(header, UIFont.CAPTION)
+	header.add_theme_color_override("font_color", Color(0.85, 0.6, 0.15))
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(header)
 
 	_intro_label = Label.new()
-	UIFont.apply(_intro_label, UIFont.SUBHEADING)
+	UIFont.apply(_intro_label, UIFont.BODY)
 	_intro_label.add_theme_color_override("font_color", Color.WHITE)
 	_intro_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_intro_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(_intro_label)
 
 	_go_button = Button.new()
-	_go_button.text = "Let's go!"
-	UIFont.apply_button(_go_button, UIFont.HEADING)
-	_go_button.custom_minimum_size = Vector2(200, 60)
+	_go_button.text = "LET'S GO!"
+	UIFont.apply_button(_go_button, UIFont.SUBHEADING)
+	_go_button.custom_minimum_size = Vector2(300, 60)
 	_go_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 
 	var btn_style := StyleBoxFlat.new()
-	btn_style.bg_color = Color(0.15, 0.5, 0.15)
-	btn_style.corner_radius_top_left = 8
-	btn_style.corner_radius_top_right = 8
-	btn_style.corner_radius_bottom_left = 8
-	btn_style.corner_radius_bottom_right = 8
+	btn_style.bg_color = Color(0.1, 0.35, 0.12)
+	btn_style.corner_radius_top_left = 10
+	btn_style.corner_radius_top_right = 10
+	btn_style.corner_radius_bottom_left = 10
+	btn_style.corner_radius_bottom_right = 10
+	btn_style.border_width_left = 2
+	btn_style.border_width_right = 2
+	btn_style.border_width_top = 2
+	btn_style.border_width_bottom = 2
+	btn_style.border_color = Color(0.2, 0.6, 0.25)
 	_go_button.add_theme_stylebox_override("normal", btn_style)
 	var btn_hover := btn_style.duplicate()
-	btn_hover.bg_color = Color(0.2, 0.6, 0.2)
+	btn_hover.bg_color = Color(0.15, 0.45, 0.18)
 	_go_button.add_theme_stylebox_override("hover", btn_hover)
 	_go_button.add_theme_color_override("font_color", Color.WHITE)
 	_go_button.pressed.connect(_on_go_pressed)
@@ -183,20 +197,20 @@ func _build_instruction_label() -> void:
 	# Dark background so text is readable over the board
 	_instruction_bg = ColorRect.new()
 	_instruction_bg.color = Color(0.0, 0.0, 0.0, 0.8)
-	_instruction_bg.size = Vector2(720, 80)
-	_instruction_bg.position = Vector2(0, _viewport_size.y * THROW_ZONE_TOP + 6)
+	_instruction_bg.size = Vector2(560, 200)
+	_instruction_bg.position = Vector2(80, _viewport_size.y * THROW_ZONE_TOP + 6)
 	_instruction_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_instruction_bg.visible = false
 	add_child(_instruction_bg)
 
 	_instruction_label = Label.new()
-	UIFont.apply(_instruction_label, UIFont.BODY)
+	UIFont.apply(_instruction_label, UIFont.SUBHEADING)
 	_instruction_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
 	_instruction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_instruction_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_instruction_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_instruction_label.size = Vector2(700, 80)
-	_instruction_label.position = Vector2(10, _viewport_size.y * THROW_ZONE_TOP + 6)
+	_instruction_label.size = Vector2(520, 190)
+	_instruction_label.position = Vector2(100, _viewport_size.y * THROW_ZONE_TOP + 11)
 	_instruction_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_instruction_label.visible = false
 	add_child(_instruction_label)
@@ -205,8 +219,8 @@ func _build_feedback_elements() -> void:
 	# Dark background behind feedback text so it's always readable
 	_feedback_bg = ColorRect.new()
 	_feedback_bg.color = Color(0.0, 0.0, 0.0, 0.8)
-	_feedback_bg.size = Vector2(640, 90)
-	_feedback_bg.position = Vector2(40, _viewport_size.y * 0.28)
+	_feedback_bg.size = Vector2(680, 110)
+	_feedback_bg.position = Vector2(20, _viewport_size.y * 0.28)
 	_feedback_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_feedback_bg.visible = false
 	add_child(_feedback_bg)
@@ -217,21 +231,12 @@ func _build_feedback_elements() -> void:
 	_feedback_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_feedback_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_feedback_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_feedback_label.size = Vector2(600, 80)
-	_feedback_label.position = Vector2(60, _viewport_size.y * 0.285)
+	_feedback_label.size = Vector2(660, 100)
+	_feedback_label.position = Vector2(30, _viewport_size.y * 0.285)
 	_feedback_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_feedback_label.visible = false
 	add_child(_feedback_label)
 
-func _build_speed_indicator() -> void:
-	_speed_indicator = Label.new()
-	UIFont.apply(_speed_indicator, UIFont.CAPTION)
-	_speed_indicator.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
-	_speed_indicator.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_speed_indicator.size = Vector2(120, 30)
-	_speed_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_speed_indicator.visible = false
-	add_child(_speed_indicator)
 
 func _build_guide_canvas() -> void:
 	_guide_canvas = Control.new()
@@ -247,9 +252,9 @@ func _show_intro() -> void:
 	var target: int = TUTORIAL_TARGETS[_current_step]
 
 	if _current_step == 0:
-		_intro_label.text = "Let's learn to throw!\n\nFirst up: hit number " + str(target) + "\n\nZoom in on it, then swipe to throw"
+		_intro_label.text = "Learn to throw!\n\nFirst up: hit number " + str(target) + "\n\nUse two fingers to zoom in on it\nSwipe up to throw"
 	else:
-		_intro_label.text = "Great stuff!\n\nNow aim for number " + str(target) + "\n\nZoom in and throw"
+		_intro_label.text = "Great stuff!\n\nNow hit number " + str(target) + "\n\nZoom in and swipe up to throw"
 
 	_intro_panel.visible = true
 	_instruction_label.visible = false
@@ -271,6 +276,19 @@ func _begin_aiming() -> void:
 	_update_board_target()
 
 	_instruction_label.text = "Use two fingers to zoom in, then swipe GREEN to RED"
+
+	# Position instructions to avoid clashing with guide dots
+	# Number 1 is at the top of the board — put instructions in bottom half
+	# Numbers 2 and 3 are lower on the board — put instructions higher
+	var target: int = TUTORIAL_TARGETS[_current_step]
+	var instr_y: float
+	if target == 1:
+		instr_y = _viewport_size.y * 0.52
+	else:
+		instr_y = _viewport_size.y * 0.15
+	_instruction_bg.position.y = instr_y
+	_instruction_label.position.y = instr_y + 5
+
 	_instruction_label.visible = true
 	_instruction_bg.visible = true
 	_guide_canvas.visible = true
@@ -421,37 +439,11 @@ func _show_completion() -> void:
 	_instruction_label.visible = false
 	_instruction_bg.visible = false
 	_guide_canvas.visible = false
-	_feedback_label.text = "Nice one! You've got the hang of it"
+	_feedback_label.text = "Nice one!\nYou've got the hang of it"
 	_feedback_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.0))
 	_feedback_label.visible = true
 	_feedback_bg.visible = true
 	_feedback_bg.color = Color(0.0, 0.0, 0.0, 0.8)
-
-# ── Speed display ──
-
-func _update_speed_display() -> void:
-	if not _speed_indicator:
-		return
-	var speed_text := ""
-	var speed_colour := Color.WHITE
-
-	if _current_swipe_speed < 400:
-		speed_text = "Gentle"
-		speed_colour = Color(0.4, 0.7, 1.0)
-	elif _current_swipe_speed < 800:
-		speed_text = "Medium"
-		speed_colour = Color(0.4, 1.0, 0.4)
-	elif _current_swipe_speed < 1200:
-		speed_text = "Fast"
-		speed_colour = Color(1.0, 0.8, 0.2)
-	else:
-		speed_text = "Power!"
-		speed_colour = Color(1.0, 0.4, 0.1)
-
-	_speed_indicator.text = speed_text
-	_speed_indicator.add_theme_color_override("font_color", speed_colour)
-	_speed_indicator.position = Vector2(_green_dot_pos.x - 60, _green_dot_pos.y + 40)
-	_speed_indicator.visible = true
 
 # ── Helpers ──
 

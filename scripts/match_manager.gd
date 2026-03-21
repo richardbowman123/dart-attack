@@ -104,6 +104,9 @@ var _cinematic_active := false
 # ── Sandbox mode (free throw after tutorial) ──
 var _sandbox_mode := false
 var _sandbox_overlay: SandboxOverlay
+var _sandbox_total_darts := 0
+var _sandbox_ever_zoomed := false
+var _sandbox_zoom_tip_shown := false
 
 # Zoom reminder — escalates to red if player doesn't zoom during a visit
 var _player_missed_zoom := false
@@ -255,9 +258,11 @@ func _connect_signals() -> void:
 
 func _on_first_zoom() -> void:
 	_score_hud.hide_zoom_reminder()
+	_sandbox_ever_zoomed = true
 
 func _on_visit_zoom() -> void:
 	_score_hud.hide_zoom_reminder()
+	_sandbox_ever_zoomed = true
 
 func _init_game_mode() -> void:
 	if _is_countdown():
@@ -268,6 +273,8 @@ func _init_game_mode() -> void:
 			_opp_visit_score_before = _opp_score_remaining
 	elif _is_tutorial():
 		pass  # Tutorial state managed by TutorialOverlay
+	elif _is_free_throw():
+		pass  # Free throw — no scoring, sandbox handles display
 	else:
 		_rtc_target = 1
 		if _is_vs_ai:
@@ -704,7 +711,6 @@ func _handle_countdown_hit(score_data: Dictionary) -> void:
 		return
 
 	if _visit_score == 180:
-		_score_hud.show_message("ONE HUNDRED AND EIGHTY!", 3.0)
 		_flash_180()
 		# Delay visit summary until 180 celebration finishes
 		var delay_tween := create_tween()
@@ -784,7 +790,7 @@ func _handle_ai_countdown_hit(score_data: Dictionary) -> void:
 		return
 
 	if _opp_visit_score == 180:
-		_score_hud.show_message("ONE HUNDRED AND EIGHTY!", 2.0)
+		_score_hud.show_message("ONE HUNDRED AND EEEEEEIGHTY!", 2.0)
 
 	_ai_advance_turn()
 
@@ -1050,19 +1056,19 @@ func _show_tutorial_complete() -> void:
 	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(msg)
 
-	var menu_btn := _make_popup_button("Back to menu", Color(0.25, 0.25, 0.3))
-	menu_btn.pressed.connect(func() -> void:
-		overlay.queue_free()
-		_restart_game()
-	)
-	vbox.add_child(menu_btn)
-
-	var free_btn := _make_popup_button("Free throw", Color(0.15, 0.45, 0.15))
+	var free_btn := _make_popup_button("PRACTISE FREE THROW", Color(0.25, 0.25, 0.3))
 	free_btn.pressed.connect(func() -> void:
 		overlay.queue_free()
 		_show_sandbox_intro()
 	)
 	vbox.add_child(free_btn)
+
+	var career_btn := _make_popup_button("BEGIN CAREER", Color(0.15, 0.45, 0.15))
+	career_btn.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_restart_game()
+	)
+	vbox.add_child(career_btn)
 
 	panel.add_child(vbox)
 	overlay.add_child(panel)
@@ -1200,11 +1206,18 @@ func _handle_sandbox_hit(_score_data: Dictionary, _hit_pos: Vector2) -> void:
 	# Re-enable throwing after a brief pause — no scoring or turns
 	_state = MatchState.BETWEEN_DARTS
 	_throw_system.set_can_throw(false)
+	_sandbox_total_darts += 1
 
 	# Reset dart icons every 3 darts so they cycle
 	if _darts_this_visit >= 3:
 		_darts_this_visit = 0
 		_score_hud.reset_dart_icons()
+
+	# After 5 darts, remind player to zoom if they haven't
+	if _sandbox_total_darts == 5 and not _sandbox_ever_zoomed and not _sandbox_zoom_tip_shown:
+		_sandbox_zoom_tip_shown = true
+		_show_sandbox_zoom_tip()
+		return
 
 	var tween := create_tween()
 	tween.tween_interval(BETWEEN_DART_DELAY)
@@ -1212,6 +1225,36 @@ func _handle_sandbox_hit(_score_data: Dictionary, _hit_pos: Vector2) -> void:
 		_state = MatchState.THROWING
 		_throw_system.set_can_throw(true)
 	)
+
+func _show_sandbox_zoom_tip() -> void:
+	var overlay := _make_popup_overlay()
+
+	var panel := _make_popup_panel(Vector2(80, 420), 560)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 24)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var msg := Label.new()
+	msg.text = "Remember to use two fingers to zoom in"
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.custom_minimum_size = Vector2(496, 0)
+	UIFont.apply(msg, UIFont.BODY)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(msg)
+
+	var ok_btn := _make_popup_button("OK", Color(0.25, 0.25, 0.3))
+	ok_btn.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_state = MatchState.THROWING
+		_throw_system.set_can_throw(true)
+	)
+	vbox.add_child(ok_btn)
+
+	panel.add_child(vbox)
+	overlay.add_child(panel)
+	_fade_in_overlay(overlay)
 
 func _on_sandbox_scatter_changed(mult: float) -> void:
 	_throw_system.career_scatter_mult = mult
@@ -1225,7 +1268,35 @@ func _on_sandbox_clear() -> void:
 	_score_hud.reset_dart_icons()
 
 func _on_sandbox_exit() -> void:
-	_restart_game()
+	# Hide sandbox controls and show BEGIN CAREER popup
+	if _sandbox_overlay:
+		_sandbox_overlay.visible = false
+	var overlay := _make_popup_overlay()
+
+	var panel := _make_popup_panel(Vector2(80, 400), 560)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 24)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var msg := Label.new()
+	msg.text = "Nice one!"
+	UIFont.apply(msg, UIFont.BODY)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.custom_minimum_size = Vector2(496, 0)
+	msg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(msg)
+
+	var career_btn := _make_popup_button("BEGIN CAREER", Color(0.15, 0.45, 0.15))
+	career_btn.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_restart_game()
+	)
+	vbox.add_child(career_btn)
+
+	panel.add_child(vbox)
+	overlay.add_child(panel)
+	_fade_in_overlay(overlay)
 
 # ── Cinematic "Game Shot" camera ──
 
@@ -1588,7 +1659,7 @@ func _flash_180() -> void:
 	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(flash)
 
-	# Big "180" text — pops from small to large, white-to-gold sweep
+	# Big "180" numbers — top of screen
 	var label := Label.new()
 	label.text = "180"
 	label.add_theme_font_size_override("font_size", 120)
@@ -1596,7 +1667,7 @@ func _flash_180() -> void:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.size = Vector2(720, 200)
-	label.position = Vector2(0, 500)
+	label.position = Vector2(0, 80)
 	label.pivot_offset = Vector2(360, 100)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	UIFont.apply(label, UIFont.HEADING)
@@ -1605,9 +1676,26 @@ func _flash_180() -> void:
 	label.modulate.a = 1.0
 	layer.add_child(label)
 
+	# "ONE HUNDRED AND EEEEEEIGHTY!" words — bottom of screen
+	var words_label := Label.new()
+	words_label.text = "ONE HUNDRED AND\nEEEEEEIGHTY!"
+	words_label.add_theme_font_size_override("font_size", 48)
+	words_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	words_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	words_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	words_label.size = Vector2(720, 200)
+	words_label.position = Vector2(0, 980)
+	words_label.pivot_offset = Vector2(360, 100)
+	words_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UIFont.apply(words_label, UIFont.HEADING)
+	words_label.add_theme_font_size_override("font_size", 48)
+	words_label.scale = Vector2(0.5, 0.5)
+	words_label.modulate.a = 1.0
+	layer.add_child(words_label)
+
 	add_child(layer)
 
-	# Animate: flash fades, label pops and sweeps white→gold, then fades out
+	# Animate: flash fades, both labels pop and sweep white→gold, then fade out
 	var t := create_tween()
 	t.tween_property(flash, "color:a", 0.0, 0.6)
 
@@ -1623,6 +1711,14 @@ func _flash_180() -> void:
 	# Fade out
 	t2.tween_property(label, "modulate:a", 0.0, 0.4)
 	t2.tween_callback(layer.queue_free)
+
+	# Words label — same animation, slightly delayed for stagger
+	var t3 := create_tween()
+	t3.tween_property(words_label, "scale", Vector2(1.1, 1.1), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).set_delay(0.1)
+	t3.tween_property(words_label, "scale", Vector2(1.0, 1.0), 0.15)
+	t3.parallel().tween_property(words_label, "theme_override_colors/font_color", Color(1.0, 0.85, 0.0), 0.5)
+	t3.tween_interval(1.5)
+	t3.tween_property(words_label, "modulate:a", 0.0, 0.4)
 
 # ── High score flash (140-179) — subtle gold pulse, no big text ──
 
@@ -2237,8 +2333,11 @@ func _restart_game() -> void:
 		if is_instance_valid(dart):
 			dart.queue_free()
 	_active_darts.clear()
-	# Go back to menu
-	get_tree().change_scene_to_file("res://scenes/menu.tscn")
+	# Tutorial → go straight to career intro (barman offers RTC)
+	if GameState.game_mode == GameState.GameMode.TUTORIAL or GameState.game_mode == GameState.GameMode.FREE_THROW:
+		get_tree().change_scene_to_file("res://scenes/career_intro.tscn")
+	else:
+		get_tree().change_scene_to_file("res://scenes/character_select.tscn")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("menu"):

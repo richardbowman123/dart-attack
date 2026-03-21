@@ -41,7 +41,7 @@ const FOOD_INSISTENCE := {
 	1: {"speaker": "BIG KEV", "first": "Come on, I won this voucher for you. Don't be daft.", "forced": "Right, you're having the duck. End of.", "color": Color.BLACK, "initial": "", "image": "res://Big Kev.jpg"},
 	2: {"speaker": "ALAN", "first": "You need something to soak up tonight. Trust me.", "forced": "Right, you're eating whether you like it or not.", "color": Color.BLACK, "initial": "", "image": "res://Mate for Level 2 - Alan.png"},
 	3: {"speaker": "ALAN", "first": "Heavy day ahead. Best line your stomach.", "forced": "I'm not taking you to the county club looking like that. Eat.", "color": Color.BLACK, "initial": "", "image": "res://Mate for Level 2 - Alan.png"},
-	4: {"speaker": "THE MANAGER", "first": "She's paying. Don't be rude.", "forced": "It's already ordered. Sit down.", "color": Color(0.4, 0.15, 0.25), "initial": "S", "image": "res://Manager cropped new.png"},
+	4: {"speaker": "THE COACH", "first": "He's paying. Don't be rude.", "forced": "It's already ordered. Sit down.", "color": Color(0.15, 0.35, 0.2), "initial": "C", "image": "res://Coach cropped.png"},
 	5: {"speaker": "THE COACH", "first": "Carb loading. It's science.", "forced": "You're eating the pasta. Non-negotiable.", "color": Color(0.15, 0.35, 0.2), "initial": "C", "image": "res://Coach cropped.png"},
 	6: {"speaker": "THE MANAGER", "first": "You need fuel for tomorrow. Order something.", "forced": "Room service is already on its way. Deal with it.", "color": Color(0.4, 0.15, 0.25), "initial": "S", "image": "res://Manager cropped new.png"},
 }
@@ -1056,7 +1056,7 @@ func _build_l3_win_cards() -> void:
 	_add_spacer(alan_handoff, 60)
 	var alan_panel := _build_companion_panel(
 		"ALAN",
-		"Alan catches you before you leave.\n\n\"Listen, mate. I've taken you as far as I can. But you've got real potential.\"\n\n\"I've hooked you up with a coach. Former pro. He was watching you tonight. He believes in you.\"",
+		"Alan catches you before you leave.\n\n\"Listen, mate. I've taken you as far as I can. But you've got real potential.\"\n\n\"I've hooked you up with a coach. Former pro. He was watching you tonight. He believes in you.\"\n\n\"Don't worry — I'm not going anywhere. I'll always be your drinking partner for the darts.\"",
 		Color(0.2, 0.3, 0.5), "A", "res://Mate for Level 2 - Alan.png", UIFont.PORTRAIT_ML
 	)
 	alan_handoff.add_child(alan_panel)
@@ -1397,7 +1397,7 @@ func _build_l4_win_cards() -> void:
 	_build_star_flip_card("SKILL", CareerState.skill_stars, CareerState.skill_stars + 1, "County champion.\nThe phone's ringing.", func(): CareerState.skill_stars += 1)
 
 	# Food card: Steak dinner (manager's treat — free)
-	_build_food_card("STEAK DINNER", "The manager takes you out to celebrate.\nFillet steak, chips, peppercorn sauce.\nHer treat.", "ORDER STEAK", 0, "Steak and chips.\nThis is the life.", 4)
+	_build_food_card("STEAK DINNER", "The coach takes you out to celebrate.\nFillet steak, chips, peppercorn sauce.\nHis treat.", "ORDER STEAK", 0, "Steak and chips.\nThis is the life.", 4)
 
 	# Manager buildup — seductive typewriter reveal, no image, no header
 	var mgr_buildup := _create_card()
@@ -1407,7 +1407,7 @@ func _build_l4_win_cards() -> void:
 		"Gorgeous hair.",
 		"Beautiful soft skin.",
 		"Stunning jewellery.",
-		"Delicious perfume. Not even from the market.",
+		"Delicious perfume. Not just some cheap stuff from the market. Proper good.",
 		"And then she says...",
 	]
 	var buildup_labels: Array[Label] = []
