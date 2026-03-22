@@ -750,6 +750,10 @@ func _create_skip_button(text: String) -> Button:
 
 
 ## Multi-line text input (3-4 lines, word wrapping)
+## On mobile web, TextEdit doesn't receive virtual keyboard input.
+## Fix: when focused on web, open a native browser prompt instead,
+## then set the text back into the TextEdit and emit text_changed
+## so all connected callbacks (submit button enable/disable) fire.
 func _create_text_area(placeholder: String) -> TextEdit:
 	var input := TextEdit.new()
 	input.placeholder_text = placeholder
@@ -781,6 +785,19 @@ func _create_text_area(placeholder: String) -> TextEdit:
 	input.add_theme_font_size_override("font_size", 26)
 	input.add_theme_color_override("font_color", Color.WHITE)
 	input.add_theme_color_override("font_placeholder_color", Color(0.4, 0.4, 0.45))
+
+	# On web: intercept focus to open native browser prompt instead
+	if OS.has_feature("web"):
+		var _ph := placeholder
+		input.focus_entered.connect(func():
+			input.release_focus()
+			var escaped_ph := _ph.replace("'", "\\'")
+			var escaped_text := input.text.replace("'", "\\'")
+			var result = JavaScriptBridge.eval("prompt('%s', '%s')" % [escaped_ph, escaped_text])
+			if result != null and str(result) != "null":
+				input.text = str(result)
+				input.text_changed.emit()
+		)
 
 	return input
 
