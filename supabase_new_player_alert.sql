@@ -9,9 +9,9 @@ CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
 -- 2. Store Resend API key securely in Supabase vault
 -- (delete old entries first — previous run had params swapped)
 DELETE FROM vault.secrets WHERE name = 'resend_api_key';
-DELETE FROM vault.secrets WHERE name = 're_cR4vKvk6_HXDTNXKckcs6Nyd4MwMi2DVY';
+DELETE FROM vault.secrets WHERE name = 'PASTE_YOUR_RESEND_API_KEY_HERE';
 SELECT vault.create_secret(
-  're_cR4vKvk6_HXDTNXKckcs6Nyd4MwMi2DVY',
+  'PASTE_YOUR_RESEND_API_KEY_HERE',
   'resend_api_key',
   'Resend API key for new player email notifications'
 );
