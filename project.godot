@@ -24,6 +24,7 @@ PlayerStats="*res://scripts/player_stats.gd"
 DrinkManager="*res://scripts/drink_manager.gd"
 CompanionManager="*res://scripts/companion_manager.gd"
 Analytics="*res://scripts/analytics.gd"
+SurveyManager="*res://scripts/survey_manager.gd"
 
 [display]
 

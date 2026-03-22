@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>Dart Attack</title>
+		<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+		<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+		<style>
+/* Reset */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	touch-action: none;
+	font-family: 'Bungee', sans-serif;
+	background-color: #0a0910;
+}
+
+/* ── LOGIN SCREEN ── */
+
+#login-background {
+	position: fixed;
+	top: 0; left: 0; right: 0; bottom: 0;
+	background-image: url('index.png');
+	background-size: cover;
+	background-position: center;
+	filter: brightness(0.3);
+	z-index: 0;
+}
+
+#login-screen {
+	position: fixed;
+	top: 0; left: 0; right: 0; bottom: 0;
+	display: none;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	z-index: 10;
+	padding: 20px;
+}
+
+/* Card — matches game companion panel style */
+#login-card {
+	background-color: rgba(20, 18, 31, 0.94);
+	border: 2px solid rgba(217, 153, 38, 0.6);
+	border-radius: 14px;
+	padding: 30px 25px;
+	max-width: 340px;
+	width: 100%;
+	text-align: center;
+}
+
+#login-card h1 {
+	color: #ffffff;
+	font-size: 34px;
+	margin-bottom: 6px;
+	letter-spacing: 1px;
+	white-space: nowrap;
+}
+
+.subtitle {
+	font-family: 'Bungee', sans-serif;
+	color: rgba(217, 153, 38, 0.8);
+	font-size: 14px;
+	margin-bottom: 28px;
+	letter-spacing: 2px;
+	white-space: nowrap;
+}
+
+.instruction {
+	color: #cccccc;
+	font-family: 'Poppins', sans-serif;
+	font-size: 14px;
+	font-weight: 400;
+	margin-bottom: 16px;
+	line-height: 1.4;
+}
+
+#email-input {
+	width: 100%;
+	padding: 14px 16px;
+	border: 2px solid rgba(217, 153, 38, 0.4);
+	border-radius: 10px;
+	background-color: rgba(255, 255, 255, 0.08);
+	color: #ffffff;
+	font-family: 'Poppins', sans-serif;
+	font-size: 16px;
+	outline: none;
+	margin-bottom: 14px;
+	text-align: center;
+}
+
+#email-input::placeholder {
+	color: rgba(255, 255, 255, 0.35);
+}
+
+#email-input:focus {
+	border-color: rgba(217, 153, 38, 0.8);
+}
+
+#login-btn {
+	width: 100%;
+	padding: 14px;
+	background-color: rgba(217, 153, 38, 0.85);
+	color: #0a0910;
+	border: none;
+	border-radius: 10px;
+	font-family: 'Bungee', sans-serif;
+	font-size: 15px;
+	cursor: pointer;
+	letter-spacing: 1px;
+	transition: background-color 0.2s;
+}
+
+#login-btn:active {
+	background-color: rgba(217, 153, 38, 1.0);
+}
+
+#login-btn:disabled {
+	background-color: rgba(217, 153, 38, 0.3);
+	color: rgba(10, 9, 16, 0.5);
+	cursor: not-allowed;
+}
+
+.consent {
+	color: #888888;
+	font-family: 'Poppins', sans-serif;
+	font-size: 11px;
+	margin-top: 12px;
+}
+
+.consent a {
+	color: rgba(217, 153, 38, 0.7);
+	text-decoration: none;
+}
+
+.consent a:hover {
+	text-decoration: underline;
+}
+
+#login-error {
+	display: none;
+	color: #e05555;
+	font-family: 'Poppins', sans-serif;
+	font-size: 13px;
+	margin-top: 10px;
+}
+
+#login-message {
+	display: none;
+	color: #ffffff;
+	font-family: 'Poppins', sans-serif;
+	font-size: 15px;
+	line-height: 1.6;
+	margin-top: 16px;
+}
+
+#login-message strong {
+	color: rgba(217, 153, 38, 0.9);
+}
+
+/* ── GAME (hidden until authenticated) ── */
+
+#canvas {
+	display: none;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+/* ── GODOT LOADING OVERLAY ── */
+
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background-color: #242424;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-splash.show-image--false { display: none; }
+#status-splash.fullsize--true { height: 100%; width: 100%; object-fit: contain; }
+#status-splash.use-filter--false { image-rendering: pixelated; }
+
+#status-progress, #status-notice { display: none; }
+
+#status-progress {
+	bottom: 10%;
+	width: 50%;
+	margin: 0 auto;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden;
+	padding: 1rem;
+	text-align: center;
+	z-index: 1;
+}
+		</style>
+		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
+		<link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+	</head>
+	<body>
+		<!-- BACKGROUND — darkened splash image -->
+		<div id="login-background"></div>
+
+		<!-- LOGIN SCREEN -->
+		<div id="login-screen">
+			<div id="login-card">
+				<h1>DART ATTACK</h1>
+				<div class="subtitle">ROAD TO ARROWS PALACE</div>
+				<div class="instruction">Enter your email to play</div>
+				<div id="login-form">
+					<input type="email" id="email-input" placeholder="your@email.com" autocomplete="email" inputmode="email">
+					<button id="login-btn">SEND LOGIN LINK</button>
+					<div id="login-error"></div>
+				<div class="consent">By signing in you agree to our <a href="privacy.html">privacy policy</a></div>
+				</div>
+				<div id="login-message">
+					<strong>Check your email!</strong><br>
+					Tap the link to start playing.<br><br>
+					<span style="font-size: 12px; color: #888;">Let's be honest, it's probably in your junk folder.</span>
+				</div>
+			</div>
+			<div class="consent" style="margin-top: 16px;">This game contains fictional drinking. Please drink responsibly.</div>
+		</div>
+
+		<!-- GAME (hidden until authenticated) -->
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.png" alt="">
+			<progress id="status-progress"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		<script>
+// ================================================
+// SUPABASE AUTH
+// ================================================
+const SUPABASE_URL = 'https://nbzxbdfvogsecyugdiga.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_bns7Nrbz7J6MwCk4iQVkjw_HMlDQB5w';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ================================================
+// LOGIN FORM
+// ================================================
+const loginScreen = document.getElementById('login-screen');
+const loginBackground = document.getElementById('login-background');
+const loginForm = document.getElementById('login-form');
+const loginMessage = document.getElementById('login-message');
+const loginError = document.getElementById('login-error');
+const loginBtn = document.getElementById('login-btn');
+const emailInput = document.getElementById('email-input');
+
+loginBtn.addEventListener('click', async () => {
+	const email = emailInput.value.trim();
+	if (!email) {
+		loginError.textContent = 'Enter your email address';
+		loginError.style.display = 'block';
+		return;
+	}
+
+	loginBtn.disabled = true;
+	loginBtn.textContent = 'SENDING...';
+	loginError.style.display = 'none';
+
+	const { error } = await db.auth.signInWithOtp({
+		email: email,
+		options: {
+			emailRedirectTo: window.location.origin + window.location.pathname
+		}
+	});
+
+	if (error) {
+		loginError.textContent = error.message;
+		loginError.style.display = 'block';
+		loginBtn.disabled = false;
+		loginBtn.textContent = 'SEND LOGIN LINK';
+	} else {
+		loginForm.style.display = 'none';
+		document.querySelector('.instruction').style.display = 'none';
+		loginMessage.style.display = 'block';
+	}
+});
+
+// Allow Enter key to submit
+emailInput.addEventListener('keydown', (e) => {
+	if (e.key === 'Enter') loginBtn.click();
+});
+
+// ================================================
+// AUTH STATE — check on load + listen for changes
+// ================================================
+
+// Listen for magic link callback
+let gameStarted = false;
+db.auth.onAuthStateChange((event, session) => {
+	if (event === 'SIGNED_IN' && session) {
+		startGame(session.user);
+	}
+});
+
+// Check if already logged in
+async function checkAuth() {
+	const { data: { session } } = await db.auth.getSession();
+	if (session) {
+		startGame(session.user);
+	} else {
+		// Show login screen
+		loginScreen.style.display = 'flex';
+	}
+}
+
+// ================================================
+// START GAME — load Godot engine only after login
+// ================================================
+function startGame(user) {
+	// Prevent double-loading (both onAuthStateChange and checkAuth can fire)
+	if (gameStarted) return;
+	gameStarted = true;
+
+	// Clear magic link tokens from URL so reloads don't re-process them
+	if (window.location.hash) history.replaceState(null, '', window.location.pathname);
+
+	// Hide login
+	loginScreen.style.display = 'none';
+	loginBackground.style.display = 'none';
+
+	// Store user info for Godot to read via JavaScriptBridge
+	window.dartAttackUser = {
+		id: user.id,
+		email: user.email
+	};
+
+	// Store Supabase credentials for Godot analytics
+	window.dartAttackSupabase = {
+		url: SUPABASE_URL,
+		key: SUPABASE_KEY,
+		accessToken: null
+	};
+
+	// Keep access token updated for Godot HTTP requests
+	db.auth.getSession().then(({ data: { session } }) => {
+		if (session) {
+			window.dartAttackSupabase.accessToken = session.access_token;
+		}
+	});
+	db.auth.onAuthStateChange((_event, session) => {
+		if (session) {
+			window.dartAttackSupabase.accessToken = session.access_token;
+		}
+	});
+
+	// Update last_seen in profiles
+	db.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', user.id);
+
+	// Create session and store for endDartAttackSession to close later
+	var sessionId = crypto.randomUUID();
+	window.dartAttackSession = { id: sessionId, startedAt: Date.now() };
+	db.from('sessions').insert({ id: sessionId, player_id: user.id }).then(function(res) {
+		if (res.error) console.error('[Session] Insert failed:', res.error.message);
+	});
+
+	// Show game canvas
+	document.getElementById('canvas').style.display = 'block';
+
+	// Dynamically load Godot engine (avoids downloading 35MB before login)
+	const engineScript = document.createElement('script');
+	engineScript.src = 'index.js';
+	engineScript.onload = () => {
+		// Engine script loaded — start the game
+		const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":49760276,"index.wasm":35739700},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+		const GODOT_THREADS_ENABLED = false;
+		const engine = new Engine(GODOT_CONFIG);
+
+		const statusOverlay = document.getElementById('status');
+		const statusProgress = document.getElementById('status-progress');
+		const statusNotice = document.getElementById('status-notice');
+
+		let initializing = true;
+		let statusMode = '';
+
+		function setStatusMode(mode) {
+			if (statusMode === mode || !initializing) return;
+			if (mode === 'hidden') {
+				statusOverlay.remove();
+				initializing = false;
+				return;
+			}
+			statusOverlay.style.visibility = 'visible';
+			statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+			statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+			statusMode = mode;
+		}
+
+		function setStatusNotice(text) {
+			while (statusNotice.lastChild) {
+				statusNotice.removeChild(statusNotice.lastChild);
+			}
+			const lines = text.split('\n');
+			lines.forEach((line) => {
+				statusNotice.appendChild(document.createTextNode(line));
+				statusNotice.appendChild(document.createElement('br'));
+			});
+		}
+
+		function displayFailureNotice(err) {
+			console.error(err);
+			if (err instanceof Error) setStatusNotice(err.message);
+			else if (typeof err === 'string') setStatusNotice(err);
+			else setStatusNotice('An unknown error occurred.');
+			setStatusMode('notice');
+			initializing = false;
+		}
+
+		const missing = Engine.getMissingFeatures({ threads: GODOT_THREADS_ENABLED });
+
+		if (missing.length !== 0) {
+			if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+				let serviceWorkerRegistrationPromise;
+				try {
+					serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+				} catch (err) {
+					serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+				}
+				Promise.race([
+					serviceWorkerRegistrationPromise.then((registration) => {
+						if (registration != null) return Promise.reject(new Error('Service worker already exists.'));
+						return registration;
+					}).then(() => engine.installServiceWorker()),
+					new Promise((resolve) => { setTimeout(() => resolve(), 2000); }),
+				]).then(() => {
+					window.location.reload();
+				}).catch((err) => {
+					console.error('Error while registering service worker:', err);
+				});
+			} else {
+				const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+				displayFailureNotice(missingMsg + missing.join('\n'));
+			}
+		} else {
+			setStatusMode('progress');
+			engine.startGame({
+				'onProgress': function (current, total) {
+					if (current > 0 && total > 0) {
+						statusProgress.value = current;
+						statusProgress.max = total;
+					} else {
+						statusProgress.removeAttribute('value');
+						statusProgress.removeAttribute('max');
+					}
+				},
+			}).then(() => {
+				setStatusMode('hidden');
+			}, displayFailureNotice);
+		}
+	};
+	document.body.appendChild(engineScript);
+}
+
+// Run on page load
+checkAuth();
+		</script>
+	</body>
+</html>

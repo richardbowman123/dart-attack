@@ -8,6 +8,7 @@ extends Control
 ## Card 5: Dart choice (use own / ask bar → both give brass pub darts)
 
 var _cards: Array[Control] = []
+var _card_names: Array[String] = []
 var _current_card: int = 0
 var _balance_panel: PanelContainer
 var _balance_label: Label
@@ -25,6 +26,11 @@ func _build_ui() -> void:
 	_build_card_2_barman()
 	_build_card_3_rules()
 	_build_card_4_opponent()
+	# Survey: after Big Kev stats (Q1: "What are you into?")
+	var survey_qs := SurveyManager.get_pending_questions("before_l1")
+	for q in survey_qs:
+		var scard := SurveyManager.build_card(q, _advance_card)
+		_add_card(scard, "survey_" + str(q.get("id", 0)))
 	_build_card_5_darts()
 
 	_show_card(0)
@@ -429,13 +435,20 @@ func _create_card() -> VBoxContainer:
 func _add_card(card: VBoxContainer, card_name: String) -> void:
 	CardValidator.validate(card, card_name)
 	_cards.append(card)
+	_card_names.append(card_name)
 	add_child(card)
 
 func _show_card(index: int) -> void:
 	for i in range(_cards.size()):
 		_cards[i].visible = (i == index)
 	_current_card = index
-	_update_balance_overlay()
+	# Hide balance during survey cards
+	var card_name: String = _card_names[index] if index < _card_names.size() else ""
+	if card_name.begins_with("survey_") and _balance_panel:
+		_balance_panel.visible = false
+	elif _balance_panel:
+		_balance_panel.visible = true
+		_update_balance_overlay()
 
 func _advance_card() -> void:
 	if _current_card < _cards.size() - 1:

@@ -11,7 +11,7 @@ var _supabase_key: String = ""
 var _access_token: String = ""
 var _player_id: String = ""
 var _session_id: String = ""
-var _session_start: float = 0.0
+var _session_start_ms: int = 0
 var _is_web: bool = false
 var _connected: bool = false
 
@@ -21,6 +21,11 @@ func _ready() -> void:
 	if not _is_web:
 		return
 	_read_bridge()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_end_session()
 
 
 func _read_bridge() -> void:
@@ -43,8 +48,28 @@ func _read_bridge() -> void:
 # ── SESSION ──
 
 func _start_session() -> void:
-	_session_start = Time.get_unix_time_from_system()
-	_post("sessions", {"player_id": _player_id}, true)
+	_session_start_ms = Time.get_ticks_msec()
+	# Check if the login page already created a session (index.html does this now)
+	var existing_id = JavaScriptBridge.eval("window.dartAttackSession ? window.dartAttackSession.id : ''")
+	if existing_id and str(existing_id) != "":
+		_session_id = str(existing_id)
+		print("[Analytics] Reusing session from login page: %s" % _session_id)
+	else:
+		# Generate UUID client-side — available immediately for all events
+		_session_id = str(JavaScriptBridge.eval("crypto.randomUUID()"))
+		_post("sessions", {"id": _session_id, "player_id": _player_id})
+		JavaScriptBridge.eval(
+			"window.dartAttackSession = {id: '%s', startedAt: Date.now()};" % _session_id
+		)
+
+
+func _end_session() -> void:
+	if _session_id.is_empty() or not _connected:
+		return
+	var duration := int((Time.get_ticks_msec() - _session_start_ms) / 1000)
+	# Use JavaScript fetch with keepalive for reliable delivery during page close
+	var js := "fetch('%s/rest/v1/sessions?id=eq.%s', {method: 'PATCH', headers: {'apikey': '%s', 'Authorization': 'Bearer ' + (window.dartAttackSupabase ? window.dartAttackSupabase.accessToken : ''), 'Content-Type': 'application/json'}, body: JSON.stringify({ended_at: new Date().toISOString(), duration_seconds: %d}), keepalive: true});" % [_supabase_url, _session_id, _supabase_key, duration]
+	JavaScriptBridge.eval(js)
 
 
 # ── PUBLIC API ──
@@ -72,7 +97,7 @@ func _get_fresh_token() -> String:
 	return _access_token
 
 
-func _post(table: String, data: Dictionary, capture_session_id: bool = false) -> void:
+func _post(table: String, data: Dictionary) -> void:
 	var http := HTTPRequest.new()
 	add_child(http)
 
@@ -83,24 +108,14 @@ func _post(table: String, data: Dictionary, capture_session_id: bool = false) ->
 		"Authorization: Bearer " + token,
 		"Content-Type: application/json",
 	]
-	if capture_session_id:
-		headers.append("Prefer: return=representation")
 
 	var body := JSON.stringify(data)
+	var _t := table
 
-	if capture_session_id:
-		http.request_completed.connect(func(_result: int, response_code: int, _headers: PackedStringArray, response_body: PackedByteArray) -> void:
-			if response_code >= 200 and response_code < 300:
-				var json := JSON.new()
-				if json.parse(response_body.get_string_from_utf8()) == OK:
-					var parsed = json.data
-					if parsed is Array and parsed.size() > 0:
-						_session_id = str(parsed[0].get("id", ""))
-			http.queue_free()
-		)
-	else:
-		http.request_completed.connect(func(_result: int, _response_code: int, _headers: PackedStringArray, _response_body: PackedByteArray) -> void:
-			http.queue_free()
-		)
+	http.request_completed.connect(func(_result: int, response_code: int, _headers: PackedStringArray, _response_body: PackedByteArray) -> void:
+		if response_code < 200 or response_code >= 300:
+			print("[Analytics] POST to %s failed (HTTP %d)" % [_t, response_code])
+		http.queue_free()
+	)
 
 	http.request(url, headers, HTTPClient.METHOD_POST, body)

@@ -18,6 +18,7 @@ extends Control
 ## Trader profit card appears after prize (win) or before loss card (loss) if merch was committed
 
 var _cards: Array[Control] = []
+var _card_names: Array[String] = []
 var _current_card: int = 0
 var _card_animations: Dictionary = {}
 var _retry_mode := false
@@ -731,6 +732,12 @@ func _build_derek_stats_card() -> void:
 # ======================================================
 
 func _build_l2_win_cards() -> void:
+	# Survey: rating question — right after prize, before anything else
+	var rating_survey := SurveyManager.get_pending_questions("l2_win_rating")
+	for sq in rating_survey:
+		var scard := SurveyManager.build_card(sq, _advance_card)
+		_add_card(scard, "survey_" + str(sq.get("id", 0)))
+
 	# Card 2: Skill star 1->2
 	_build_star_flip_card("SKILL", CareerState.skill_stars, CareerState.skill_stars + 1, "Friday night champion.", func(): CareerState.skill_stars += 1)
 
@@ -893,6 +900,19 @@ func _build_l2_win_cards() -> void:
 
 	# Card 7: Swagger star 1->2 (tattoos & bling done — all four at 2, IMAGE CHANGE!)
 	_build_star_flip_card("SWAGGER", CareerState.swagger_stars, CareerState.swagger_stars + 1, "Looking dangerous.", func(): CareerState.recalculate_swagger())
+
+	# Survey: L2 win (Q3-Q6: what they love, what sucks, ideas, monetisation)
+	var l2_survey := SurveyManager.get_pending_questions("l2_win")
+	if l2_survey.size() > 0:
+		# Intro card before the detailed questions
+		var intro_card := SurveyManager.build_intro_card(_advance_card)
+		_add_card(intro_card, "survey_intro")
+		for sq in l2_survey:
+			var scard := SurveyManager.build_card(sq, _advance_card)
+			_add_card(scard, "survey_" + str(sq.get("id", 0)))
+		# Thank you card after all questions
+		var thanks_card := SurveyManager.build_thank_you_card(_advance_card)
+		_add_card(thanks_card, "survey_thanks")
 
 	# Card 7: Mate introduces Steve
 	var steve_intro := _create_card()
@@ -4620,6 +4640,7 @@ func _create_card() -> VBoxContainer:
 func _add_card(card: VBoxContainer, card_name: String) -> void:
 	CardValidator.validate(card, card_name)
 	_cards.append(card)
+	_card_names.append(card_name)
 	add_child(card)
 
 func _show_card(index: int) -> void:
@@ -4630,7 +4651,13 @@ func _show_card(index: int) -> void:
 	if _card_animations.has(index):
 		_card_animations[index].call()
 		_card_animations.erase(index)
-	_update_balance_overlay()
+	# Hide balance during survey cards
+	var card_name: String = _card_names[index] if index < _card_names.size() else ""
+	if card_name.begins_with("survey_") and _balance_panel:
+		_balance_panel.visible = false
+	elif _balance_panel:
+		_balance_panel.visible = true
+		_update_balance_overlay()
 
 func _advance_card() -> void:
 	if _current_card < _cards.size() - 1:
