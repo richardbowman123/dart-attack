@@ -9,6 +9,8 @@ var _questions: Array = []
 var _answered_ids: Array = []
 var _is_web: bool = false
 var _fetched: bool = false
+var _fetch_retry_count: int = 0
+const MAX_FETCH_RETRIES: int = 60
 
 
 # ── Test data (mirrors Supabase survey_questions table) ──
@@ -96,11 +98,25 @@ const TEST_QUESTIONS: Array = [
 func _ready() -> void:
 	_is_web = OS.has_feature("web")
 	if _is_web:
-		call_deferred("_fetch_questions_from_supabase")
+		call_deferred("_try_fetch")
 	else:
 		_questions = TEST_QUESTIONS.duplicate(true)
 		_fetched = true
 		print("[Survey] Loaded %d test questions" % _questions.size())
+
+
+func _try_fetch() -> void:
+	var token = JavaScriptBridge.eval("window.dartAttackSupabase ? window.dartAttackSupabase.accessToken : ''")
+	if token and str(token) != "" and str(token) != "null":
+		_fetch_questions_from_supabase()
+	else:
+		_fetch_retry_count += 1
+		if _fetch_retry_count < MAX_FETCH_RETRIES:
+			get_tree().create_timer(0.5).timeout.connect(_try_fetch)
+		else:
+			print("[Survey] No auth token after 30s — using test data")
+			_questions = TEST_QUESTIONS.duplicate(true)
+			_fetched = true
 
 
 # ══════════════════════════════════════════

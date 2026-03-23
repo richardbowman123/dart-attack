@@ -14,13 +14,27 @@ var _session_id: String = ""
 var _session_start_ms: int = 0
 var _is_web: bool = false
 var _connected: bool = false
+var _retry_count: int = 0
+const MAX_RETRIES: int = 60
 
 
 func _ready() -> void:
 	_is_web = OS.has_feature("web")
 	if not _is_web:
 		return
+	_try_connect()
+
+
+func _try_connect() -> void:
+	if _connected:
+		return
 	_read_bridge()
+	if not _connected:
+		_retry_count += 1
+		if _retry_count < MAX_RETRIES:
+			get_tree().create_timer(0.5).timeout.connect(_try_connect)
+		else:
+			print("[Analytics] Gave up waiting for auth token after 30s")
 
 
 func _notification(what: int) -> void:
@@ -41,8 +55,7 @@ func _read_bridge() -> void:
 		_access_token = str(token)
 		_connected = true
 		_start_session()
-	else:
-		print("[Analytics] No auth credentials found — tracking disabled")
+		print("[Analytics] Connected (attempt %d)" % (_retry_count + 1))
 
 
 # ── SESSION ──

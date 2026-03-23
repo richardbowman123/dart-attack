@@ -336,7 +336,7 @@ emailInput.addEventListener('keydown', (e) => {
 let gameStarted = false;
 db.auth.onAuthStateChange((event, session) => {
 	if (event === 'SIGNED_IN' && session) {
-		startGame(session.user);
+		startGame(session.user, session.access_token);
 	}
 });
 
@@ -344,7 +344,7 @@ db.auth.onAuthStateChange((event, session) => {
 async function checkAuth() {
 	const { data: { session } } = await db.auth.getSession();
 	if (session) {
-		startGame(session.user);
+		startGame(session.user, session.access_token);
 	} else {
 		// Show login screen
 		loginScreen.style.display = 'flex';
@@ -354,7 +354,7 @@ async function checkAuth() {
 // ================================================
 // START GAME — load Godot engine only after login
 // ================================================
-function startGame(user) {
+function startGame(user, accessToken) {
 	// Prevent double-loading (both onAuthStateChange and checkAuth can fire)
 	if (gameStarted) return;
 	gameStarted = true;
@@ -376,7 +376,7 @@ function startGame(user) {
 	window.dartAttackSupabase = {
 		url: SUPABASE_URL,
 		key: SUPABASE_KEY,
-		accessToken: null
+		accessToken: accessToken || null
 	};
 
 	// Keep access token updated for Godot HTTP requests
@@ -409,7 +409,7 @@ function startGame(user) {
 	engineScript.src = 'index.js';
 	engineScript.onload = () => {
 		// Engine script loaded — start the game
-		const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":49762628,"index.wasm":35739700},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+		const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":49763236,"index.wasm":35739700},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 		const GODOT_THREADS_ENABLED = false;
 		const engine = new Engine(GODOT_CONFIG);
 
